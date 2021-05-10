@@ -195,8 +195,9 @@ class Container:
     ) -> Binding:
         """Bind a factory for a singleton service.
         Each time you ask for a service, a cached instance will be returned."""
-        self.factory(name, factory, singleton=True, aliases=aliases, tags=tags)
-        return Binding(name, self)
+        return self.factory(
+            name, factory, singleton=True, aliases=aliases, tags=tags,
+        )
 
     def alias(self, service: N, aliases: t.Union[N, list[N]]) -> None:
         """Alias an existing services with an alternate name."""
