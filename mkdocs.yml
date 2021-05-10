@@ -1,0 +1,47 @@
+site_name: Kupala Framework
+site_author: Alex Oleshkevich
+repo_name: alex-oleshkevich/kupala
+repo_url: https://github.com/alex-oleshkevich/kupala
+theme:
+    name: material
+    # 404 page
+    static_templates:
+        - 404.html
+
+    # Don't include MkDocs' JavaScript
+    include_search_page: false
+    search_index_only: true
+    palette:
+        scheme: default
+        primary: indigo
+        accent: pink
+    font:
+        text: Roboto
+        code: Roboto Mono
+    icon:
+        logo: logo
+    favicon: assets/favicon.png
+
+
+markdown_extensions:
+    - pymdownx.highlight
+    - pymdownx.superfences
+    - admonition
+    - meta
+    -   toc:
+            permalink: true
+plugins:
+    - search
+
+nav:
+    -   "The Basics":
+            -   "Architecture": architecture.md
+    -   "Advanced":
+            -   "Service Container": container.md
+
+
+# Customization
+extra:
+    social:
+        -   icon: fontawesome/brands/github
+            link: https://github.com/alex-oleshkevich/kupala

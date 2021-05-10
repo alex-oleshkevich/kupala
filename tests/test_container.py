@@ -2,10 +2,10 @@ from unittest import mock
 
 import pytest
 
-from kupala.container import alias
 from kupala.container import Container
 from kupala.container import NoTypeHintError
 from kupala.container import ParameterUnsupported
+from kupala.container import service
 from kupala.container import ServiceNotFound
 from kupala.container import tag
 
@@ -133,6 +133,16 @@ def test_invoke_creates_class_instance(container):
     assert instance.stub == "stub"
 
 
+@pytest.mark.asyncio
+async def test_invokes_async_function(container):
+    async def fn(stub: _Stub1):
+        return stub
+
+    container.bind(_Stub1, _Stub1())
+    result = await container.invoke(fn)
+    assert result == container.get(_Stub1)
+
+
 def test_tag(container):
     # service with one tag
     container.bind("a", 1, tags="service.a")
@@ -208,6 +218,24 @@ def test_post_create_hooks(container):
     fn2.assert_called_once_with(1)
 
 
+def test_post_create_hook_called_once_for_singleton(container):
+    cb = mock.MagicMock()
+    container.singleton('service', lambda: True).after_created(cb)
+    container.get('service')
+    container.get('service')
+
+    cb.assert_called_once()
+
+
+def test_post_create_hook_called_many_times_for_factory(container):
+    cb = mock.MagicMock()
+    container.factory('service', lambda: True).after_created(cb)
+    container.get('service')
+    container.get('service')
+
+    assert cb.call_count == 2
+
+
 def test_fluent_interface(container):
     def hook():
         ...
@@ -218,7 +246,7 @@ def test_fluent_interface(container):
 
 
 def test_injects_alias(container):
-    def fn(stub: alias("stub1")):
+    def fn(stub: service("stub1")):
         return stub
 
     instance = _Stub1()

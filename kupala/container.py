@@ -5,8 +5,8 @@ import typing as t
 
 S = t.TypeVar("S", bound=type)
 N = t.Union[str, type]
-Factory = t.Callable[[t.Any], S]
-PostCreateHook = t.Callable[[S], None]
+Factory = t.Callable[[], t.Union[S, t.Any]]
+PostCreateHook = t.Callable[[t.Union[S, t.Any]], None]
 
 
 class ContainerError(Exception):
@@ -22,6 +22,10 @@ class ServiceNotFound(ContainerError):
 
 
 class ParameterUnsupported(ContainerError):
+    """Raised if function or constructor parameter cannot be processed."""
+
+
+class PositionOnlyArgumentError(ParameterUnsupported):
     """Raised if function or constructor parameter is of positional type."""
 
 
@@ -56,14 +60,14 @@ class FactorySpec:
         self.singleton = singleton
 
 
-class ByAlias:
-    def __init__(self, alias: str):
-        self.alias = alias
+class _ServiceGetter:
+    def __init__(self, name: str):
+        self.name = name
 
 
-def alias(alias: str) -> ByAlias:
-    """Inject a dependency using an alias."""
-    return ByAlias(alias)
+def service(name: str) -> _ServiceGetter:
+    """Inject a dependency using a string service name."""
+    return _ServiceGetter(name)
 
 
 class ByTag:
@@ -123,7 +127,7 @@ class Container:
         injections = args
         for p in signature.parameters.values():
             if p.kind == inspect.Parameter.POSITIONAL_ONLY:
-                raise ParameterUnsupported(
+                raise PositionOnlyArgumentError(
                     'Argument "%s" of "%s": '
                     "positional only arguments not supported. " % (p.name, fn)
                 )
@@ -137,8 +141,8 @@ class Container:
 
                 dependency_type = type_hints[p.name]
                 resolved_dep: t.Any
-                if isinstance(dependency_type, ByAlias):
-                    resolved_dep = self.get(dependency_type.alias)
+                if isinstance(dependency_type, _ServiceGetter):
+                    resolved_dep = self.get(dependency_type.name)
                 elif isinstance(dependency_type, ByTag):
                     resolved_dep = self.get_by_tag(dependency_type.tag)
                 else:
