@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import abc
 import inspect
 import typing as t
 
-S = t.TypeVar("S", bound=type)
-N = t.Union[str, type]
+S = t.TypeVar("S", covariant=True)
+N = t.Union[str, t.Type[S]]
 Factory = t.Callable[[], t.Union[S, t.Any]]
 PostCreateHook = t.Callable[[t.Union[S, t.Any]], None]
 
@@ -54,12 +55,6 @@ class Binding:
         return self
 
 
-class FactorySpec:
-    def __init__(self, factory: Factory, singleton: bool):
-        self.factory = factory
-        self.singleton = singleton
-
-
 class _ServiceGetter:
     def __init__(self, name: str):
         self.name = name
@@ -80,12 +75,101 @@ def tag(tag: str) -> ByTag:
     return ByTag(tag)
 
 
+class ResolveContext(abc.ABC):
+    """Keeps resolved services."""
+
+    def __init__(self) -> None:
+        self._service_map: dict[N, BaseResolver] = {}
+
+    def __setitem__(self, service: N, value: t.Any) -> None:
+        self._service_map[service] = value
+
+    def __getitem__(self, service: N) -> t.Any:
+        return self._service_map[service]
+
+    def __contains__(self, service: N) -> bool:
+        return service in self._service_map
+
+    def __enter__(self) -> ResolveContext:
+        self._service_map = {}
+        return self
+
+    def __exit__(self, *args: t.Any) -> None:
+        self._service_map.clear()
+        self._service_map = {}
+
+
+class BaseResolver(abc.ABC):  # pragma: nocover
+    """Base resolver class."""
+
+    def resolve(self, container: Container, context: ResolveContext) -> t.Any:
+        raise NotImplementedError()
+
+
+class InstanceResolver(BaseResolver):
+    """Resolver that keeps an instance of the service."""
+
+    def __init__(self, instance: t.Any) -> None:
+        self.instance = instance
+
+    def resolve(self, container: Container, context: ResolveContext) -> t.Any:
+        return self.instance
+
+
+class _HookDispatcher:
+    def post_created(
+        self,
+        instance: t.Any,
+        service: N,
+        container: Container,
+    ) -> None:
+        callbacks = container.get_post_create_hooks(service)
+        for callback in callbacks:
+            callback(instance)
+
+
+class FactoryResolver(BaseResolver, _HookDispatcher):
+    """Resolver that creates a service from a factory function."""
+
+    def __init__(self, name: N, factory: Factory) -> None:
+        self.name = name
+        self.factory = factory
+
+    def resolve(self, container: Container, context: ResolveContext) -> t.Any:
+        instance = container.invoke(self.factory)
+        self.post_created(instance, self.name, container)
+        return instance
+
+
+class SingletonResolver(BaseResolver, _HookDispatcher):
+    """Resolver that creates a singleton service from a factory function.
+    If `scoped` is True then a created instance will be scoped
+    to the resolve context."""
+
+    def __init__(self, name: N, factory: Factory, scoped: bool) -> None:
+        self.name = name
+        self.factory = factory
+        self.scoped = scoped
+        self.instance = None
+
+    def resolve(self, container: Container, context: ResolveContext) -> t.Any:
+        if self.scoped:
+            if self.name not in context:
+                context[self.name] = container.invoke(self.factory)
+                self.post_created(context[self.name], self.name, container)
+            return context[self.name]
+
+        if not self.instance:
+            self.instance = container.invoke(self.factory)
+            self.post_created(self.instance, self.name, container)
+        return self.instance
+
+
 class Container:
     """A container for registered service instances and factories."""
 
     def __init__(self) -> None:
-        self._instances: dict[N, t.Any] = {}
-        self._factories: dict[N, FactorySpec] = {}
+        self._service_map: dict[N, BaseResolver] = {}
         self._aliases: dict[N, N] = {}
         self._tags: dict[str, list[N]] = {}
         self._post_create_hooks: dict[N, list[PostCreateHook]] = {}
@@ -98,23 +182,16 @@ class Container:
     def tags(self) -> dict[str, list[N]]:
         return self._tags
 
-    def get(self, name: N) -> S:
+    def get(self, name: N, context: ResolveContext = None) -> S:
         """Retrieve a service instance from the container."""
         real_name = self.resolve(name)
         if real_name not in self:
             raise ServiceNotFound('Service "%s" is not registered.' % name)
 
-        if real_name in self._instances:
-            return self._instances[real_name]
-
-        factory = self._factories[real_name]
-        instance = self.invoke(factory.factory)
-        if factory.singleton:
-            self._instances[name] = instance
-        callbacks = self._post_create_hooks.get(name, [])
-        for callback in callbacks:
-            callback(instance)
-        return instance
+        context = context or ResolveContext()
+        resolver = self._service_map[real_name]
+        instance = resolver.resolve(self, context)
+        return t.cast(S, instance)
 
     def invoke(self, fn: t.Union[t.Callable, type], **args: t.Any) -> t.Any:
         """Invoke a callable or class constructor injecting dependencies."""
@@ -159,7 +236,7 @@ class Container:
     ) -> Binding:
         """Bind an instance to the container.
         A cached instance always returned."""
-        self._instances[name] = instance
+        self._service_map[name] = InstanceResolver(instance)
         if aliases:
             self.alias(name, aliases)
         if tags:
@@ -173,12 +250,17 @@ class Container:
         singleton: bool = False,
         aliases: t.Union[N, list[N]] = None,
         tags: t.Union[str, list[str]] = None,
+        scoped: bool = False,
     ) -> Binding:
         """Bind a services factory.
         The service factory is a callable that creates a service instance.
         By default, it always creates a fresh instance unless `singleton`
         is specified."""
-        self._factories[name] = FactorySpec(factory, singleton)
+        if singleton:
+            self._service_map[name] = SingletonResolver(name, factory, scoped)
+        else:
+            self._service_map[name] = FactoryResolver(name, factory)
+
         if aliases:
             self.alias(name, aliases)
         if tags:
@@ -187,10 +269,11 @@ class Container:
 
     def singleton(
         self,
-        name: t.Union[str, S],
+        name: N,
         factory: Factory,
         aliases: t.Union[N, list[N]] = None,
         tags: t.Union[str, list[str]] = None,
+        scoped: bool = False,
     ) -> Binding:
         """Bind a factory for a singleton service.
         Each time you ask for a service, a cached instance will be returned."""
@@ -200,6 +283,7 @@ class Container:
             singleton=True,
             aliases=aliases,
             tags=tags,
+            scoped=scoped,
         )
 
     def alias(self, service: N, aliases: t.Union[N, list[N]]) -> None:
@@ -242,13 +326,7 @@ class Container:
     def has(self, name: N) -> bool:
         """Test if container contains service `name`."""
         try:
-            real_name = self.resolve(name)
-            return any(
-                [
-                    real_name in self._instances,
-                    real_name in self._factories,
-                ]
-            )
+            return self.resolve(name) in self._service_map
         except ServiceNotFound:
             return False
 
@@ -257,23 +335,23 @@ class Container:
         self._post_create_hooks.setdefault(name, [])
         self._post_create_hooks[name].append(hook)
 
+    def get_post_create_hooks(self, name: N) -> list[PostCreateHook]:
+        return self._post_create_hooks.get(name, [])
+
     def resolve(self, name: N) -> N:
         """Resolve a service name or an alias into an actual service name."""
         if name in self._aliases:
             return self.resolve(self._aliases[name])
 
-        if not any([name in self._instances, name in self._factories]):
+        if name not in self._service_map:
             raise ServiceNotFound('Name "%s" not found in the container.' % name)
         return name
 
     def remove(self, name: N) -> None:
         """Remove service from the container.
         This will also remove all aliases and tags."""
-        if name in self._instances:
-            del self._instances[name]
-
-        if name in self._factories:
-            del self._factories
+        if name in self._service_map:
+            del self._service_map[name]
 
         for tag in self.get_tags(name):
             self._tags[tag].remove(name)

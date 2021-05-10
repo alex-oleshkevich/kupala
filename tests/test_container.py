@@ -2,9 +2,11 @@ from unittest import mock
 
 import pytest
 
+from kupala.container import AliasExistsError
 from kupala.container import Container
 from kupala.container import NoTypeHintError
 from kupala.container import ParameterUnsupported
+from kupala.container import ResolveContext
 from kupala.container import service
 from kupala.container import ServiceNotFound
 from kupala.container import tag
@@ -182,6 +184,9 @@ def test_alias(container):
     container.alias("d2", "d3")
     assert container.get_aliases("d") == ["d1", "d2", "d3"]
 
+    with pytest.raises(AliasExistsError):
+        container.alias('d2', 'd3')
+
 
 def test_remove(container):
     container.bind("a", 1, aliases=["a1", "a2"], tags=["ta1", "ta2"])
@@ -261,3 +266,42 @@ def test_injects_by_tag(container):
     instance = _Stub1()
     container.bind(_Stub1, instance, tags="stub1")
     assert container.invoke(fn) == [instance]
+
+
+def test_scoped_services(container):
+    def factory():
+        return _Stub1()
+
+    context = ResolveContext()
+    container.singleton('service', factory, scoped=True)
+
+    with context:
+        instance1 = container.get('service', context)
+        instance2 = container.get('service', context)
+
+        assert instance1 == instance2
+
+    with context:
+        instance3 = container.get('service', context)
+
+        assert instance1 != instance3
+
+
+def test_binding(container):
+    fn = mock.MagicMock()
+    container.factory('service', lambda: True).tag('tag_a').alias(
+        'alias_a'
+    ).after_created(fn)
+
+    assert container.get('alias_a') is True
+    assert container.get_by_tag('tag_a') == [True]
+    assert fn.call_count == 2
+
+
+def test_resolve_context():
+    context = ResolveContext()
+    with context:
+        context['test'] = True
+        assert 'test' in context
+        assert context['test'] is True
+    assert 'test' not in context
