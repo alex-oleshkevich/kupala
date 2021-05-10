@@ -246,7 +246,7 @@ def test_fluent_interface(container):
 
 
 def test_injects_alias(container):
-    def fn(stub: service("stub1")):
+    def fn(stub: service("stub1")):  # noqa
         return stub
 
     instance = _Stub1()
@@ -255,7 +255,7 @@ def test_injects_alias(container):
 
 
 def test_injects_by_tag(container):
-    def fn(stub: tag("stub1")):
+    def fn(stub: tag("stub1")):  # noqa
         return stub
 
     instance = _Stub1()
