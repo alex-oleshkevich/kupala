@@ -85,6 +85,7 @@ def test_factory_injects(container):
     container.bind(_Stub2, stub2)
     container.factory(_Stub3, factory)
     instance = container.get(_Stub3)
+
     assert isinstance(instance, _Stub3)
     assert instance.stub == stub1
     assert instance.stub2 == stub2
@@ -185,7 +186,7 @@ def test_alias(container):
     assert container.get_aliases("d") == ["d1", "d2", "d3"]
 
     with pytest.raises(AliasExistsError):
-        container.alias('d2', 'd3')
+        container.alias("d2", "d3")
 
 
 def test_remove(container):
@@ -273,35 +274,35 @@ def test_scoped_services(container):
         return _Stub1()
 
     context = ResolveContext()
-    container.singleton('service', factory, scoped=True)
+    container.singleton("service", factory, scoped=True)
 
     with context:
-        instance1 = container.get('service', context)
-        instance2 = container.get('service', context)
+        instance1 = container.get("service", context)
+        instance2 = container.get("service", context)
 
         assert instance1 == instance2
 
     with context:
-        instance3 = container.get('service', context)
+        instance3 = container.get("service", context)
 
         assert instance1 != instance3
 
 
 def test_binding(container):
     fn = mock.MagicMock()
-    container.factory('service', lambda: True).tag('tag_a').alias(
-        'alias_a'
+    container.factory("service", lambda: True).tag("tag_a").alias(
+        "alias_a"
     ).after_created(fn)
 
-    assert container.get('alias_a') is True
-    assert container.get_by_tag('tag_a') == [True]
+    assert container.get("alias_a") is True
+    assert container.get_by_tag("tag_a") == [True]
     assert fn.call_count == 2
 
 
 def test_resolve_context():
     context = ResolveContext()
     with context:
-        context['test'] = True
-        assert 'test' in context
-        assert context['test'] is True
-    assert 'test' not in context
+        context["test"] = True
+        assert "test" in context
+        assert context["test"] is True
+    assert "test" not in context

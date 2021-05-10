@@ -34,7 +34,7 @@ repos:
         hooks:
             -   id: black
                 language_version: python3.9
-                files: kupala/
+                files: ^(kupala|tests)
 
     -   repo: https://gitlab.com/pycqa/flake8
         rev: 3.7.9
