@@ -25,4 +25,4 @@ jobs:
                     poetry install --no-interaction
             -   name: Build and publish
                 run: |
-                    poetry publish -u ${{ secrets.PYPI_USERNAME }} -p ${{ secrets.PYPI_PASSWORD }}
+                    poetry publish -u ${{ secrets.PYPI_USERNAME }} -p ${{ secrets.PYPI_PASSWORD }} --build
