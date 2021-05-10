@@ -25,4 +25,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 norecursedirs = [".git", "docs", ".venv"]
-addopts = "--tb=short -s --no-cov-on-fail -cov"
+addopts = "--tb=short -s --no-cov-on-fail --cov kupala"
