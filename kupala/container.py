@@ -135,9 +135,8 @@ class Container:
             if p.name not in injections:
                 if p.name not in type_hints:
                     raise NoTypeHintError(
-                        'Argument "%s" of "%s" has no type hint.' % (
-                            p.name, fn
-                        ))
+                        'Argument "%s" of "%s" has no type hint.' % (p.name, fn)
+                    )
 
                 dependency_type = type_hints[p.name]
                 resolved_dep: t.Any
@@ -152,11 +151,11 @@ class Container:
         return fn(**injections)
 
     def bind(
-            self,
-            name: N,
-            instance: t.Any,
-            aliases: t.Union[N, list[N]] = None,
-            tags: t.Union[str, list[str]] = None,
+        self,
+        name: N,
+        instance: t.Any,
+        aliases: t.Union[N, list[N]] = None,
+        tags: t.Union[str, list[str]] = None,
     ) -> Binding:
         """Bind an instance to the container.
         A cached instance always returned."""
@@ -168,12 +167,12 @@ class Container:
         return Binding(name, self)
 
     def factory(
-            self,
-            name: N,
-            factory: Factory,
-            singleton: bool = False,
-            aliases: t.Union[N, list[N]] = None,
-            tags: t.Union[str, list[str]] = None,
+        self,
+        name: N,
+        factory: Factory,
+        singleton: bool = False,
+        aliases: t.Union[N, list[N]] = None,
+        tags: t.Union[str, list[str]] = None,
     ) -> Binding:
         """Bind a services factory.
         The service factory is a callable that creates a service instance.
@@ -187,16 +186,20 @@ class Container:
         return Binding(name, self)
 
     def singleton(
-            self,
-            name: t.Union[str, S],
-            factory: Factory,
-            aliases: t.Union[N, list[N]] = None,
-            tags: t.Union[str, list[str]] = None,
+        self,
+        name: t.Union[str, S],
+        factory: Factory,
+        aliases: t.Union[N, list[N]] = None,
+        tags: t.Union[str, list[str]] = None,
     ) -> Binding:
         """Bind a factory for a singleton service.
         Each time you ask for a service, a cached instance will be returned."""
         return self.factory(
-            name, factory, singleton=True, aliases=aliases, tags=tags,
+            name,
+            factory,
+            singleton=True,
+            aliases=aliases,
+            tags=tags,
         )
 
     def alias(self, service: N, aliases: t.Union[N, list[N]]) -> None:
@@ -218,8 +221,7 @@ class Container:
     def get_aliases(self, service: N) -> list[t.Union[str, type]]:
         """Get all aliases assigned to the service."""
         return [
-            alias for alias, real_name in self._aliases.items() if
-            real_name == service
+            alias for alias, real_name in self._aliases.items() if real_name == service
         ]
 
     def tag(self, service: N, tags: t.Union[str, list[str]]) -> None:
@@ -235,8 +237,7 @@ class Container:
 
     def get_tags(self, service: N) -> list[str]:
         """Get all tags assigned to the service."""
-        return [tag for tag, services in self._tags.items() if
-                service in services]
+        return [tag for tag, services in self._tags.items() if service in services]
 
     def has(self, name: N) -> bool:
         """Test if container contains service `name`."""
@@ -262,8 +263,7 @@ class Container:
             return self.resolve(self._aliases[name])
 
         if not any([name in self._instances, name in self._factories]):
-            raise ServiceNotFound(
-                'Name "%s" not found in the container.' % name)
+            raise ServiceNotFound('Name "%s" not found in the container.' % name)
         return name
 
     def remove(self, name: N) -> None:

@@ -19,6 +19,7 @@ isort = "^5.8.0"
 autoflake = "^1.4"
 mkdocs = "^1.1.2"
 mkdocs-material = "^7.1.4"
+flake8 = "^3.9.2"
 
 
 [build-system]

@@ -220,18 +220,18 @@ def test_post_create_hooks(container):
 
 def test_post_create_hook_called_once_for_singleton(container):
     cb = mock.MagicMock()
-    container.singleton('service', lambda: True).after_created(cb)
-    container.get('service')
-    container.get('service')
+    container.singleton("service", lambda: True).after_created(cb)
+    container.get("service")
+    container.get("service")
 
     cb.assert_called_once()
 
 
 def test_post_create_hook_called_many_times_for_factory(container):
     cb = mock.MagicMock()
-    container.factory('service', lambda: True).after_created(cb)
-    container.get('service')
-    container.get('service')
+    container.factory("service", lambda: True).after_created(cb)
+    container.get("service")
+    container.get("service")
 
     assert cb.call_count == 2
 
