@@ -5,17 +5,14 @@ from contextlib import AsyncExitStack
 
 import click
 from starlette.middleware.errors import ServerErrorMiddleware
-from starlette.types import ASGIApp
-from starlette.types import Receive
-from starlette.types import Scope
-from starlette.types import Send
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+from kupala.container import Container
 
 from . import commands
 from .middleware import MiddlewareStack
 from .requests import Request
-from .routing import Router
-from .routing import Routes
-from kupala.container import Container
+from .routing import Router, Routes
 
 
 class App(Container):

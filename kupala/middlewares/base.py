@@ -23,7 +23,7 @@ class BaseHTTPMiddleware(base.BaseHTTPMiddleware):
         response = await self.dispatch_func(scope["request"], self.call_next)
         await response(scope, receive, send)
 
-    async def dispatch(
+    async def dispatch(  # type: ignore[override]
         self,
         request: Request,
         call_next: RequestResponseEndpoint,

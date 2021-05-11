@@ -79,7 +79,7 @@ def dump(
 
 
 def dumps(value: JSONData, **kwargs: t.Any) -> str:
-    if "default" not in kwargs:
+    if "default" not in kwargs and "cls" not in kwargs:
         kwargs["default"] = json_default
     return json.dumps(value, **kwargs)
 

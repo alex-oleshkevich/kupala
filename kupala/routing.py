@@ -44,6 +44,7 @@ class Redirect:
         send: Send,
     ) -> None:
         response = responses.RedirectResponse(
+            scope["request"],
             self.destination,
             self.status_code,
         )

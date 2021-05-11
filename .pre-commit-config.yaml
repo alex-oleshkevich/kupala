@@ -55,7 +55,6 @@ repos:
                     - --disallow-untyped-defs
                     - --ignore-missing-imports
                     - --warn-unused-configs
-                    - --warn-unused-ignores
                     - --warn-unreachable
                     - --warn-redundant-casts
 
