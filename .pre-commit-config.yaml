@@ -51,6 +51,13 @@ repos:
             -   id: mypy
                 files: kupala
                 exclude: ^tests/
+                args:
+                    - --disallow_untyped_defs
+                    - --ignore_missing_imports
+                    - --warn_unused_configs
+                    - --warn_unused_ignores
+                    - --warn_unreachable
+                    - --warn_redundant_casts
 
     -   repo: local
         hooks:
