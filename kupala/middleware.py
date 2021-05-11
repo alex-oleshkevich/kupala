@@ -13,7 +13,7 @@ from starlette.types import Send
 class Middleware:
     """Keeps middleware callable along with its constructor arguments."""
 
-    def __init__(self, obj: t.Type[ASGIApp], **kwargs: t.Any) -> None:
+    def __init__(self, obj: t.Type, **kwargs: t.Any) -> None:
         self.obj = obj
         self.args = kwargs
 
@@ -22,7 +22,7 @@ class Middleware:
         return self.obj(app, **self.args)
 
     def __repr__(self) -> str:  # pragma: nocover
-        return f"<Middleware: %s, kwargs=%r>" % (self.obj, self.args)
+        return "<Middleware: %s, kwargs=%r>" % (self.obj, self.args)
 
 
 class MiddlewareStack:
@@ -32,7 +32,7 @@ class MiddlewareStack:
         self._global: list[Middleware] = []
         self._groups: dict[str, MiddlewareStack] = {}
 
-    def use(self, mw: t.Type[ASGIApp], **kwargs: t.Any) -> None:
+    def use(self, mw: t.Type, **kwargs: t.Any) -> None:
         """Add middleware to the end of stack."""
         self._global.append(Middleware(mw, **kwargs))
 
@@ -57,7 +57,7 @@ class MiddlewareStack:
         return len(self._global)
 
     def __str__(self) -> str:  # pragma: nocover
-        return f"<MiddlewareStack: %s middleware, %s groups>" % (
+        return "<MiddlewareStack: %s middleware, %s groups>" % (
             len(self),
             len(self._groups.keys()),
         )

@@ -11,7 +11,7 @@ JSONEncoder = json.JSONEncoder
 
 
 def json_default(o: t.Any) -> t.Any:
-    """ Usage: json.dumps(data, default=json_default) """
+    """Usage: json.dumps(data, default=json_default)"""
     if hasattr(o, "__json__"):
         return o.__json__()
 
@@ -43,7 +43,7 @@ def json_default(o: t.Any) -> t.Any:
 
 
 def walk(value: t.Any, callback: t.Callable) -> t.Any:
-    """Visit each item and apply """
+    """Visit each item and apply"""
     if isinstance(value, dict):
         for key, value_ in value.items():
             value[key] = walk(value_, callback)

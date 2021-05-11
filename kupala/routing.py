@@ -4,6 +4,8 @@ import pathlib
 import typing as t
 
 from starlette import routing
+from starlette.datastructures import URLPath
+from starlette.routing import Match
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp
 from starlette.types import Receive
@@ -50,56 +52,40 @@ class Redirect:
         await response(scope, receive, send)
 
 
-class Host:
-    """Groups routes under a subdomain."""
-
-    def __init__(
-        self,
-        domain: str,
-        middleware_groups: list[str] = None,
-    ) -> None:
-        self.middleware_groups = middleware_groups or []
+class Host(routing.BaseRoute):
+    def __init__(self, host: str, middleware: list[str] = None):
+        self.host = host
+        self.middleware = middleware or []
         self.routes = Routes()
-        self.domain = domain
-        self.wrapped_app: t.Optional[ASGIApp] = None
         self.host_app: t.Optional[routing.Host] = None
-
-    @property
-    def app(self) -> routing.Host:
-        if self.host_app is None:
-            self.host_app = routing.Host(
-                self.domain,
-                Router(list(self.routes)),
-            )
-        return self.host_app
+        self.host_app_with_middleware: t.Optional[ASGIApp] = None
 
     async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
-        await self(scope, receive, send)
+        host_app = t.cast(ASGIApp, self._get_host_app())
+        if self.host_app_with_middleware is None:
+            stack: MiddlewareStack = scope["app"].middleware
+            for group in self.middleware:
+                for middleware in reversed(stack.group(group)):
+                    host_app = middleware.wrap(host_app)
+            self.host_app_with_middleware = host_app
+        await self.host_app_with_middleware(scope, receive, send)
 
-    def __getattr__(self, item: str) -> t.Any:
-        return getattr(self.app, item)
+    def matches(self, scope: Scope) -> t.Tuple[Match, Scope]:
+        return self._get_host_app().matches(scope)
+
+    def url_path_for(self, name: str, **path_params: str) -> URLPath:
+        return self._get_host_app().url_path_for(name, **path_params)
+
+    def _get_host_app(self) -> routing.Host:
+        if self.host_app is None:
+            self.host_app = routing.Host(self.host, Router(self.routes))
+        return self.host_app
 
     def __enter__(self) -> Routes:
         return self.routes
 
     def __exit__(self, *args: t.Any) -> None:
         pass
-
-    async def __call__(
-        self,
-        scope: Scope,
-        receive: Receive,
-        send: Send,
-    ) -> None:
-        if self.wrapped_app is None:
-            self.wrapped_app = self.app
-            stack: MiddlewareStack = scope["app"].middleware
-            for group in self.middleware_groups:
-                for middleware in reversed(stack.group(group)):
-                    self.wrapped_app = middleware.wrap(self.wrapped_app)
-
-        assert self.wrapped_app
-        return await self.wrapped_app(scope, receive, send)
 
 
 class Group:
@@ -128,7 +114,7 @@ class Group:
         send: Send,
     ) -> None:
         if self.wrapped_app is None:
-            self.wrapped_app = Router(list(self.routes))
+            self.wrapped_app = Router(self.routes)
             stack: MiddlewareStack = scope["app"].middleware
             for group in self.middleware_groups:
                 for middleware in reversed(stack.group(group)):
@@ -138,9 +124,9 @@ class Group:
         return await self.wrapped_app(scope, receive, send)
 
 
-class Routes:
+class Routes(t.Sequence[routing.BaseRoute]):
     def __init__(self) -> None:
-        self._routes: list[t.Union[routing.BaseRoute, ASGIApp]] = []
+        self._routes: list[routing.BaseRoute] = []
 
     def get(
         self,
@@ -232,13 +218,11 @@ class Routes:
     def group(
         self,
         path: str,
-        middleware: t.Union[str, list[str]] = None,
+        middleware: list[str] = None,
     ) -> Group:
         """Group groups by a common path.
         Optionally, apply a list of middleware on this group.
         These middleware will be called before calling the endpoint."""
-        if isinstance(middleware, str):
-            middleware = [middleware]
         group = Group(middleware)
         self.mount(path, group)
         return group
@@ -258,14 +242,12 @@ class Routes:
     def host(
         self,
         domain: str,
-        middleware: t.Union[str, list[str]] = None,
+        middleware: list[str] = None,
     ) -> Host:
         """Group groups by a subdomain.
 
         Optionally, apply a list of middleware on this group.
         These middleware will be called before calling the endpoint."""
-        if isinstance(middleware, str):
-            middleware = [middleware]
         subdomain = Host(domain, middleware)
         self._routes.append(subdomain)
         return subdomain
@@ -284,17 +266,24 @@ class Routes:
 
     load_from_callback = include
 
-    def __enter__(self) -> Routes:
-        return self
-
-    def __exit__(self, *args: t.Any) -> None:
-        pass
-
     def __iter__(self) -> t.Iterator[routing.BaseRoute]:
         return iter(self._routes)
 
     def __len__(self) -> int:
         return len(self._routes)
 
-    def __getitem__(self, index: int) -> t.Union[routing.BaseRoute, ASGIApp]:
+    @t.overload  # pragma: no cover
+    def __getitem__(self, i: int) -> routing.BaseRoute:  # noqa: F811
+        ...
+
+    @t.overload  # pragma: no cover
+    def __getitem__(self, s: slice) -> t.Sequence[routing.BaseRoute]:  # noqa: F811
+        ...
+
+    def __getitem__(  # noqa: F811
+        self, index: t.Union[int, slice]
+    ) -> t.Union[routing.BaseRoute, t.Sequence[routing.BaseRoute]]:
+        """Not used, only here to match the interface of Sequence type.
+        The router requires routes to be of Sequence type, this class
+        mimics to the Sequence and therefore must implement __getitem__."""
         return self._routes[index]

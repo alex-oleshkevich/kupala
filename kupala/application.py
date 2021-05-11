@@ -29,13 +29,15 @@ class App(Container):
             commands.serve,
         ]
 
+        self._router: t.Optional[Router] = None
         self._asgi_app_instance: t.Optional[ASGIApp] = None
 
     @property
     def asgi_app(self) -> ASGIApp:
         """Create ASGI application. Once created a cached instance returned."""
         if self._asgi_app_instance is None:
-            app: ASGIApp = Router(list(self.routes))
+            self._router = Router(self.routes)
+            app: ASGIApp = self._router
             self.middleware.use(ServerErrorMiddleware, debug=self.debug)
             for mw in reversed(self.middleware):
                 app = mw.wrap(app)

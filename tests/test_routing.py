@@ -8,6 +8,10 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocket
 
 from kupala.application import App
+from kupala.routing import Host
+from kupala.routing import Route
+from kupala.routing import Router
+from kupala.routing import Routes
 
 
 @pytest.fixture()
@@ -36,6 +40,12 @@ def test_get(test_client, app):
 
 def test_post(test_client, app):
     app.routes.post("/", view)
+    assert test_client.post("/").status_code == 200
+
+
+def test_get_or_post(test_client, app):
+    app.routes.get_or_post("/", view)
+    assert test_client.get("/").status_code == 200
     assert test_client.post("/").status_code == 200
 
 
@@ -176,3 +186,24 @@ def test_static(test_client, app, tmp_path):
     response = test_client.get("/static/styles.css")
     assert response.status_code == 200
     assert response.text == "body {}"
+
+
+def test_host_route(test_client, app):
+    host = Host("api.example.com")
+    with host as routes:
+        routes.get("/v1/users/", view, name="api")
+
+    app = Router([host])
+    assert app.url_path_for("api") == "/v1/users/"
+
+
+def test_include():
+    routes = Routes()
+    routes.include("tests.fixtures.routes")
+    assert len(routes) == 1
+
+
+def test_get_route_by_index():
+    routes = Routes()
+    routes.get("/", view)
+    assert isinstance(routes[0], Route)
