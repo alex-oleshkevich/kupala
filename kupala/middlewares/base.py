@@ -6,7 +6,7 @@ from starlette.types import Receive, Scope, Send
 from kupala.requests import Request
 from kupala.responses import Response
 
-RequestResponseEndpoint = t.Type[base.RequestResponseEndpoint]
+RequestResponseEndpoint = t.Callable[[Request], t.Awaitable[Response]]
 
 
 class BaseHTTPMiddleware(base.BaseHTTPMiddleware):

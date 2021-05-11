@@ -12,8 +12,8 @@ JSONEncoder = json.JSONEncoder
 
 def json_default(o: t.Any) -> t.Any:
     """Usage: json.dumps(data, default=json_default)"""
-    if hasattr(o, "__json__"):
-        return o.__json__()
+    if hasattr(o, "to_json"):
+        return o.to_json()
 
     if isinstance(o, (uuid.UUID, datetime.timedelta)):
         return str(o)
@@ -22,6 +22,9 @@ def json_default(o: t.Any) -> t.Any:
         return o.isoformat()
 
     if isinstance(o, datetime.date):
+        return o.isoformat()
+
+    if isinstance(o, datetime.time):
         return o.isoformat()
 
     if isinstance(o, (set, frozenset)):
@@ -33,13 +36,10 @@ def json_default(o: t.Any) -> t.Any:
     if isinstance(o, Enum):
         return o.value
 
-    if isinstance(o, datetime.time):
-        return o.isoformat()
-
     if dataclasses.is_dataclass(o):
         return dataclasses.asdict(o)
 
-    raise TypeError(repr(o) + " is not JSON serializable")
+    return JSONEncoder().default(o)
 
 
 def walk(value: t.Any, callback: t.Callable) -> t.Any:
@@ -55,12 +55,15 @@ def walk(value: t.Any, callback: t.Callable) -> t.Any:
         value = dataclasses.asdict(value)
         return walk(value, callback)
 
-    return callback(value)
+    try:
+        return callback(value)
+    except TypeError:
+        return value
 
 
 def jsonify(value: t.Any) -> t.Any:
     """Visit each item and convert it into JSON serializable value."""
-    return walk(value, functools.partial(json_default, throw=False))
+    return walk(value, functools.partial(json_default))
 
 
 JSONData = t.Any  # https://github.com/python/typing/issues/182
