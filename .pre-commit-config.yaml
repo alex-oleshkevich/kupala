@@ -21,13 +21,17 @@ repos:
                 exclude_types: [ svg ]
             -   id: check-yaml
 
-    -   repo: git://github.com/asottile/reorder_python_imports
-        rev: v2.5.0
+    -   repo: https://github.com/pycqa/isort
+        rev: 5.8.0
         hooks:
-            -   id: reorder-python-imports
-                language_version: 'python3.9'
-                args:
-                    - --py3-plus
+            -   id: isort
+                name: isort (python)
+            -   id: isort
+                name: isort (cython)
+                types: [ cython ]
+            -   id: isort
+                name: isort (pyi)
+                types: [ pyi ]
 
     -   repo: https://github.com/psf/black.git
         rev: 21.5b0

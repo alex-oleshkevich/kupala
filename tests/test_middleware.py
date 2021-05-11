@@ -1,6 +1,6 @@
-from kupala.middleware import BaseHTTPMiddleware
-from kupala.middleware import Middleware
-from kupala.middleware import MiddlewareStack
+from kupala.middleware import Middleware, MiddlewareStack
+from kupala.middlewares.base import BaseHTTPMiddleware
+from kupala.routing import Router
 
 
 class StubMiddleware(BaseHTTPMiddleware):
@@ -39,3 +39,10 @@ def test_middleware_stack_groups():
 
     assert len(stack.group("admin")) == 1
     assert len(stack) == 1
+
+
+def test_middleware_wraps_app():
+    app = Router()
+    mw = Middleware(StubMiddleware)
+    wrapped = mw.wrap(app)
+    assert isinstance(wrapped, StubMiddleware)

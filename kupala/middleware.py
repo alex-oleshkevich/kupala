@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-import functools
 import typing as t
 
-from starlette.middleware import base
 from starlette.types import ASGIApp
-from starlette.types import Receive
-from starlette.types import Scope
-from starlette.types import Send
 
 
 class Middleware:
@@ -21,7 +16,7 @@ class Middleware:
         """Wraps ASGI application with this middleware."""
         return self.obj(app, **self.args)
 
-    def __repr__(self) -> str:  # pragma: nocover
+    def __repr__(self) -> str:  # pragma: no cover
         return "<Middleware: %s, kwargs=%r>" % (self.obj, self.args)
 
 
@@ -61,31 +56,3 @@ class MiddlewareStack:
             len(self),
             len(self._groups.keys()),
         )
-
-
-class BaseHTTPMiddleware(base.BaseHTTPMiddleware):
-    async def __call__(
-        self,
-        scope: Scope,
-        receive: Receive,
-        send: Send,
-    ) -> None:
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        response = await self.dispatch_func(scope["request"], self.call_next)
-        await response(scope, receive, send)
-
-
-def middleware(
-    *args: t.Any,
-    **kwargs: t.Any,
-) -> t.Callable[[t.Any], BaseHTTPMiddleware]:
-    def wrapper(fn: t.Callable) -> BaseHTTPMiddleware:
-        callback = functools.partial(fn, *args, **kwargs)
-        return t.cast(
-            BaseHTTPMiddleware, functools.partial(BaseHTTPMiddleware, dispatch=callback)
-        )
-
-    return wrapper

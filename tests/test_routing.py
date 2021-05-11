@@ -1,22 +1,10 @@
 import os
 
-import pytest
 from starlette.requests import Request
-from starlette.responses import JSONResponse
-from starlette.responses import PlainTextResponse
-from starlette.testclient import TestClient
+from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.websockets import WebSocket
 
-from kupala.application import App
-from kupala.routing import Host
-from kupala.routing import Route
-from kupala.routing import Router
-from kupala.routing import Routes
-
-
-@pytest.fixture()
-def app() -> App:
-    return App()
+from kupala.routing import Host, Route, Router, Routes
 
 
 def view(request: Request):
@@ -26,11 +14,6 @@ def view(request: Request):
             "path_params": dict(request.path_params),
         }
     )
-
-
-@pytest.fixture()
-def test_client(app):
-    return TestClient(app)
 
 
 def test_get(test_client, app):

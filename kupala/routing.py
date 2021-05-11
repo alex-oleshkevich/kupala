@@ -7,14 +7,12 @@ from starlette import routing
 from starlette.datastructures import URLPath
 from starlette.routing import Match
 from starlette.staticfiles import StaticFiles
-from starlette.types import ASGIApp
-from starlette.types import Receive
-from starlette.types import Scope
-from starlette.types import Send
+from starlette.types import ASGIApp, Receive, Scope, Send
 
-from . import responses
 from kupala.middleware import MiddlewareStack
 from kupala.utils import import_string
+
+from . import responses
 
 
 class Router(routing.Router):
@@ -29,7 +27,7 @@ class Mount(routing.Mount):
     ...
 
 
-class WebSocket(routing.WebSocketRoute):
+class WebSocketRoute(routing.WebSocketRoute):
     ...
 
 
@@ -213,7 +211,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         name: str = None,
     ) -> None:
         """Add websocket endpoint."""
-        self._routes.append(WebSocket(path, endpoint, name=name))
+        self._routes.append(WebSocketRoute(path, endpoint, name=name))
 
     def group(
         self,
