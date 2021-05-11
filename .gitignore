@@ -318,4 +318,6 @@ dist
 
 # TernJS port file
 .tern-port
+.idea
+setup.py
 

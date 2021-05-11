@@ -40,4 +40,4 @@ jobs:
                     black --check kupala tests
             -   name: Test with pytest
                 run: |
-                    pytest
+                    pytest --no-cov-on-fail --cov kupala --cov tests
