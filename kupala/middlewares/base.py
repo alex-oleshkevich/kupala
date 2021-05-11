@@ -24,6 +24,8 @@ class BaseHTTPMiddleware(base.BaseHTTPMiddleware):
         await response(scope, receive, send)
 
     async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
     ) -> Response:
         raise NotImplementedError()  # pragma: no cover
