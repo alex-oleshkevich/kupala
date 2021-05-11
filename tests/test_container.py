@@ -2,14 +2,16 @@ from unittest import mock
 
 import pytest
 
-from kupala.container import AliasExistsError
-from kupala.container import Container
-from kupala.container import NoTypeHintError
-from kupala.container import ParameterUnsupported
-from kupala.container import ResolveContext
-from kupala.container import service
-from kupala.container import ServiceNotFound
-from kupala.container import tag
+from kupala.container import (
+    AliasExistsError,
+    Container,
+    NoTypeHintError,
+    ParameterUnsupported,
+    ResolveContext,
+    ServiceNotFound,
+    service,
+    tag,
+)
 
 
 class _Stub1:
@@ -50,9 +52,11 @@ def test_factory(container):
     def factory() -> _Stub1:
         return _Stub1()
 
-    container.factory(_Stub1, factory)
+    container.factory(_Stub1, factory, aliases="factory", tags=["tag"])
     instance = container.get(_Stub1)
     assert isinstance(instance, _Stub1)
+    assert container.get("factory")
+    assert len(container.get_by_tag("tag")) == 1
 
 
 def test_factory_singleton(container):
@@ -192,6 +196,7 @@ def test_alias(container):
 def test_remove(container):
     container.bind("a", 1, aliases=["a1", "a2"], tags=["ta1", "ta2"])
     container.alias("a2", "b")
+    container.add_post_create_hook("a", mock.MagicMock())
 
     container.remove("a")
     with pytest.raises(ServiceNotFound):
@@ -200,6 +205,7 @@ def test_remove(container):
         container.get("a2")
 
     assert "a" not in container
+    assert "a" not in container.post_create_hooks
     assert "ta1" not in container.tags
     assert "ta2" not in container.tags
     assert "a1" not in container.aliases
@@ -273,17 +279,19 @@ def test_scoped_services(container):
     def factory():
         return _Stub1()
 
-    context = ResolveContext()
     container.singleton("service", factory, scoped=True)
 
-    with context:
-        instance1 = container.get("service", context)
-        instance2 = container.get("service", context)
+    with container.scoped():
+        instance1 = container.get("service")
+        instance2 = container.get("service")
 
         assert instance1 == instance2
 
-    with context:
-        instance3 = container.get("service", context)
+    assert instance1 != container.get("service")
+    assert instance2 != container.get("service")
+
+    with container.scoped():
+        instance3 = container.get("service")
 
         assert instance1 != instance3
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import inspect
 import typing as t
+from contextlib import contextmanager
 
 S = t.TypeVar("S", covariant=True)
 N = t.Union[str, t.Type[S]]
@@ -173,6 +174,7 @@ class Container:
         self._aliases: dict[N, N] = {}
         self._tags: dict[str, list[N]] = {}
         self._post_create_hooks: dict[N, list[PostCreateHook]] = {}
+        self._current_context = ResolveContext()
 
     @property
     def aliases(self) -> dict[N, N]:
@@ -182,15 +184,15 @@ class Container:
     def tags(self) -> dict[str, list[N]]:
         return self._tags
 
-    def get(self, name: N, context: ResolveContext = None) -> S:
+    @property
+    def post_create_hooks(self) -> dict[N, list[PostCreateHook]]:
+        return self._post_create_hooks
+
+    def get(self, name: N) -> S:
         """Retrieve a service instance from the container."""
         real_name = self.resolve(name)
-        if real_name not in self:
-            raise ServiceNotFound('Service "%s" is not registered.' % name)
-
-        context = context or ResolveContext()
         resolver = self._service_map[real_name]
-        instance = resolver.resolve(self, context)
+        instance = resolver.resolve(self, self._current_context)
         return t.cast(S, instance)
 
     def invoke(self, fn: t.Union[t.Callable, type], **args: t.Any) -> t.Any:
@@ -363,6 +365,13 @@ class Container:
 
         if name in self._post_create_hooks:
             del self._post_create_hooks[name]
+
+    @contextmanager
+    def scoped(self, context: ResolveContext = None) -> t.Iterator[None]:
+        context = context or ResolveContext()
+        self._current_context = context
+        yield
+        self._current_context = ResolveContext()
 
     __contains__ = has
     __getitem__ = get
