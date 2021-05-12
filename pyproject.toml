@@ -25,6 +25,7 @@ autoflake = "^1.4"
 mkdocs = "^1.1.2"
 mkdocs-material = "^7.1.4"
 flake8 = "^3.9.2"
+mypy = "^0.812"
 
 
 [build-system]
@@ -32,5 +33,5 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
-norecursedirs = [".git", "docs", ".venv"]
+norecursedirs = [".git", "docs", ".venv", "local"]
 addopts = "--tb=short -s"
