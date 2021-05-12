@@ -13,7 +13,7 @@ class _Example(BaseHTTPMiddleware):
         super().__init__(app)
         self.fn = fn
 
-    async def dispatch(
+    async def dispatch(  # type: ignore[override]
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         self.fn(request)
