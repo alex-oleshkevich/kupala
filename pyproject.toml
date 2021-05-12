@@ -35,3 +35,4 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 norecursedirs = [".git", "docs", ".venv", "local"]
 addopts = "--tb=short -s"
+testpaths = ["tests"]

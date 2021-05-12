@@ -9,7 +9,6 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.container import Container
 
-from . import commands
 from .middleware import MiddlewareStack
 from .requests import Request
 from .routing import Router, Routes
@@ -22,9 +21,7 @@ class App(Container):
         self.middleware = MiddlewareStack()
         self.lifecycle: list[t.AsyncContextManager] = []
         self.routes = Routes()
-        self.commands = [
-            commands.serve,
-        ]
+        self.commands: list[click.Command] = []
 
         self._router: t.Optional[Router] = None
         self._asgi_app_instance: t.Optional[ASGIApp] = None
