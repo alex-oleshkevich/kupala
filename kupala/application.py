@@ -9,6 +9,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.container import Container
 
+from .extensions import Extensions
 from .middleware import MiddlewareStack
 from .requests import Request
 from .routing import Router, Routes
@@ -22,14 +23,17 @@ class App(Container):
         self.lifecycle: list[t.AsyncContextManager] = []
         self.routes = Routes()
         self.commands: list[click.Command] = []
+        self.extensions = Extensions()
 
         self._router: t.Optional[Router] = None
         self._asgi_app_instance: t.Optional[ASGIApp] = None
+        self._booted = False
 
     @property
     def asgi_app(self) -> ASGIApp:
         """Create ASGI application. Once created a cached instance returned."""
         if self._asgi_app_instance is None:
+            self._bootstrap()
             self._router = Router(self.routes)
             app: ASGIApp = self._router
             self.middleware.use(ServerErrorMiddleware, debug=self.debug)
@@ -40,6 +44,7 @@ class App(Container):
 
     def run_cli(self) -> None:
         """Run command line application."""
+        self._bootstrap()
         app = click.Group()
         for command in self.commands:
             app.add_command(command)
@@ -65,6 +70,18 @@ class App(Container):
             await send({"type": "lifespan.startup.failed", "message": text})
         else:
             await send({"type": "lifespan.shutdown.complete"})
+
+    def _bootstrap(self) -> None:
+        if self._booted:
+            return
+
+        # register extension services
+        for ext in self.extensions:
+            ext.register(self)
+
+        # bootstrap extension services
+        for ext in self.extensions:
+            ext.bootstrap(self)
 
     async def __call__(
         self,
