@@ -286,3 +286,11 @@ class Routes(t.Sequence[routing.BaseRoute]):
         The router requires routes to be of Sequence type, this class
         mimics to the Sequence and therefore must implement __getitem__."""
         return self._routes[index]
+
+
+class RouteURLResolver:
+    def __init__(self, router: Router):
+        self.router = router
+
+    def resolve(self, name: str, **path_params: str) -> routing.URLPath:
+        return self.router.url_path_for(name, **path_params)

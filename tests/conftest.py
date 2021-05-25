@@ -2,12 +2,17 @@ import pytest
 from starlette.testclient import TestClient
 
 from kupala.application import App
+from kupala.framework.extensions import RoutingExtension
 
 
 @pytest.fixture
 def app_f():
     def factory() -> App:
-        return App()
+        return App(
+            extensions=[
+                RoutingExtension(),
+            ]
+        )
 
     return factory
 

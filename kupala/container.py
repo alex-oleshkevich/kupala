@@ -7,7 +7,7 @@ from contextlib import contextmanager
 
 S = t.TypeVar("S", covariant=True)
 N = t.Union[str, t.Type[S]]
-Factory = t.Callable[[], t.Union[S, t.Any]]
+Factory = t.Callable[[t.Any], t.Union[S, t.Any]]
 PostCreateHook = t.Callable[[t.Union[S, t.Any]], None]
 
 
@@ -188,7 +188,7 @@ class Container:
     def post_create_hooks(self) -> dict[N, list[PostCreateHook]]:
         return self._post_create_hooks
 
-    def get(self, name: N) -> S:
+    def get(self, name: N) -> t.Union[S, t.Any]:
         """Retrieve a service instance from the container."""
         real_name = self.resolve(name)
         resolver = self._service_map[real_name]

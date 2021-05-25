@@ -1,6 +1,8 @@
 import abc
 import typing as t
 
+Debug = bool
+
 
 class Identity(t.Protocol):  # pragma: no cover
     def get_identity(self) -> str:

@@ -10,8 +10,9 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from kupala.container import Container
 
 from .config import Config
+from .contracts import Debug
 from .dotenv import Env
-from .extensions import Extensions
+from .extensions import Extension, Extensions
 from .middleware import MiddlewareStack
 from .requests import Request
 from .routing import Router, Routes
@@ -23,31 +24,35 @@ class App(Container):
         config: dict = None,
         debug: bool = False,
         env_prefix: str = "",
+        extensions: list[Extension] = None,
     ) -> None:
         super().__init__()
         self.commands: list[click.Command] = []
         self.config = Config(config)
         self.debug = debug
         self.env = Env(env_prefix)
-        self.extensions = Extensions()
+        self.extensions = Extensions(extensions)
         self.lifecycle: list[t.Callable[[App], t.AsyncContextManager]] = []
         self.middleware = MiddlewareStack()
         self.routes = Routes()
 
-        self._router: t.Optional[Router] = None
         self._asgi_app_instance: t.Optional[ASGIApp] = None
         self._booted = False
 
+        self.bind(Debug, self.debug, aliases="debug")
+        self.bind(App, self, "app")
+        self.bind(Env, self.env, "env")
         self.bind(Config, self.config, aliases="config")
-        self.bind("debug", self.debug)
+        self.bind(Routes, self.routes, aliases="routes")
+        self.bind(MiddlewareStack, self.middleware, aliases="middleware")
+        self.bind(Extensions, self.extensions, aliases="extensions")
 
     @property
     def asgi_app(self) -> ASGIApp:
         """Create ASGI application. Once created a cached instance returned."""
         if self._asgi_app_instance is None:
             self._bootstrap()
-            self._router = Router(self.routes)
-            app: ASGIApp = self._router
+            app: ASGIApp = self.get(Router)
             self.middleware.use(ServerErrorMiddleware, debug=self.debug)
             for mw in reversed(self.middleware):
                 app = mw.wrap(app)
