@@ -30,7 +30,7 @@ class App(Container):
         self.debug = debug
         self.env = Env(env_prefix)
         self.extensions = Extensions()
-        self.lifecycle: list[t.AsyncContextManager] = []
+        self.lifecycle: list[t.Callable[[App], t.AsyncContextManager]] = []
         self.middleware = MiddlewareStack()
         self.routes = Routes()
 
@@ -73,13 +73,14 @@ class App(Container):
             await receive()
             async with AsyncExitStack() as stack:
                 for hook in self.lifecycle:
-                    await stack.enter_async_context(hook)
+                    await stack.enter_async_context(hook(self))
                 await send({"type": "lifespan.startup.complete"})
                 await receive()
         except BaseException as ex:
             logging.exception(ex)
             text = traceback.format_exc()
             await send({"type": "lifespan.startup.failed", "message": text})
+            raise
         else:
             await send({"type": "lifespan.shutdown.complete"})
 
