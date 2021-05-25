@@ -20,11 +20,11 @@ class Undefined:
 _undefined = Undefined()
 
 
-class ConfigError(Exception):
+class DotenvError(Exception):
     pass
 
 
-class VariableNotFound(ConfigError, KeyError):
+class VariableNotFound(DotenvError, KeyError):
     """Raised when a variable is missing in the container."""
 
 
@@ -38,13 +38,13 @@ def bool_cast(value: str) -> bool:
     if value in _negatives:
         return False
 
-    raise ConfigError(f'Cannot cast string "{value}" to boolean value.')
+    raise DotenvError(f'Cannot cast string "{value}" to boolean value.')
 
 
 def file_cast(value: str, binary: bool = False) -> t.Union[str, bytes]:
     """Reads file as blob."""
     if not os.path.isfile(value):
-        raise ConfigError(f'The value "{value}" is not a file.')
+        raise DotenvError(f'The value "{value}" is not a file.')
 
     mode = "rb" if binary else "r"
     with open(value, mode) as f:
@@ -183,7 +183,7 @@ class Env:
         cast = functools.partial(file_cast, binary=binary)
         try:
             return self.get(name, _undefined, cast)
-        except ConfigError:
+        except DotenvError:
             if isinstance(default, Undefined):
                 raise
             return default

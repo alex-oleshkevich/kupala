@@ -9,6 +9,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.container import Container
 
+from .config import Config
+from .dotenv import Env
 from .extensions import Extensions
 from .middleware import MiddlewareStack
 from .requests import Request
@@ -16,18 +18,28 @@ from .routing import Router, Routes
 
 
 class App(Container):
-    def __init__(self, debug: bool = False) -> None:
+    def __init__(
+        self,
+        config: dict = None,
+        debug: bool = False,
+        env_prefix: str = "",
+    ) -> None:
         super().__init__()
-        self.debug = debug
-        self.middleware = MiddlewareStack()
-        self.lifecycle: list[t.AsyncContextManager] = []
-        self.routes = Routes()
         self.commands: list[click.Command] = []
+        self.config = Config(config)
+        self.debug = debug
+        self.env = Env(env_prefix)
         self.extensions = Extensions()
+        self.lifecycle: list[t.AsyncContextManager] = []
+        self.middleware = MiddlewareStack()
+        self.routes = Routes()
 
         self._router: t.Optional[Router] = None
         self._asgi_app_instance: t.Optional[ASGIApp] = None
         self._booted = False
+
+        self.bind(Config, self.config, aliases="config")
+        self.bind("debug", self.debug)
 
     @property
     def asgi_app(self) -> ASGIApp:
