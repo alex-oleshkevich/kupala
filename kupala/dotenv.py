@@ -73,7 +73,7 @@ def list_(
 class Env:
     def __init__(self, prefix: str = "") -> None:
         self.prefix = prefix
-        self._values = os.environ.copy()
+        self._values = t.cast(dict[str, t.Optional[str]], os.environ.copy())
 
     def load(self, dot_file: str) -> str:
         """Load .env file."""
@@ -81,7 +81,7 @@ class Env:
         self._import(dotenvlib.dotenv_values(dot_path))
         return dot_path
 
-    def _import(self, values: t.Mapping[str, str]) -> None:
+    def _import(self, values: t.Mapping[str, t.Optional[str]]) -> None:
         for key, value in values.items():
             if key.startswith(self.prefix):
                 offset = 0
@@ -93,7 +93,11 @@ class Env:
         """Return all environmental value."""
         return self._values
 
-    def str(self, name: str, default: t.Union[str, Undefined] = _undefined) -> str:
+    def str(
+        self,
+        name: str,
+        default: t.Union[str, Undefined] = _undefined,
+    ) -> str:
         """Get a variable as a string."""
         return self.get(name, default, str)
 
