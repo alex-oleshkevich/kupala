@@ -13,6 +13,7 @@ aiofiles = "^0.6.0"
 Jinja2 = "^2.11.3"
 itsdangerous = "^1.1.0"
 python-dotenv = "^0.17.1"
+python-multipart = "^0.0.5"
 
 [tool.poetry.dev-dependencies]
 pytest-sugar = "^0.9"
