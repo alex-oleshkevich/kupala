@@ -12,43 +12,8 @@ def noop_coerce(x: t.Any) -> None:
     return x
 
 
-class Undefined:
-    def __bool__(self) -> bool:
-        return False
-
-
-_undefined = Undefined()
-
-
 class DotenvError(Exception):
     pass
-
-
-class VariableNotFound(DotenvError, KeyError):
-    """Raised when a variable is missing in the container."""
-
-
-def bool_cast(value: str) -> bool:
-    _positives = ["1", "yes", "true", "on"]
-    _negatives = ["0", "no", "false", "off"]
-    value = str(value).lower().strip()
-    if value in _positives:
-        return True
-
-    if value in _negatives:
-        return False
-
-    raise DotenvError(f'Cannot cast string "{value}" to boolean value.')
-
-
-def file_cast(value: str, binary: bool = False) -> t.Union[str, bytes]:
-    """Reads file as blob."""
-    if not os.path.isfile(value):
-        raise DotenvError(f'The value "{value}" is not a file.')
-
-    mode = "rb" if binary else "r"
-    with open(value, mode) as f:
-        return f.read()
 
 
 def list_(
@@ -93,18 +58,14 @@ class Env:
         """Return all environmental value."""
         return self._values
 
-    def str(
-        self,
-        name: str,
-        default: t.Union[str, Undefined] = _undefined,
-    ) -> str:
+    def str(self, name: str, default: str = None) -> str:
         """Get a variable as a string."""
         return self.get(name, default, str)
 
     def bytes(
         self,
         name: builtins.str,
-        default: t.Union[bytes, Undefined] = _undefined,
+        default: bytes = None,
         encoding: builtins.str = "utf8",
     ) -> bytes:
         """Get a variable as bytes."""
@@ -113,37 +74,29 @@ class Env:
             value = value.encode(encoding)
         return bytes(value)
 
-    def int(
-        self,
-        name: builtins.str,
-        default: t.Union[int, Undefined] = _undefined,
-    ) -> int:
+    def int(self, name: builtins.str, default: int = None) -> int:
         """Get a variable as an integer."""
         return self.get(name, default, int)
 
-    def float(
-        self,
-        name: builtins.str,
-        default: t.Union[float, Undefined] = _undefined,
-    ) -> float:
+    def float(self, name: builtins.str, default: float = None) -> float:
         """Get a variable as a float."""
         return self.get(name, default, float)
 
     def bool(
         self,
         name: builtins.str,
-        default: t.Union[bool, Undefined] = False,
-    ) -> bool:
+        default: bool = None,
+    ) -> t.Optional[bool]:
         """Get a variable as a boolean value."""
         value = self.get(name, None)
         if value is None:
-            return default if isinstance(default, bool) else False
+            return default
         return value.lower() in ["yes", "y", "1"]
 
     def list(
         self,
         name: builtins.str,
-        default: t.Union[list[t.Any], Undefined] = None,
+        default: list[t.Any] = None,
         coerce: t.Callable[[builtins.str], t.Any] = noop_coerce,
         split_char: builtins.str = ",",
     ) -> builtins.list[t.Any]:
@@ -156,7 +109,7 @@ class Env:
     def csv(
         self,
         name: builtins.str,
-        default: t.Union[builtins.list[t.Any], Undefined] = _undefined,
+        default: builtins.list[t.Any] = None,
         coerce: t.Callable[[builtins.str], t.Any] = noop_coerce,
         delimiter: builtins.str = ",",
     ) -> builtins.list[t.Any]:
@@ -165,48 +118,23 @@ class Env:
         caster = functools.partial(list_, coerce=coerce, split_char=delimiter)
         return self.get(name, default, caster)
 
-    def json(
-        self,
-        name: builtins.str,
-        default: t.Union[t.Any, Undefined] = _undefined,
-    ) -> t.Any:
+    def json(self, name: builtins.str, default: t.Any = None) -> t.Any:
         """Decode JSON string from the environment variable."""
         value = self.get(name, default)
         if isinstance(value, str):
             return json.loads(value)
         return default
 
-    def file(
-        self,
-        name: builtins.str,
-        default: t.Union[t.AnyStr, Undefined] = _undefined,
-        binary: builtins.bool = False,
-    ) -> t.AnyStr:
-        """Read a file contents using the path
-        defined by the environment variable."""
-        cast = functools.partial(file_cast, binary=binary)
-        try:
-            return self.get(name, _undefined, cast)
-        except DotenvError:
-            if isinstance(default, Undefined):
-                raise
-            return default
-
     def get(
         self,
         name: builtins.str,
-        default: t.Union[t.Any, Undefined] = _undefined,
+        default: t.Any = None,
         cast: t.Callable[[t.Any], t.Any] = None,
     ) -> t.Any:
         """Get an environment variable.
         Use `cast` callable to convert a value to a specific type."""
         value = self._values.get(name, default)
-        if value == _undefined:
-            raise VariableNotFound(
-                f'Environment variable "{name}" was not set '
-                f"and has no default value."
-            ) from None
-        if cast is not None:
+        if value is not None and cast:
             value = cast(value)
         return value
 
@@ -228,5 +156,5 @@ class Env:
     def __repr__(self) -> builtins.str:
         return "<Env: %s>" % {k: v for k, v in self.all().items()}
 
-    def __contains__(self, item: builtins.str) -> builtins.bool:
-        return item in self._values
+    def __contains__(self, name: builtins.str) -> builtins.bool:
+        return name in self._values

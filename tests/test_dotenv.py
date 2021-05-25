@@ -115,12 +115,6 @@ def test_json_cast(env, monkeypatch):
     assert env.json("JSONVAL_MISSING", default=[1, 2, 3]) == [1, 2, 3]
 
 
-def test_file_cast(env, monkeypatch):
-    assert env.file("FILEVAL") == "CONTENTS"
-    assert env.file("FILEVAL", binary=True) == b"CONTENTS"
-    assert env.file("FILEVAL_MISSING", default="FALLBACK") == "FALLBACK"
-
-
 def test_mapping(env):
     env.set("VAL1", "a")
     env["VAL2"] = "b"
