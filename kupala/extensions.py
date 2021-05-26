@@ -25,10 +25,6 @@ class BaseExtension:
 class Extensions:
     _extensions: list[Extension] = field(default_factory=list)
 
-    def __init__(self, extensions: list[Extension] = None):
-        if extensions:
-            self._extensions = extensions
-
     def use(self, extension: Extension) -> None:
         self._extensions.append(extension)
 

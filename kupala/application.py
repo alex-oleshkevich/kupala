@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import logging
-import traceback
 import typing as t
 from contextlib import AsyncExitStack
 
@@ -31,7 +32,7 @@ class App(Container):
         self.config = Config(config)
         self.debug = debug
         self.env = Env(env_prefix)
-        self.extensions = Extensions(extensions)
+        self.extensions = Extensions(extensions or [])
         self.lifecycle: list[t.Callable[[App], t.AsyncContextManager]] = []
         self.middleware = MiddlewareStack()
         self.routes = Routes()
@@ -50,14 +51,19 @@ class App(Container):
     @property
     def asgi_app(self) -> ASGIApp:
         """Create ASGI application. Once created a cached instance returned."""
-        if self._asgi_app_instance is None:
-            self._bootstrap()
-            app: ASGIApp = self.get(Router)
-            self.middleware.use(ServerErrorMiddleware, debug=self.debug)
-            for mw in reversed(self.middleware):
-                app = mw.wrap(app)
-            self._asgi_app_instance = app
-        return self._asgi_app_instance
+        try:
+            if self._asgi_app_instance is None:
+                self._bootstrap()
+                app: ASGIApp = self.get(Router)
+                self.middleware.top(ServerErrorMiddleware, debug=self.debug)
+                for mw in reversed(self.middleware):
+                    app = mw.wrap(app)
+                self._asgi_app_instance = app
+        except Exception as ex:
+            logging.exception(ex)
+            raise
+        else:
+            return self._asgi_app_instance
 
     def run_cli(self) -> None:
         """Run command line application."""
@@ -66,28 +72,6 @@ class App(Container):
         for command in self.commands:
             app.add_command(command)
         app()
-
-    async def lifespan(
-        self,
-        scope: Scope,
-        receive: Receive,
-        send: Send,
-    ) -> None:
-        """ASGI lifespan events handler."""
-        try:
-            await receive()
-            async with AsyncExitStack() as stack:
-                for hook in self.lifecycle:
-                    await stack.enter_async_context(hook(self))
-                await send({"type": "lifespan.startup.complete"})
-                await receive()
-        except BaseException as ex:
-            logging.exception(ex)
-            text = traceback.format_exc()
-            await send({"type": "lifespan.startup.failed", "message": text})
-            raise
-        else:
-            await send({"type": "lifespan.shutdown.complete"})
 
     def _bootstrap(self) -> None:
         if self._booted:
@@ -101,6 +85,12 @@ class App(Container):
         for ext in self.extensions:
             ext.bootstrap(self)
 
+    async def lifespan(self, app: App) -> t.AsyncGenerator:
+        async with AsyncExitStack() as stack:
+            for hook in self.lifecycle:
+                await stack.enter_async_context(hook(app))
+            yield
+
     async def __call__(
         self,
         scope: Scope,
@@ -109,10 +99,6 @@ class App(Container):
     ) -> None:
         """ASGI entry point."""
         assert scope["type"] in {"http", "websocket", "lifespan"}
-
-        if scope["type"] == "lifespan":
-            await self.lifespan(scope, receive, send)
-            return
 
         scope["app"] = self
         if scope["type"] == "http":

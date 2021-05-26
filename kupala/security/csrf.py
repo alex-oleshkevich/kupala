@@ -106,6 +106,10 @@ class CsrfMiddleware:
         receive: Receive,
         send: Send,
     ) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         if "session" not in scope:
             raise CsrfError("CsrfMiddleware requires SessionMiddleware.")
 

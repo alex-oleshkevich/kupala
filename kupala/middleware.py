@@ -27,6 +27,10 @@ class MiddlewareStack:
         self._global: list[Middleware] = []
         self._groups: dict[str, MiddlewareStack] = {}
 
+    def top(self, mw: t.Type, **kwargs: t.Any) -> None:
+        """Add middleware to the top of stack."""
+        self._global.insert(0, Middleware(mw, **kwargs))
+
     def use(self, mw: t.Type, **kwargs: t.Any) -> None:
         """Add middleware to the end of stack."""
         self._global.append(Middleware(mw, **kwargs))

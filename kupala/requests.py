@@ -1,12 +1,12 @@
-import datetime
 import re
 import typing as t
-from dataclasses import dataclass
 
 from starlette import datastructures as ds, requests
 
-from kupala.authentication import AuthState
 from kupala.sessions import Session
+
+if t.TYPE_CHECKING:
+    from kupala.authentication import AuthState
 
 undefined = object()
 
@@ -51,7 +51,7 @@ class Request(requests.Request):
     _query_params: QueryParams
 
     @property
-    def auth(self) -> AuthState:
+    def auth(self) -> "AuthState":
         assert (
             "auth" in self.scope
         ), "AuthenticationMiddleware must be installed to access request.auth"
@@ -125,31 +125,3 @@ class Request(requests.Request):
             if re.match(pattern, str(self.url)):
                 return True
         return False
-
-
-@dataclass
-class RequestStarted:
-    request: Request
-    start_time: datetime.datetime
-
-
-@dataclass
-class RequestSuccess:
-    request: Request
-    end_time: datetime.datetime
-    duration: float
-
-
-@dataclass
-class RequestCompleted:
-    request: Request
-    end_time: datetime.datetime
-    duration: float
-
-
-@dataclass
-class RequestErrored:
-    request: Request
-    exception: Exception
-    end_time: datetime.datetime
-    duration: float

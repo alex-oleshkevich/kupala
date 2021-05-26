@@ -21,7 +21,11 @@ class RoutingExtension(Extension):
         )
 
     def _create_router(self, app: App) -> Router:
-        return Router(routes=app.get(Routes), redirect_slashes=self.redirect_slashes)
+        return Router(
+            routes=app.get(Routes),
+            redirect_slashes=self.redirect_slashes,
+            lifespan=app.lifespan,
+        )
 
     def _create_url_resolver(self, router: Router) -> RouteURLResolver:
         return RouteURLResolver(router)
