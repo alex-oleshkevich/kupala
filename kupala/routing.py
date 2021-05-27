@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import pathlib
 import typing as t
+from unittest import mock
 
 from starlette import routing
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import URLPath
-from starlette.routing import Match
+from starlette.routing import Match, iscoroutinefunction_or_partial
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -15,12 +17,47 @@ from kupala.utils import import_string
 from . import responses
 
 
+def request_response(func: t.Callable) -> ASGIApp:
+    """
+    Takes a function or coroutine `func(request) -> response`,
+    and returns an ASGI application.
+    """
+    is_coroutine = iscoroutinefunction_or_partial(func)
+
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        request = scope["request"]
+        if is_coroutine:
+            response = await request.app.invoke(func, request=request)
+        else:
+            response = await run_in_threadpool(func, request)
+
+        await response(scope, receive, send)
+
+    return app
+
+
 class Router(routing.Router):
     ...
 
 
 class Route(routing.Route):
-    ...
+    def __init__(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        *,
+        methods: list[str] = None,
+        name: str = None,
+        include_in_schema: bool = True,
+    ) -> None:
+        with mock.patch("starlette.routing.request_response", request_response):
+            super().__init__(
+                path,
+                endpoint,
+                methods=methods,
+                name=name,
+                include_in_schema=include_in_schema,
+            )
 
 
 class Mount(routing.Mount):
@@ -64,6 +101,8 @@ class Host(routing.BaseRoute):
         if self.host_app_with_middleware is None:
             stack: MiddlewareStack = scope["app"].middleware
             for group in self.middleware:
+                if not stack.has_group(group):
+                    raise KeyError('Middleware group "%s" is not defined.' % (group,))
                 for middleware in reversed(stack.group(group)):
                     host_app = middleware.wrap(host_app)
             self.host_app_with_middleware = host_app
