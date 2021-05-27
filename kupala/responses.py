@@ -8,7 +8,7 @@ from starlette.background import BackgroundTask
 from starlette.types import Receive, Scope, Send
 
 from . import json
-from .contracts import TemplateRenderer
+from .contracts import TemplateRenderer, URLResolver
 from .requests import Request
 
 
@@ -82,6 +82,9 @@ class RedirectResponse(responses.RedirectResponse):
     ):
         if "session" in request.scope and data:
             request.session["_redirect_data"] = data
+
+        if not url.startswith("/") and not url.startswith("http"):
+            url = request.app.get(URLResolver).resolve(url)
 
         super().__init__(url, status_code, headers)
 

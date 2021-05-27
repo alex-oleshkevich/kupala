@@ -171,6 +171,19 @@ def test_redirect(app):
     assert http_response.headers["location"] == "/about"
 
 
+def test_redirect_to_route_name(app):
+    def view(request: Request):
+        return response(request).redirect("profile")
+
+    app.routes.get("/", view)
+    app.routes.get("/profile", view, name="profile")
+
+    client = TestClient(app)
+    http_response = client.get("/", allow_redirects=False)
+    assert http_response.status_code == 302
+    assert http_response.headers["location"] == "/profile"
+
+
 def test_streaming_response_with_async_gen(app):
     async def numbers():
         for x in range(1, 5):
@@ -310,10 +323,10 @@ def test_back_response(app):
 
     client = TestClient(app)
     http_response = client.get(
-        "/", headers={"referer": "testserver/profile"}, allow_redirects=False
+        "/", headers={"referer": "https://testserver/profile"}, allow_redirects=False
     )
     session_id = http_response.cookies["session"]
-    assert http_response.headers["location"] == "testserver/profile"
+    assert http_response.headers["location"] == "https://testserver/profile"
     assert backend.data == {session_id: {"_redirect_data": {"user": "root"}}}
 
 
