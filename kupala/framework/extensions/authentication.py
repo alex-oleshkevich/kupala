@@ -1,7 +1,8 @@
 import typing as t
 
 from kupala.application import App
-from kupala.contracts import Authenticator, IdentityProvider
+from kupala.authentication import LoginManager
+from kupala.contracts import Authenticator, IdentityProvider, PasswordHasher
 from kupala.extensions import Extension
 from kupala.utils import import_string
 
@@ -39,6 +40,14 @@ class AuthenticationExtension(Extension):
             )
 
         app.alias(f"user_provider.{self.default_provider}", IdentityProvider)
+        app.singleton(
+            LoginManager,
+            self.create_login_manager,
+            aliases=[
+                "login_manager",
+                "login_manager.default",
+            ],
+        )
 
     def create_authenticator(
         self,
@@ -53,3 +62,10 @@ class AuthenticationExtension(Extension):
             return cls(provider, **options_)
 
         return factory
+
+    def create_login_manager(
+        self,
+        user_provider: IdentityProvider,
+        hasher: PasswordHasher,
+    ) -> LoginManager:
+        return LoginManager(user_provider, hasher)
