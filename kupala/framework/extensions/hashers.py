@@ -24,13 +24,9 @@ class HashingExtension(Extension):
     def register(self, app: App) -> None:
         for name, hasher in self.hashers.items():
             hasher_class = import_string(hasher)
-
-            def create_hasher() -> PasswordHasher:
-                return hasher_class()
-
             app.singleton(
-                hasher,
-                create_hasher,
+                hasher_class,
+                hasher_class,
                 aliases=f"hasher.{name}",
                 tags=["password_hasher"],
             )
