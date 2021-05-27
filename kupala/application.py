@@ -53,7 +53,7 @@ class App(Container):
         """Create ASGI application. Once created a cached instance returned."""
         try:
             if self._asgi_app_instance is None:
-                self._bootstrap()
+                self.bootstrap()
                 app: ASGIApp = self.get(Router)
                 self.middleware.top(ServerErrorMiddleware, debug=self.debug)
                 for mw in reversed(self.middleware):
@@ -67,13 +67,13 @@ class App(Container):
 
     def run_cli(self) -> None:
         """Run command line application."""
-        self._bootstrap()
+        self.bootstrap()
         app = click.Group()
         for command in self.commands:
             app.add_command(command)
         app()
 
-    def _bootstrap(self) -> None:
+    def bootstrap(self) -> None:
         if self._booted:
             return
 
