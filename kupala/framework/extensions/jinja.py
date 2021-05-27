@@ -83,7 +83,7 @@ class JinjaExtension(Extension):
         if self.loader is None:
             self.loader = jinja2.loaders.ChoiceLoader(
                 [
-                    jinja2.loaders.FileSystemLoader(reversed(self.dirs)),
+                    jinja2.loaders.FileSystemLoader(str(reversed(self.dirs))),
                 ]
             )
 
