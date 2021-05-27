@@ -40,6 +40,10 @@ class TokenMismatchError(CsrfError):
     pass
 
 
+class CsrfDisabledError(CsrfError):
+    """Raised when CSRF protection is off."""
+
+
 def get_generate_random(length: int = 64) -> str:
     return hashlib.sha1(os.urandom(length)).hexdigest()
 
@@ -72,14 +76,11 @@ def validate_csrf_token(
 
 
 def csrf_token() -> str:
-    return _this_request_token.get()
-
-
-def csrf_input() -> str:
-    return '<input name="%s" type="hidden" value="%s">' % (
-        CSRF_POST_FIELD,
-        csrf_token(),
-    )
+    """Returns current CSRF token scoped to the current request."""
+    try:
+        return _this_request_token.get()
+    except LookupError:
+        raise CsrfDisabledError("CSRF token missing. Did you use CsrfMiddleware?")
 
 
 class CsrfMiddleware:

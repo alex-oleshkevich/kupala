@@ -10,7 +10,6 @@ from kupala.security.csrf import (
     TokenExpiredError,
     TokenMismatchError,
     TokenMissingError,
-    csrf_input,
     csrf_token as csrf_token_helper,
     generate_token,
     validate_csrf_token,
@@ -190,32 +189,3 @@ def test_csrf_token_helper(app_f):
     client.post("/")
     assert token_from_request is not None
     assert token_from_helper == token_from_request
-
-
-def test_jinja_helper(app_f):
-    token_from_request = None
-    token_from_helper = None
-
-    def view(request):
-        nonlocal token_from_request, token_from_helper
-        token_from_request = request.state.csrf_timed_token
-        token_from_helper = csrf_input()
-        return TextResponse("ok")
-
-    app = app_f()
-    app.middleware.use(SessionMiddleware, secret_key="secret")
-    app.middleware.use(
-        CsrfMiddleware,
-        secret_key="secret",
-        exclude_urls=[
-            "http://testserver/",
-        ],
-    )
-
-    app.routes.any("/", view)
-
-    client = TestClient(app)
-    client.post("/")
-    assert token_from_request is not None
-    assert "input" in token_from_helper
-    assert token_from_request in token_from_helper
