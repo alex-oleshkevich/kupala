@@ -40,6 +40,9 @@ class MiddlewareStack:
         self._groups.setdefault(name, MiddlewareStack())
         return self._groups[name]
 
+    def has_group(self, name: str) -> bool:
+        return name in self._groups
+
     def __enter__(self) -> MiddlewareStack:
         return self
 
