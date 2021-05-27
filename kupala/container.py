@@ -7,7 +7,7 @@ from contextlib import contextmanager
 
 S = t.TypeVar("S", covariant=True)
 N = t.Union[str, t.Type[S]]
-Factory = t.Callable[[t.Any], t.Union[S, t.Any]]
+Factory = t.Union[t.Callable, t.Type]
 PostCreateHook = t.Callable[[t.Union[S, t.Any]], None]
 
 
