@@ -4,6 +4,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.websockets import WebSocket
 
+from kupala.contracts import URLResolver
 from kupala.routing import Host, Route, Router, Routes
 
 
@@ -14,6 +15,14 @@ def view(request: Request):
             "path_params": dict(request.path_params),
         }
     )
+
+
+def mw_1(app, name, stack: list):
+    async def wrapped(scope, receive, send):
+        stack.append(name)
+        await app(scope, receive, send)
+
+    return wrapped
 
 
 def test_get(test_client, app):
@@ -95,12 +104,13 @@ def test_group(test_client, app):
     assert response.status_code == 200
 
 
-def mw_1(app, name, stack: list):
-    async def wrapped(scope, receive, send):
-        stack.append(name)
-        await app(scope, receive, send)
+def test_group_url_reverse(test_client, app):
+    app.routes.get("/", view)
+    with app.routes.group("/app") as admin:
+        admin.post("/logout", view, name="logout")
 
-    return wrapped
+    app.bootstrap()
+    assert app.get(URLResolver).resolve("logout") == "/app/logout"
 
 
 def test_group_with_middleware(test_client, app):
