@@ -3,7 +3,7 @@ from unittest import mock
 from starlette.types import ASGIApp
 from starlette.websockets import WebSocket
 
-from kupala.middlewares.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from kupala.middleware import BaseHTTPMiddleware, RequestResponseEndpoint
 from kupala.requests import Request
 from kupala.responses import JSONResponse, Response
 

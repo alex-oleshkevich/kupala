@@ -1,5 +1,4 @@
-from kupala.middleware import Middleware, MiddlewareStack
-from kupala.middlewares.base import BaseHTTPMiddleware
+from kupala.middleware import BaseHTTPMiddleware, Middleware, MiddlewareStack
 from kupala.routing import Router
 
 
