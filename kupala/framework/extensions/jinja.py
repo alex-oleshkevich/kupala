@@ -6,12 +6,20 @@ import jinja2
 from kupala.application import App
 from kupala.contracts import TemplateRenderer, URLResolver
 from kupala.extensions import Extension
+from kupala.security.csrf import CSRF_POST_FIELD, csrf_token
 
 JinjaTemplateDirs = t.List[str]
 JinjaFilters = t.Dict[str, t.Callable]
 JinjaTests = t.Dict[str, t.Callable]
 JinjaGlobals = t.Dict[str, t.Callable]
 JinjaExtensions = t.List[str]
+
+
+def csrf_input() -> str:
+    return '<input name="%s" type="hidden" value="%s">' % (
+        CSRF_POST_FIELD,
+        csrf_token(),
+    )
 
 
 class JinjaRenderer(TemplateRenderer):
@@ -23,9 +31,9 @@ class JinjaRenderer(TemplateRenderer):
     def render(
         self,
         template_name: str,
-        context: t.Dict[str, t.Any] = None,
+        context: dict[str, t.Any] = None,
     ) -> str:
-        """Render a template"""
+        """Render a template."""
         template = self.env.get_template(template_name)
         return template.render(context or {})
 
@@ -54,14 +62,21 @@ class JinjaExtension(Extension):
         app.bind(JinjaGlobals, self.globals, aliases="jinja.globals")
         app.bind(JinjaExtensions, self.extensions, aliases="jinja.extensions")
 
-        app.singleton(jinja2.Environment, self._jinja_factory, aliases="jinja")
+        def on_env_created(env: jinja2.Environment) -> None:
+            env.filters.update(app.get(JinjaFilters))
+            env.tests.update(app.get(JinjaTests))
+            env.globals.update(app.get(JinjaGlobals))
+
+        app.singleton(
+            jinja2.Environment,
+            self._jinja_factory,
+            aliases="jinja",
+        ).after_created(on_env_created)
+
         app.singleton(
             JinjaRenderer,
             self._jinja_renderer,
-            aliases=[
-                "jinja.renderer",
-                TemplateRenderer,
-            ],
+            aliases=["jinja.renderer", TemplateRenderer],
         )
 
     def _jinja_factory(self, app: App) -> jinja2.Environment:
@@ -76,11 +91,9 @@ class JinjaExtension(Extension):
             loader=self.loader,
             extensions=app.get(JinjaExtensions),
         )
-        env.filters.update(app.get(JinjaTemplateDirs))
-        env.tests.update(app.get(JinjaFilters))
-        env.globals.update(app.get(JinjaGlobals))
 
         env.globals["url"] = app.get(URLResolver).resolve
+        env.globals["csrf_input"] = csrf_input
         return env
 
     def _jinja_renderer(self, env: jinja2.Environment) -> JinjaRenderer:
