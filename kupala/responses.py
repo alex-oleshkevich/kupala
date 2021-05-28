@@ -16,7 +16,7 @@ class Response(responses.Response):
     ...
 
 
-class TextResponse(responses.PlainTextResponse):
+class TextResponse(responses.PlainTextResponse, Response):
     ...
 
 

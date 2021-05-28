@@ -29,7 +29,11 @@ def request_response(func: t.Callable) -> ASGIApp:
         if is_coroutine:
             response = await request.app.invoke(func, request=request)
         else:
-            response = await run_in_threadpool(func, request)
+            response = await run_in_threadpool(
+                request.app.invoke,
+                func,
+                request=request,
+            )
 
         await response(scope, receive, send)
 

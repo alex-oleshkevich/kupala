@@ -3,10 +3,11 @@ from unittest import mock
 
 from kupala.application import App
 from kupala.extensions import BaseExtension
+from kupala.requests import Request
 from kupala.responses import TextResponse
 
 
-def view(*args: t.Any) -> t.Any:
+def view(request: Request) -> t.Any:
     return TextResponse("ok")
 
 

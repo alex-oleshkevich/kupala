@@ -13,6 +13,7 @@ from kupala.container import Container
 from .config import Config
 from .contracts import Debug
 from .dotenv import Env
+from .errors import ErrorHandlers, ExceptionMiddleware
 from .extensions import Extension, Extensions
 from .middleware import MiddlewareStack
 from .requests import Request
@@ -33,6 +34,7 @@ class App(Container):
         self.debug = debug
         self.env = Env(env_prefix)
         self.extensions = Extensions(extensions or [])
+        self.error_handlers = ErrorHandlers()
         self.lifecycle: list[t.Callable[[App], t.AsyncContextManager]] = []
         self.middleware = MiddlewareStack()
         self.routes = Routes()
@@ -55,6 +57,10 @@ class App(Container):
             if self._asgi_app_instance is None:
                 self.bootstrap()
                 app: ASGIApp = self.get(Router)
+                self.middleware.top(
+                    ExceptionMiddleware,
+                    handlers=self.error_handlers,
+                )
                 self.middleware.top(ServerErrorMiddleware, debug=self.debug)
                 for mw in reversed(self.middleware):
                     app = mw.wrap(app)

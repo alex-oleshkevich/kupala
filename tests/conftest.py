@@ -9,9 +9,10 @@ from kupala.framework.extensions import RoutingExtension
 def app_f():
     def factory() -> App:
         return App(
+            debug=True,
             extensions=[
                 RoutingExtension(),
-            ]
+            ],
         )
 
     return factory
