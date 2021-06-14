@@ -79,9 +79,13 @@ class RedirectResponse(responses.RedirectResponse):
         status_code: int = 302,
         headers: dict = None,
         data: t.Any = None,
+        errors: dict = None,
     ):
-        if "session" in request.scope and data:
-            request.session["_redirect_data"] = data
+        if "session" in request.scope:
+            if data:
+                request.session["_redirect_data"] = data
+            if errors:
+                request.session["errors"] = errors
 
         if not url.startswith("/") and not url.startswith("http"):
             url = request.app.get(URLResolver).resolve(url)
@@ -217,6 +221,7 @@ class ResponseFactory:
         self,
         url: str,
         data: t.Any = None,
+        errors: dict = None,
         status_code: int = 302,
     ) -> RedirectResponse:
         return RedirectResponse(
@@ -225,11 +230,13 @@ class ResponseFactory:
             status_code=status_code or self.status_code,
             headers=self.headers,
             data=data,
+            errors=errors,
         )
 
     def back(
         self,
         data: t.Any = None,
+        errors: dict = None,
         status_code: int = 302,
     ) -> RedirectResponse:
         redirect_to = self.request.headers.get("referer", "/")
@@ -237,9 +244,7 @@ class ResponseFactory:
         if current_origin not in redirect_to:
             redirect_to = "/"
         return self.redirect(
-            url=redirect_to,
-            status_code=status_code,
-            data=data,
+            url=redirect_to, status_code=status_code, data=data, errors=errors
         )
 
     def send_file(
