@@ -6,13 +6,13 @@ import jinja2
 from kupala.application import App
 from kupala.contracts import TemplateRenderer, URLResolver
 from kupala.extensions import Extension
+from kupala.requests import Request
 from kupala.security.csrf import CSRF_POST_FIELD, csrf_token
+from kupala.utils import import_string
+
+ContextProcessor = t.Callable[[Request], dict[str, t.Any]]
 
 JinjaTemplateDirs = t.List[str]
-JinjaFilters = t.Dict[str, t.Callable]
-JinjaTests = t.Dict[str, t.Callable]
-JinjaGlobals = t.Dict[str, t.Callable]
-JinjaExtensions = t.List[str]
 
 
 def csrf_input() -> str:
@@ -25,8 +25,11 @@ def csrf_input() -> str:
 class JinjaRenderer(TemplateRenderer):
     """A template renderer that uses Jinja2 template engine."""
 
-    def __init__(self, env: jinja2.Environment) -> None:
+    def __init__(
+        self, env: jinja2.Environment, processors: list[ContextProcessor]
+    ) -> None:
         self.env = env
+        self.processors = processors
 
     def render(
         self,
@@ -35,7 +38,11 @@ class JinjaRenderer(TemplateRenderer):
     ) -> str:
         """Render a template."""
         template = self.env.get_template(template_name)
-        return template.render(context or {})
+        context = context or {}
+        if "request" in context:
+            for processor in self.processors:
+                context.update(processor(context["request"]))
+        return template.render(context)
 
 
 class JinjaExtension(Extension):
@@ -47,6 +54,7 @@ class JinjaExtension(Extension):
         tests: dict = None,
         globals: dict = None,
         extensions: list[str] = None,
+        context_processors: list[t.Union[str, ContextProcessor]] = None,
     ) -> None:
         self.loader = loader
         self.dirs = template_dirs
@@ -54,24 +62,12 @@ class JinjaExtension(Extension):
         self.tests = tests or {}
         self.globals = globals or {}
         self.extensions = extensions or []
+        self.context_processors = context_processors or []
 
     def register(self, app: App) -> None:
         app.bind(JinjaTemplateDirs, self.dirs, aliases="jinja.template_dirs")
-        app.bind(JinjaFilters, self.filters, aliases="jinja.filters")
-        app.bind(JinjaTests, self.tests, aliases="jinja.tests")
-        app.bind(JinjaGlobals, self.globals, aliases="jinja.globals")
-        app.bind(JinjaExtensions, self.extensions, aliases="jinja.extensions")
 
-        def on_env_created(env: jinja2.Environment) -> None:
-            env.filters.update(app.get(JinjaFilters))
-            env.tests.update(app.get(JinjaTests))
-            env.globals.update(app.get(JinjaGlobals))
-
-        app.singleton(
-            jinja2.Environment,
-            self._jinja_factory,
-            aliases="jinja",
-        ).after_created(on_env_created)
+        app.singleton(jinja2.Environment, self._jinja_factory, aliases="jinja")
 
         app.singleton(
             JinjaRenderer,
@@ -89,7 +85,7 @@ class JinjaExtension(Extension):
 
         env = jinja2.Environment(
             loader=self.loader,
-            extensions=app.get(JinjaExtensions),
+            extensions=self.extensions,
         )
 
         env.globals["url"] = app.get(URLResolver).resolve
@@ -97,4 +93,8 @@ class JinjaExtension(Extension):
         return env
 
     def _jinja_renderer(self, env: jinja2.Environment) -> JinjaRenderer:
-        return JinjaRenderer(env)
+        processors = [
+            import_string(cp) if isinstance(cp, str) else cp
+            for cp in self.context_processors
+        ]
+        return JinjaRenderer(env, processors)
