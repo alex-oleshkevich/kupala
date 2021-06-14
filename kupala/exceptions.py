@@ -1,3 +1,4 @@
+import marshmallow
 from starlette import exceptions
 
 
@@ -28,3 +29,7 @@ class MethodNotAllowedError(HttpException):
 
 class ConflictError(HttpException):
     status_code = 409
+
+
+class ValidationError(marshmallow.ValidationError):
+    pass
