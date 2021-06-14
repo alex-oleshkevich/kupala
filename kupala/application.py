@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextvars
 import logging
+import traceback
 import typing as t
 from contextlib import AsyncExitStack
 
@@ -98,11 +99,22 @@ class App(Container):
         for ext in self.extensions:
             ext.bootstrap(self)
 
-    async def lifespan(self, app: App) -> t.AsyncGenerator:
-        async with AsyncExitStack() as stack:
-            for hook in self.lifecycle:
-                await stack.enter_async_context(hook(app))
-            yield
+    async def lifespan(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """ASGI lifespan events handler."""
+        await receive()
+        try:
+            async with AsyncExitStack() as stack:
+                for hook in self.lifecycle:
+                    await stack.enter_async_context(hook(self))
+
+                await send({"type": "lifespan.startup.complete"})
+                await receive()
+        except BaseException as ex:
+            logging.exception(ex)
+            text = traceback.format_exc()
+            await send({"type": "lifespan.startup.failed", "message": text})
+        else:
+            await send({"type": "lifespan.shutdown.complete"})
 
     async def __call__(
         self,
@@ -112,8 +124,12 @@ class App(Container):
     ) -> None:
         """ASGI entry point."""
         assert scope["type"] in {"http", "websocket", "lifespan"}
-
         scope["app"] = self
+
+        if scope["type"] == "lifespan":
+            await self.lifespan(scope, receive, send)
+            return
+
         if scope["type"] == "http":
             scope["request"] = Request(scope, receive, send)
 
