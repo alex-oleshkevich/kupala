@@ -16,6 +16,7 @@ python-dotenv = "^0.17.1"
 python-multipart = "^0.0.5"
 passlib = "^1.7.4"
 marshmallow = "^3.12.1"
+mailers = "^0.0.2"
 
 [tool.poetry.dev-dependencies]
 pytest-sugar = "^0.9"
