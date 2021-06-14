@@ -54,6 +54,11 @@ class QueryParams(ds.QueryParams):
         return value
 
 
+class ValidatedInput(dict):
+    def pick(self, *keys: str) -> list[t.Any]:
+        return [v for k, v in self.items() if k in keys]
+
+
 class Request(requests.Request):
     _query_params: QueryParams
 
@@ -108,6 +113,10 @@ class Request(requests.Request):
         return self._query_params
 
     @property
+    def origin(self) -> str:
+        return str(self.base_url).rstrip("/")
+
+    @property
     def session(self) -> Session:  # type: ignore[override]
         assert (
             "session" in self.scope
@@ -148,9 +157,9 @@ class Request(requests.Request):
         exclude: t.Sequence[str] = None,
         partial: bool = False,
         unknown: str = "exclude",
-    ) -> dict:
+    ) -> ValidatedInput:
         """Validate input data. Raises marshmallow.ValidationError when invalid."""
         schema = schema_class(
             only=only, exclude=exclude or [], partial=partial, unknown=unknown
         )
-        return schema.load(await self.form())
+        return ValidatedInput(schema.load(await self.form()))
