@@ -3,10 +3,8 @@ from kupala.requests import Request
 
 
 def pass_old_input(request: Request) -> dict:
-    data = request.old_data()
     return {
-        "old": lambda k: data.get(k, ""),
-        "old_input": data,
+        "old_input": request.old_data(),
     }
 
 
