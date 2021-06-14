@@ -134,6 +134,9 @@ class AuthenticationMiddleware:
         receive: Receive,
         send: Send,
     ) -> None:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
         scope["auth"] = AuthState()
         request: Request = scope["request"]
         for authenticator in self.authenticators:
