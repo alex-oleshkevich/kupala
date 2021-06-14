@@ -1,6 +1,7 @@
 import builtins
 import functools
 import os
+import sys
 import typing as t
 
 import dotenv as dotenvlib
@@ -40,11 +41,23 @@ class Env:
         self.prefix = prefix
         self._values = t.cast(dict[str, t.Optional[str]], os.environ.copy())
 
-    def load(self, dot_file: str) -> str:
+    def load(self, dot_file: str) -> t.Optional[str]:
         """Load .env file."""
-        dot_path = dotenvlib.find_dotenv(str(dot_file))
-        self._import(dotenvlib.dotenv_values(dot_path))
-        return dot_path
+        frame = sys._getframe()
+        current_file = __file__
+        while frame.f_code.co_filename == current_file:
+            assert frame.f_back is not None
+            frame = frame.f_back
+        frame_filename = frame.f_code.co_filename
+        path = os.path.dirname(os.path.abspath(frame_filename))
+        while path:
+            full_path = os.path.join(path, dot_file)
+            if os.path.exists(full_path):
+                self._import(dotenvlib.dotenv_values(full_path))
+                return full_path
+            else:
+                path = os.path.dirname(path)
+        return None
 
     def _import(self, values: t.Mapping[str, t.Optional[str]]) -> None:
         for key, value in values.items():
