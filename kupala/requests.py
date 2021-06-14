@@ -1,6 +1,7 @@
 import re
 import typing as t
 
+from marshmallow import Schema
 from starlette import datastructures as ds, requests
 
 from kupala.sessions import Session
@@ -13,6 +14,10 @@ if t.TYPE_CHECKING:
 undefined = object()
 
 Caster = t.Callable[[t.Any], t.Any]
+
+
+class FormData(requests.FormData):
+    pass
 
 
 class QueryParams(ds.QueryParams):
@@ -135,3 +140,17 @@ class Request(requests.Request):
             if re.match(pattern, str(self.url)):
                 return True
         return False
+
+    async def validate(
+        self,
+        schema_class: t.Type[Schema],
+        only: t.Sequence[str] = None,
+        exclude: t.Sequence[str] = None,
+        partial: bool = False,
+        unknown: str = "exclude",
+    ) -> dict:
+        """Validate input data. Raises marshmallow.ValidationError when invalid."""
+        schema = schema_class(
+            only=only, exclude=exclude or [], partial=partial, unknown=unknown
+        )
+        return schema.load(await self.form())
