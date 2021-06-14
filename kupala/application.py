@@ -8,7 +8,7 @@ import click
 from starlette.middleware.errors import ServerErrorMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.container import Container
+from kupala.container import Container, ResolveContext
 
 from .config import Config
 from .contracts import Debug
@@ -57,13 +57,11 @@ class App(Container):
             if self._asgi_app_instance is None:
                 self.bootstrap()
                 app: ASGIApp = self.get(Router)
-                self.middleware.top(
-                    ExceptionMiddleware,
-                    handlers=self.error_handlers,
-                )
                 self.middleware.top(ServerErrorMiddleware, debug=self.debug)
+                self.middleware.use(ExceptionMiddleware, handlers=self.error_handlers)
                 for mw in reversed(self.middleware):
                     app = mw.wrap(app)
+
                 self._asgi_app_instance = app
         except Exception as ex:
             logging.exception(ex)
@@ -77,7 +75,9 @@ class App(Container):
         app = click.Group()
         for command in self.commands:
             app.add_command(command)
-        app()
+
+        with self.scoped(ResolveContext()):
+            app()
 
     def bootstrap(self) -> None:
         if self._booted:
@@ -109,4 +109,6 @@ class App(Container):
         scope["app"] = self
         if scope["type"] == "http":
             scope["request"] = Request(scope, receive, send)
-        await self.asgi_app(scope, receive, send)
+
+        with self.scoped(ResolveContext()):
+            await self.asgi_app(scope, receive, send)
