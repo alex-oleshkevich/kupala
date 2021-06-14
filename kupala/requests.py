@@ -4,8 +4,10 @@ import typing as t
 from starlette import datastructures as ds, requests
 
 from kupala.sessions import Session
+from kupala.support import DictBag
 
 if t.TYPE_CHECKING:
+    from kupala.application import App
     from kupala.authentication import AuthState
 
 undefined = object()
@@ -49,6 +51,10 @@ class QueryParams(ds.QueryParams):
 
 class Request(requests.Request):
     _query_params: QueryParams
+
+    @property
+    def app(self) -> "App":
+        return self.scope["app"]
 
     @property
     def auth(self) -> "AuthState":
@@ -103,12 +109,16 @@ class Request(requests.Request):
         ), "SessionMiddleware must be installed to access request.session"
         return self.scope["session"]
 
-    def old_data(self, default: t.Any = None) -> t.Any:
-        data = None
-        if "_redirect_data" in self.session:
-            data = self.session.get("_redirect_data", default)
-            del self.session["_redirect_data"]
+    def old_data(self, key: str = None) -> t.Union[dict, t.Any]:
+        """Retrieve input data from the previous request."""
+        data = self.session.pop("_redirect_data", {})
+        if key:
+            return data.get(key)
         return data
+
+    def errors(self) -> DictBag[list[str]]:
+        """Retrieve validation errors from the previous request."""
+        return DictBag(self.session.pop("errors", {}))
 
     def url_matches(self, *patterns: str) -> bool:
         for pattern in patterns:

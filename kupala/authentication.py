@@ -51,6 +51,7 @@ class LoginManager:
         user = await self.user_provider.find_by_identity(identity)
         if user:
             hasher = self.hasher or request.app.get(PasswordHasher)
+            assert hasher
             hashed = user.get_hashed_password()
             if hasher.verify(credential, hashed):
                 request.session[SESSION_KEY] = user.get_id()
@@ -136,13 +137,16 @@ class AuthenticationMiddleware:
         scope["auth"] = AuthState()
         request: Request = scope["request"]
         for authenticator in self.authenticators:
-            if isinstance(authenticator, str):
-                authenticator = f"authenticator.{authenticator}"
-            authenticator = t.cast(Authenticator, request.app.get(authenticator))
+            authenticator = t.cast(
+                Authenticator,
+                request.app.get(f"authenticator.{authenticator}")
+                if isinstance(authenticator, str)
+                else authenticator,
+            )
             user = await authenticator.authenticate(request)
             if user:
                 scope["auth"] = AuthState(user)
-                break
+            break
         await self.app(scope, receive, send)
 
 
