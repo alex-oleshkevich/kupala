@@ -83,7 +83,7 @@ def test_bool_cast(env):
     assert env.bool("BOOLVAL_MISSING", True) is True
 
 
-def test_list_cast(env, monkeypatch):
+def test_list_cast(env):
     assert env.list("LISTVAL") == ["example.com", "admin.example.com"]
 
     env.set("LISTVAL_FLOAT", "1.0, 1.1, 1.2")
@@ -98,7 +98,7 @@ def test_list_cast(env, monkeypatch):
     assert env.list("LISTVAL_MISSING", default=[1, 2, 3]) == [1, 2, 3]
 
 
-def test_csv_cast(env, monkeypatch):
+def test_csv_cast(env):
     assert env.csv("CSVVAL") == ["id", "name", "email"]
 
     env.set("CSVVAL_FLOAT", "1.0, 1.1, 1.2")
@@ -110,7 +110,7 @@ def test_csv_cast(env, monkeypatch):
     assert env.csv("CSVVAL_MISSING", default=[1, 2, 3]) == [1, 2, 3]
 
 
-def test_json_cast(env, monkeypatch):
+def test_json_cast(env):
     assert env.json("JSONVAL") == {"id": 1, "name": "root"}
     assert env.json("JSONVAL_MISSING", default=[1, 2, 3]) == [1, 2, 3]
 

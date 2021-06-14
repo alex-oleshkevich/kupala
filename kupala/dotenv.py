@@ -17,6 +17,10 @@ class DotenvError(Exception):
     pass
 
 
+class EnvvarMissingError(DotenvError):
+    ...
+
+
 def list_(
     value: t.Union[str, t.Iterable],
     coerce: t.Callable[[str], t.Any] = noop_coerce,
@@ -101,9 +105,11 @@ class Env:
         default: bool = None,
     ) -> t.Optional[bool]:
         """Get a variable as a boolean value."""
-        value = self.get(name, None)
+        value = self.get(name, default)
         if value is None:
             return default
+        if isinstance(value, bool):
+            return value
         return value.lower() in ["yes", "y", "1"]
 
     def list(
@@ -149,6 +155,8 @@ class Env:
         value = self._values.get(name, default)
         if value is not None and cast:
             value = cast(value)
+        if value is None and default is None:
+            raise EnvvarMissingError('Environment variable "%s" is not defined.' % name)
         return value
 
     def set(self, name: builtins.str, value: builtins.str) -> None:
