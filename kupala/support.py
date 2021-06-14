@@ -35,3 +35,6 @@ class DictBag(t.Generic[T]):
 
     def __getattr__(self, item: str) -> Bag[T]:
         return self.get(item)
+
+    def __repr__(self) -> str:
+        return "<DictBag: %r>" % self.data
