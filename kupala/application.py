@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import logging
 import typing as t
 from contextlib import AsyncExitStack
@@ -20,6 +21,10 @@ from .requests import Request
 from .routing import Router, Routes
 
 
+class CommandRegistry(list[click.Command]):
+    ...
+
+
 class App(Container):
     def __init__(
         self,
@@ -29,7 +34,7 @@ class App(Container):
         extensions: list[Extension] = None,
     ) -> None:
         super().__init__()
-        self.commands: list[click.Command] = []
+        self.commands = CommandRegistry()
         self.config = Config(config)
         self.debug = debug
         self.env = Env(env_prefix)
@@ -49,6 +54,8 @@ class App(Container):
         self.bind(Routes, self.routes, aliases="routes")
         self.bind(MiddlewareStack, self.middleware, aliases="middleware")
         self.bind(Extensions, self.extensions, aliases="extensions")
+
+        _current_app.set(self)
 
     @property
     def asgi_app(self) -> ASGIApp:
@@ -112,3 +119,11 @@ class App(Container):
 
         with self.scoped(ResolveContext()):
             await self.asgi_app(scope, receive, send)
+
+
+_current_app: contextvars.ContextVar[App] = contextvars.ContextVar("_current_app")
+
+
+def get_current_app() -> App:
+    """Return an instance of currently running application."""
+    return _current_app.get()
