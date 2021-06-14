@@ -33,3 +33,8 @@ class ConflictError(HttpException):
 
 class ValidationError(marshmallow.ValidationError):
     pass
+
+
+class FieldValidationError(ValidationError):
+    def __init__(self, field: str, message: str):
+        super().__init__(message={field: [message]})
