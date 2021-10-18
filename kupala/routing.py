@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+import functools
+import inspect
+import typing
 import typing as t
 from os import PathLike
-
 from starlette import routing
-from starlette.routing import Mount, WebSocketRoute
+from starlette.routing import Mount, WebSocketRoute, compile_path, get_name, request_response
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.middleware import Middleware
 from kupala.responses import RedirectResponse
-from kupala.utils import pipe
+
+
+def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASGIApp:
+    for mw in reversed(middleware):
+        app = mw.wrap(app)
+    return app
 
 
 class Router(routing.Router):
@@ -18,11 +25,83 @@ class Router(routing.Router):
 
 
 class Route(routing.Route):
-    pass
+    def __init__(
+        self,
+        path: str,
+        endpoint: typing.Callable,
+        *,
+        name: str = None,
+        include_in_schema: bool = True,
+        methods: typing.List[str] = None,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        assert path.startswith("/"), "Routed paths must start with '/'"
+        self.path = path
+        self.endpoint = endpoint
+        self.name = get_name(endpoint) if name is None else name
+        self.include_in_schema = include_in_schema
+
+        endpoint_handler = endpoint
+        while isinstance(endpoint_handler, functools.partial):
+            endpoint_handler = endpoint_handler.func
+        if inspect.isfunction(endpoint_handler) or inspect.ismethod(endpoint_handler):
+            # Endpoint is function or method. Treat it as `func(request) -> response`.
+            self.app = request_response(endpoint)
+            if methods is None:
+                methods = ["GET"]
+        else:
+            # Endpoint is a class. Treat it as ASGI.
+            self.app = endpoint
+
+        if middleware is not None:
+            self.app = apply_middleware(t.cast(t.Callable, self.app), middleware)
+
+        if methods is None:
+            self.methods = None
+        else:
+            self.methods = {method.upper() for method in methods}
+            if "GET" in self.methods:
+                self.methods.add("HEAD")
+
+        self.path_regex, self.path_format, self.param_convertors = compile_path(path)
 
 
-class HostRoutes:
+class _RouteAdapter:
+    _routes: Routes
+    _wrapped_app: t.Optional[ASGIApp]
+    _base_app: t.Optional[ASGIApp]
+    _middleware: t.Sequence[Middleware]
 
+    async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
+        assert self._wrapped_app  # silence mypy
+        await self._wrapped_app(scope, receive, send)
+
+    def _initialize_apps(self) -> None:
+        self._base_app = self._create_base_asgi_app()
+        self._wrapped_app = self._apply_middleware(self._base_app)
+
+    def _create_base_asgi_app(self) -> ASGIApp:
+        raise NotImplementedError()
+
+    def _apply_middleware(self, app: ASGIApp) -> ASGIApp:
+        return apply_middleware(app, self._middleware)
+
+    def __enter__(self) -> Routes:
+        self._wrapped_app = None  # force app recreation when routes changed
+        return self._routes
+
+    def __exit__(self, *args: t.Any) -> None:
+        pass
+
+    def __getattr__(self, item: str) -> t.Any:
+        try:
+            return getattr(self._base_app, item)
+        except AttributeError:
+            self._initialize_apps()
+            return getattr(self._base_app, item)
+
+
+class HostRoutes(_RouteAdapter):
     def __init__(
         self,
         host: str,
@@ -33,137 +112,181 @@ class HostRoutes:
         self._host = host
         self._name = name
         self._routes = Routes(routes)
-        self._middleware = middleware
-        self._app: t.Optional[ASGIApp] = None
-        self._app_ref: t.Optional[ASGIApp] = None
-
-    @property
-    def app(self) -> ASGIApp:
-        if self._app is None:
-            self._create_app()
-        return self._app
-
-    def _create_app(self) -> None:
-        self._app_ref = self._create_base_asgi_app()
-        self._app = self._app_ref
-        if self._middleware:
-            for mw in reversed(self._middleware):
-                self._app = mw.wrap(self._app)
+        self._middleware = middleware or []
+        self._wrapped_app: t.Optional[ASGIApp] = None
+        self._base_app: t.Optional[routing.Host] = None
 
     def _create_base_asgi_app(self) -> ASGIApp:
         return routing.Host(host=self._host, app=Router(routes=self._routes), name=self._name)
 
-    def __enter__(self) -> Routes:
-        self._app = None  # force app recreation when routes changed
-        return self._routes
 
-    def __exit__(self, *args: t.Any) -> None:
-        pass
-
-    async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
-        await self._app(scope, receive, send)
-
-    def __getattr__(self, item: str) -> t.Any:
-        try:
-            return getattr(self._app_ref, item)
-        except AttributeError:
-            self._create_app()
-            return getattr(self._app_ref, item)
-
-
-class GroupRoutes:
+class GroupRoutes(_RouteAdapter):
     def __init__(
         self,
         prefix: str,
-        routes: t.Union[list[routing.BaseRoute], Routes],
+        routes: t.Union[list[routing.BaseRoute], Routes] = None,
         name: str = None,
         middleware: t.Sequence[Middleware] = None,
     ) -> None:
         self._name = name
         self._prefix = prefix
         self._routes = Routes(routes)
-        self._middleware = middleware
-        self._app: t.Optional[ASGIApp] = None
-        self._app_ref: t.Optional[ASGIApp] = None
+        self._middleware = middleware or []
+        self._wrapped_app: t.Optional[ASGIApp] = None
+        self._base_app: t.Optional[routing.Mount] = None
 
-    @property
-    def app(self) -> ASGIApp:
-        if self._app is None:
-            self._app = routing.Mount(path=self._prefix, app=Router(self._routes), name=self._name)
-        return self._app
+    def _apply_middleware(self, app: ASGIApp) -> ASGIApp:
+        return app
 
-    # @property
-    # def app(self) -> ASGIApp:
-    #     if self._app is None:
-    #         self._create_app()
-    #     return self._app
-    #
-    # def _create_app(self) -> None:
-    #     self._app_ref = self._create_base_asgi_app()
-    #     self._app = self._app_ref
-    #     if self._middleware:
-    #         for mw in reversed(self._middleware):
-    #             self._app = mw.wrap(self._app)
-    #
-    # def _create_base_asgi_app(self) -> ASGIApp:
-    #     return routing.Host(host=self._host, app=Router(routes=self._routes), name=self._name)
+    def _create_base_asgi_app(self) -> ASGIApp:
+        router = Router(self._routes)
+        if self._middleware:
+            for mw in reversed(self._middleware):
+                router = mw.wrap(router)
+        return routing.Mount(path=self._prefix, app=router, name=self._name)
 
-    # async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
-    #     await self._app(scope, receive, send)
-    #
-    # def __getattr__(self, item: str) -> t.Any:
-    #     try:
-    #         return getattr(self._app_ref, item)
-    #     except AttributeError:
-    #         self._create_app()
-    #         return getattr(self._app_ref, item)
-
-    def __enter__(self) -> Routes:
-        self._app = None  # force app recreation when routes changed
-        return self._routes
-
-    def __exit__(self, *args: t.Any) -> None:
-        pass
-
-    def __getattr__(self, item: str) -> t.Any:
-        return getattr(self.app, item)
+    async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
+        assert self._base_app  # silence mypy
+        await self._base_app.handle(scope, receive, send)
 
 
-class Routes:
-    def __init__(self, routes: t.List[routing.BaseRoute] = None) -> None:
-        self._routes: t.List[routing.BaseRoute] = routes or []
+class Routes(t.Sequence[routing.BaseRoute]):
+    def __init__(self, routes: t.Iterable[routing.BaseRoute] = None) -> None:
+        self._routes: list[routing.BaseRoute] = list(routes or [])
 
-    def get(self, path: str, endpoint: t.Callable, name: str = None, include_in_schema: bool = True) -> None:
-        self.add(path, endpoint, name=name, methods=['HEAD', 'GET'], include_in_schema=include_in_schema)
+    def get(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        name: str = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        self.add(
+            path,
+            endpoint,
+            name=name,
+            methods=['HEAD', 'GET'],
+            include_in_schema=include_in_schema,
+            middleware=middleware,
+        )
 
-    def post(self, path: str, endpoint: t.Callable, name: str = None, include_in_schema: bool = True) -> None:
-        self.add(path, endpoint, name=name, methods=['POST'], include_in_schema=include_in_schema)
+    def post(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        name: str = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        self.add(
+            path, endpoint, name=name, methods=['POST'], include_in_schema=include_in_schema, middleware=middleware
+        )
 
-    def get_or_post(self, path: str, endpoint: t.Callable, name: str = None, include_in_schema: bool = True) -> None:
-        self.add(path, endpoint, name=name, methods=['HEAD', 'GET', 'POST'], include_in_schema=include_in_schema)
+    def get_or_post(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        name: str = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        self.add(
+            path,
+            endpoint,
+            name=name,
+            methods=['HEAD', 'GET', 'POST'],
+            include_in_schema=include_in_schema,
+            middleware=middleware,
+        )
 
-    def patch(self, path: str, endpoint: t.Callable, name: str = None, include_in_schema: bool = True) -> None:
-        self.add(path, endpoint, name=name, methods=['PATCH'], include_in_schema=include_in_schema)
+    def patch(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        name: str = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        self.add(
+            path, endpoint, name=name, methods=['PATCH'], include_in_schema=include_in_schema, middleware=middleware
+        )
 
-    def put(self, path: str, endpoint: t.Callable, name: str = None, include_in_schema: bool = True) -> None:
-        self.add(path, endpoint, name=name, methods=['PUT'], include_in_schema=include_in_schema)
+    def put(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        name: str = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        self.add(path, endpoint, name=name, methods=['PUT'], include_in_schema=include_in_schema, middleware=middleware)
 
-    def delete(self, path: str, endpoint: t.Callable, name: str = None, include_in_schema: bool = True) -> None:
-        self.add(path, endpoint, name=name, methods=['DELETE'], include_in_schema=include_in_schema)
+    def delete(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        name: str = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        self.add(
+            path, endpoint, name=name, methods=['DELETE'], include_in_schema=include_in_schema, middleware=middleware
+        )
 
-    def head(self, path: str, endpoint: t.Callable, name: str = None, include_in_schema: bool = True) -> None:
-        self.add(path, endpoint, name=name, methods=['HEAD'], include_in_schema=include_in_schema)
+    def head(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        name: str = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        self.add(
+            path, endpoint, name=name, methods=['HEAD'], include_in_schema=include_in_schema, middleware=middleware
+        )
 
-    def options(self, path: str, endpoint: t.Callable, name: str = None, include_in_schema: bool = True) -> None:
-        self.add(path, endpoint, name=name, methods=['OPTIONS'], include_in_schema=include_in_schema)
+    def options(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        name: str = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        self.add(
+            path, endpoint, name=name, methods=['OPTIONS'], include_in_schema=include_in_schema, middleware=middleware
+        )
 
-    def any(self, path: str, endpoint: t.Callable, name: str = None, include_in_schema: bool = True) -> None:
+    def any(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        name: str = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
         _all = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE"]
-        self.add(path, endpoint, name=name, methods=_all, include_in_schema=include_in_schema)
+        self.add(path, endpoint, name=name, methods=_all, include_in_schema=include_in_schema, middleware=middleware)
 
-    def add(self, path: str, endpoint: t.Callable, *, methods: t.List[str], name: str = None,
-            include_in_schema: bool = True) -> None:
-        route = Route(path, endpoint, methods=methods, name=name, include_in_schema=include_in_schema)
+    def add(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        *,
+        methods: t.List[str],
+        name: str = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        route = Route(
+            path,
+            endpoint,
+            methods=methods,
+            name=name,
+            include_in_schema=include_in_schema,
+            middleware=middleware,
+        )
         self._routes.append(route)
 
     def websocket(self, path: str, endpoint: t.Callable, name: str = None) -> None:
@@ -196,7 +319,10 @@ class Routes:
         return app
 
     def group(
-        self, prefix: str, routes: t.Union[Routes, list[routing.BaseRoute]] = None, name: str = None,
+        self,
+        prefix: str,
+        routes: t.Union[Routes, list[routing.BaseRoute]] = None,
+        name: str = None,
         middleware: t.Sequence[Middleware] = None,
     ) -> GroupRoutes:
         app = GroupRoutes(prefix, routes, name, middleware)
@@ -205,7 +331,8 @@ class Routes:
 
     def redirect(self, path: str, destination: str, status_code: int = 307, headers: dict = None) -> None:
         self.mount(
-            path, RedirectResponse(destination, status_code=status_code, headers=headers),
+            path,
+            RedirectResponse(destination, status_code=status_code, headers=headers),
         )
 
     def __iter__(self) -> t.Iterator[routing.BaseRoute]:
@@ -215,4 +342,8 @@ class Routes:
         return len(self._routes)
 
     def __getitem__(self, item: t.Any) -> t.Any:  # pragma: nocover
+        """Added to implement Sequence protocol."""
+        raise NotImplementedError
+
+    def __contains__(self, route: object) -> t.Any:  # pragma: nocover
         raise NotImplementedError
