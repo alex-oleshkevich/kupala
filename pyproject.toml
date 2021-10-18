@@ -1,0 +1,89 @@
+[tool.poetry]
+name = "kupala"
+description = "A modern web framework for Python."
+version = "0.5.0"
+authors = ["Alex Oleshkevich <alex.oleshkevich@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/alex-oleshkevich/kupala"
+repository = "https://github.com/alex-oleshkevich/kupala"
+documentation = "https://github.com/alex-oleshkevich/kupala"
+keywords = []
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.9",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+[tool.poetry.dependencies]
+python = "^3.9.0"
+starlette = "^0.16.0"
+Jinja2 = "^3.0.2"
+environs = "^9.3.4"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.4"
+pytest-asyncio = "^0.15.1"
+requests = "^2.25.1"
+pytest-coverage = "^0.0"
+black = "^21.7b0"
+mypy = "^0.910"
+flake8 = "^3.9.2"
+uvicorn = "^0.15.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+target-version = ["py36"]
+skip-string-normalization = true
+line_length = 120
+
+
+[tool.isort]
+combine_as_imports = true
+include_trailing_comma = true
+known_standard_library = "dataclasses,typing_extensions"
+known_first_party = "kupala"
+known_third_party = ["pkg_resources", "toml"]
+known_future_library = "__future__"
+line_length = 120
+multi_line_output = 3
+profile = "black"
+use_parentheses = true
+
+[tool.coverage.run]
+branch = true
+source = ["kupala"]
+omit = ["tests/*", ".venv/*", "*/__main__.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError"
+]
+
+[tool.mypy]
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+norecursedirs = [
+    "node_modules", "frontend", "storage", "dist", ".git",
+    "*/migrations/*", "*/static/*", "docs", ".venv"
+]
+addopts = "--tb=short -s --no-cov-on-fail"
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+]
