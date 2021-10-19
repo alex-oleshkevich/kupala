@@ -5,10 +5,13 @@ import logging
 import traceback
 import typing as t
 from contextlib import AsyncExitStack
+from starlette.exceptions import ExceptionMiddleware
+from starlette.middleware.errors import ServerErrorMiddleware
 from starlette.routing import BaseRoute
-from starlette.types import Receive, Scope, Send
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.config import Config
+from kupala.middleware import MiddlewareStack
 from kupala.requests import Request
 from kupala.routing import Router, Routes
 
@@ -16,9 +19,10 @@ from kupala.routing import Router, Routes
 class Kupala:
     def __init__(self, routes: t.Union[Routes, t.List[BaseRoute]] = None) -> None:
         self.lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = []
-        self._app: t.Optional[Router] = None
+        self._asgi_app: t.Optional[ASGIApp] = None
         self.routes = Routes(list(routes) if routes else [])
         self.config = Config()
+        self.middleware = MiddlewareStack()
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI lifespan events handler."""
@@ -50,9 +54,9 @@ class Kupala:
         if scope["type"] == "http":
             scope["request"] = Request(scope, receive, send)
 
-        if self._app is None:
-            self._app = Router(routes=self.routes)
-        await self._app(scope, receive, send)
+        if self._asgi_app is None:
+            self._asgi_app = self._create_app()
+        await self._asgi_app(scope, receive, send)
 
     def cli(self) -> None:
         self.bootstrap()
@@ -60,6 +64,14 @@ class Kupala:
 
     def bootstrap(self) -> None:
         pass
+
+    def _create_app(self) -> ASGIApp:
+        app = Router(routes=self.routes)
+        self.middleware.top(ExceptionMiddleware, handlers={})
+        self.middleware.top(ServerErrorMiddleware, debug=True)
+        for mw in reversed(self.middleware):
+            app = mw.wrap(app)
+        return app
 
 
 _current_app: contextvars.ContextVar[Kupala] = contextvars.ContextVar('_current_app')
