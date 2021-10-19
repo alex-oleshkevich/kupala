@@ -158,6 +158,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self,
         path: str,
         endpoint: t.Callable,
+        *,
         name: str = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
@@ -175,6 +176,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self,
         path: str,
         endpoint: t.Callable,
+        *,
         name: str = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
@@ -187,6 +189,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self,
         path: str,
         endpoint: t.Callable,
+        *,
         name: str = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
@@ -204,6 +207,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self,
         path: str,
         endpoint: t.Callable,
+        *,
         name: str = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
@@ -216,6 +220,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self,
         path: str,
         endpoint: t.Callable,
+        *,
         name: str = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
@@ -226,6 +231,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self,
         path: str,
         endpoint: t.Callable,
+        *,
         name: str = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
@@ -238,6 +244,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self,
         path: str,
         endpoint: t.Callable,
+        *,
         name: str = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
@@ -250,6 +257,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self,
         path: str,
         endpoint: t.Callable,
+        *,
         name: str = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
@@ -262,6 +270,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self,
         path: str,
         endpoint: t.Callable,
+        *,
         name: str = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
@@ -289,16 +298,17 @@ class Routes(t.Sequence[routing.BaseRoute]):
         )
         self._routes.append(route)
 
-    def websocket(self, path: str, endpoint: t.Callable, name: str = None) -> None:
+    def websocket(self, path: str, endpoint: t.Callable, *, name: str = None) -> None:
         self._routes.append(WebSocketRoute(path, endpoint, name=name))
 
-    def mount(self, path: str, app: ASGIApp, name: str = None) -> None:
+    def mount(self, path: str, app: ASGIApp, *, name: str = None) -> None:
         self._routes.append(Mount(path, app, name=name))
 
     def static(
         self,
         path: str,
         directory: t.Union[str, PathLike[str]] = None,
+        *,
         packages: list[str] = None,
         html: bool = False,
         check_dir: bool = True,
@@ -311,6 +321,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self,
         host: str,
         routes: t.Union[Routes, list[routing.BaseRoute]] = None,
+        *,
         name: str = None,
         middleware: t.Sequence[Middleware] = None,
     ) -> HostRoutes:
@@ -322,6 +333,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self,
         prefix: str,
         routes: t.Union[Routes, list[routing.BaseRoute]] = None,
+        *,
         name: str = None,
         middleware: t.Sequence[Middleware] = None,
     ) -> GroupRoutes:
