@@ -66,7 +66,7 @@ class Kupala:
         pass
 
     def _create_app(self) -> ASGIApp:
-        app = Router(routes=self.routes)
+        app: ASGIApp = Router(routes=self.routes)
         self.middleware.top(ExceptionMiddleware, handlers={})
         self.middleware.top(ServerErrorMiddleware, debug=True)
         for mw in reversed(self.middleware):

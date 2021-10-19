@@ -37,7 +37,7 @@ jobs:
 
             -   name: Lint with mypy
                 run: |
-                    mypy --config-file=pyproject.toml kupala/ tests/
+                    mypy --config-file pyproject.toml
 
             -   name: Lint with black
                 run: |

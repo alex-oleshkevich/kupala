@@ -44,10 +44,26 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-target-version = ["py36"]
+target-version = ["py39"]
 skip-string-normalization = true
 line_length = 120
-
+exclude = '''
+(
+    asv_bench/env
+  | \.egg
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.nox
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | setup.py
+)
+'''
 
 [tool.isort]
 combine_as_imports = true
@@ -75,8 +91,12 @@ exclude_lines = [
 [tool.mypy]
 disallow_untyped_defs = true
 ignore_missing_imports = true
+files = ["kupala", "tests"]
+exclude = "/*venv/"
+pretty = true
 
 [tool.pytest.ini_options]
+minversion =  "6.0"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 norecursedirs = [
     "node_modules", "frontend", "storage", "dist", ".git",

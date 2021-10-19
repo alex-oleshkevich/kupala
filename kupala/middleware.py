@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import typing as t
-
-from kupala.types import ASGIApp
+from starlette.types import ASGIApp
 
 
 class Middleware:

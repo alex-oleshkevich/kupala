@@ -139,7 +139,7 @@ class GroupRoutes(_RouteAdapter):
         return app
 
     def _create_base_asgi_app(self) -> ASGIApp:
-        router = Router(self._routes)
+        router: ASGIApp = Router(self._routes)
         if self._middleware:
             for mw in reversed(self._middleware):
                 router = mw.wrap(router)
