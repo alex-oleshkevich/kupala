@@ -28,8 +28,10 @@ class FlashBag:
     def __init__(self, messages: t.List[FlashMessage] = None):
         self._messages = messages or []
 
-    def add(self, message: str, category: MessageCategory) -> None:
-        self._messages.append({'category': category.value, 'message': message})
+    def add(self, message: str, category: t.Union[MessageCategory, str]) -> None:
+        if isinstance(category, MessageCategory):
+            category = category.value
+        self._messages.append({'category': category, 'message': message})
 
     def debug(self, message: str) -> None:
         self.add(message, MessageCategory.DEBUG)

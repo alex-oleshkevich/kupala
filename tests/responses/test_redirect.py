@@ -3,6 +3,7 @@ from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
 from kupala.constants import REDIRECT_INPUT_DATA_SESSION_KEY
+from kupala.messages import FlashMessagesMiddleware, flash
 from kupala.requests import Request
 from kupala.responses import JSONResponse, RedirectResponse
 from kupala.testclient import TestClient
@@ -40,7 +41,7 @@ def test_redirect_requires_path_name_requires_request() -> None:
     app = Kupala()
     app.routes.get('/', view)
 
-    with pytest.raises(ValueError) as ex:
+    with pytest.raises(AssertionError) as ex:
         client = TestClient(app)
         client.get('/')
     assert str(ex.value) == '"path_name" requires "request" argument.'
@@ -53,7 +54,7 @@ def test_redirect_requires_input_data_requires_request() -> None:
     app = Kupala()
     app.routes.get('/', view)
 
-    with pytest.raises(ValueError) as ex:
+    with pytest.raises(AssertionError) as ex:
         client = TestClient(app)
         client.get('/')
     assert str(ex.value) == '"input_data" requires "request" argument.'
@@ -103,3 +104,23 @@ def test_redirect_with_input_data() -> None:
     response = client.get('/', allow_redirects=True)
     assert response.status_code == 200
     assert response.json() == {'id': 42, 'name': 'test'}
+
+
+def test_redirect_with_flash_message() -> None:
+    def view(request: Request) -> RedirectResponse:
+        return RedirectResponse('/about', flash_message='Saved.', flash_type='success', request=request)
+
+    def data_view(request: Request) -> JSONResponse:
+        messages = flash(request).all()
+        return JSONResponse(messages)
+
+    app = Kupala()
+    app.routes.get('/', view)
+    app.routes.get('/about', data_view, name='about')
+    app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
+    app.middleware.use(FlashMessagesMiddleware, storage='session')
+
+    client = TestClient(app)
+    response = client.get('/', allow_redirects=True)
+    assert response.status_code == 200
+    assert response.json() == [{'category': 'success', 'message': 'Saved.'}]

@@ -94,6 +94,8 @@ class RedirectResponse(responses.RedirectResponse):
         headers: dict = None,
         *,
         input_data: t.Any = None,
+        flash_message: str = None,
+        flash_type: str = "info",
         path_name: str = None,
         path_params: dict = None,
         request: Request = None,
@@ -102,16 +104,18 @@ class RedirectResponse(responses.RedirectResponse):
             raise ValueError('Either "url" or "path_name" argument must be passed.')
 
         if path_name:
-            if request:
-                url = request.url_for(path_name, **(path_params or {}))
-            else:
-                raise ValueError('"path_name" requires "request" argument.')
+            assert request, '"path_name" requires "request" argument.'
+            url = request.url_for(path_name, **(path_params or {}))
 
         if input_data:
-            if request and 'session' in request.scope:
+            assert request, '"input_data" requires "request" argument.'
+            if 'session' in request.scope:
                 request.session[REDIRECT_INPUT_DATA_SESSION_KEY] = input_data
-            else:
-                raise ValueError('"input_data" requires "request" argument.')
+
+        if flash_message:
+            assert request, '"flash_message" requires "request" argument.'
+            if 'flash_messages' in request.scope:
+                request.scope['flash_messages'].add(flash_message, flash_type)
 
         assert url
         super().__init__(url, status_code, headers)
