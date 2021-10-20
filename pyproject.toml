@@ -28,6 +28,8 @@ starlette = "^0.16.0"
 Jinja2 = "^3.0.2"
 environs = "^9.3.4"
 starsessions = "^1.1.4"
+imia = "^0.3.1"
+python-multipart = "^0.0.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"
