@@ -17,7 +17,7 @@ class LockedError(ConfigError):
 class Config:
     """Keeps application configuration three."""
 
-    def __init__(self, initial: t.Mapping = None, dotenvs: t.List[str] = None) -> None:
+    def __init__(self, initial: t.Mapping = None, dotenvs: t.List[str] = None, prefix: str = '') -> None:
         self._data = dict(initial or {})
         self._is_locked = False
         self.dotenv = DotEnv(dotenvs)
