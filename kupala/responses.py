@@ -20,12 +20,13 @@ class JSONResponse(responses.JSONResponse):
         status_code: int = 200,
         headers: dict = None,
         indent: int = None,
-        default: t.Callable = json.json_default,
+        default: t.Callable[[t.Any], t.Any] = None,
         encoder_class: t.Type[JSONEncoder] = None,
     ):
         self._indent = indent
-        self._default = default
         self._encoder_class = encoder_class
+        if not encoder_class:
+            self._default = default or json.json_default
 
         super().__init__(content, status_code, headers)
 
@@ -119,3 +120,8 @@ class RedirectResponse(responses.RedirectResponse):
 
         assert url
         super().__init__(url, status_code, headers)
+
+
+class EmptyResponse(responses.Response):
+    def __init__(self, headers: dict = None) -> None:
+        super().__init__(b'', status_code=204, headers=headers)
