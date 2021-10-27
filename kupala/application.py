@@ -20,6 +20,8 @@ from kupala.templating import ContextProcessor, TemplateRenderer
 class Kupala:
     def __init__(
         self,
+        config: t.Mapping = None,
+        dotenv: t.List[str] = None,
         routes: t.Union[Routes, t.List[BaseRoute]] = None,
         renderer: TemplateRenderer = None,
         context_processors: t.List[ContextProcessor] = None,
@@ -27,7 +29,9 @@ class Kupala:
         self.lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = []
         self._asgi_app: t.Optional[ASGIApp] = None
         self.routes = Routes(list(routes) if routes else [])
-        self.config = Config()
+        self.config = Config(config, dotenv)
+        self.dotenv = self.config.dotenv
+        self.env = self.dotenv.str('APP_ENV', 'production')
         self.middleware = MiddlewareStack()
         self.renderer: t.Optional[TemplateRenderer] = renderer
         self.context_processors: t.List[ContextProcessor] = context_processors or []

@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 import typing as t
 
+from kupala.dotenv import DotEnv
+
 
 class ConfigError(Exception):
     """Base exception for all config related errors."""
@@ -15,9 +17,10 @@ class LockedError(ConfigError):
 class Config:
     """Keeps application configuration three."""
 
-    def __init__(self, initial: dict = None) -> None:
-        self._data = initial or {}
+    def __init__(self, initial: t.Mapping = None, dotenvs: t.List[str] = None) -> None:
+        self._data = dict(initial or {})
         self._is_locked = False
+        self.dotenv = DotEnv(dotenvs)
 
     def get(self, key: str, default: t.Any = None) -> t.Any:
         """Get a value from the configuration object using dot-notation.
