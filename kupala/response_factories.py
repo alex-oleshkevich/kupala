@@ -12,6 +12,7 @@ from .responses import (
     RedirectResponse,
     StreamingResponse,
 )
+from .templating import TemplateResponse
 
 
 class ResponseFactory:
@@ -114,3 +115,15 @@ class ResponseFactory:
 
     def empty(self) -> EmptyResponse:
         return EmptyResponse(headers=self.headers)
+
+    def template(
+        self, template_name: str, context: t.Mapping = None, media_type: str = 'text/html'
+    ) -> TemplateResponse:
+        return TemplateResponse(
+            request=self.request,
+            template_name=template_name,
+            context=context,
+            status_code=self.status_code,
+            headers=self.headers,
+            media_type=media_type,
+        )
