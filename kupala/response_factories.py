@@ -6,6 +6,7 @@ from .requests import Request
 from .responses import (
     EmptyResponse,
     FileResponse,
+    GoBackResponse,
     HTMLResponse,
     JSONResponse,
     PlainTextResponse,
@@ -66,7 +67,7 @@ class ResponseFactory:
         *,
         input_data: t.Any = None,
         flash_message: str = None,
-        flash_type: str = "info",
+        flash_category: str = "info",
         path_name: str = None,
         path_params: dict = None,
     ) -> RedirectResponse:
@@ -76,25 +77,20 @@ class ResponseFactory:
             headers=self.headers,
             input_data=input_data,
             flash_message=flash_message,
-            flash_type=flash_type,
+            flash_category=flash_category,
             path_name=path_name,
             path_params=path_params,
-            request=self.request,
         )
 
     def back(
-        self, input_data: t.Any = None, status_code: int = 302, flash_message: str = None, flash_type: str = "info"
+        self, input_data: t.Any = None, status_code: int = 302, flash_message: str = None, flash_category: str = "info"
     ) -> RedirectResponse:
-        redirect_to = self.request.headers.get('referer', '/')
-        current_origin = self.request.url.netloc
-        if current_origin not in redirect_to:
-            redirect_to = '/'
-        return self.redirect(
-            url=redirect_to,
-            status_code=status_code,
-            input_data=input_data,
+        return GoBackResponse(
+            request=self.request,
             flash_message=flash_message,
-            flash_type=flash_type,
+            flash_category=flash_category,
+            input_data=input_data,
+            status_code=status_code,
         )
 
     def send_file(
