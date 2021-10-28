@@ -5,12 +5,12 @@ import logging
 import traceback
 import typing as t
 from contextlib import AsyncExitStack
-from starlette.exceptions import ExceptionMiddleware
 from starlette.middleware.errors import ServerErrorMiddleware
 from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.config import Config
+from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import MiddlewareStack
 from kupala.requests import Request
 from kupala.routing import Router, Routes
@@ -23,6 +23,7 @@ class Kupala:
         routes: t.Union[Routes, t.List[BaseRoute]] = None,
         renderer: TemplateRenderer = None,
         context_processors: t.List[ContextProcessor] = None,
+        error_handlers: t.Dict[t.Union[t.Type[Exception], int], ErrorHandler] = None,
     ) -> None:
         self.lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = []
         self._asgi_app: t.Optional[ASGIApp] = None
@@ -31,6 +32,7 @@ class Kupala:
         self.middleware = MiddlewareStack()
         self.renderer: t.Optional[TemplateRenderer] = renderer
         self.context_processors: t.List[ContextProcessor] = context_processors or []
+        self.error_handlers = error_handlers or {}
         self._request: contextvars.ContextVar[t.Optional[Request]] = contextvars.ContextVar('_current_request')
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -78,7 +80,7 @@ class Kupala:
 
     def _create_app(self) -> ASGIApp:
         app: ASGIApp = Router(routes=self.routes)
-        self.middleware.top(ExceptionMiddleware, handlers={})
+        self.middleware.top(ExceptionMiddleware, handlers=self.error_handlers)
         self.middleware.top(ServerErrorMiddleware, debug=True)
         for mw in reversed(self.middleware):
             app = mw.wrap(app)
