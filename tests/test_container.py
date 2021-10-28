@@ -103,3 +103,21 @@ class StubAbsFactory(BaseAbstractFactory):
 def test_use_abstract_factory(container: Container) -> None:
     container.add_abstract_factory(StubAbsFactory())
     assert isinstance(container.resolve(ExampleService), ExampleService)
+
+
+def test_contains(container: Container) -> None:
+    container.bind('key', 'value')
+    assert 'key' in container
+    assert 'other_key' not in container
+
+
+def test_contains_in_parent(container: Container) -> None:
+    container.bind('key', 'value')
+    local_container = Container(parent=container)
+    assert 'key' in local_container
+    assert 'other_key' not in local_container
+
+
+def test_setgetitem(container: Container) -> None:
+    container['key'] = 'value'
+    assert container['key'] == 'value'

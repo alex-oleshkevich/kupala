@@ -27,6 +27,9 @@ class Resolver(t.Protocol):
     def resolve(self, key: Key) -> t.Any:
         ...
 
+    def __contains__(self, item: Key) -> bool:
+        ...
+
 
 Factory = t.Union[t.Callable[[Resolver], t.Any], type]
 Initializer = t.Callable[[Resolver, t.Any], None]
@@ -152,3 +155,11 @@ class Container:
                     self._abs_factory_cache[key] = factory
                     break
         return self._abs_factory_cache.get(key)
+
+    __setitem__ = bind
+    __getitem__ = resolve
+
+    def __contains__(self, item: Key) -> bool:
+        has_in_self = item in self._registry
+        has_in_parent = item in self._parent if self._parent else False
+        return any([has_in_self, has_in_parent])

@@ -13,6 +13,7 @@ from kupala.config import Config
 from kupala.container import Container
 from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import MiddlewareStack
+from kupala.providers import Provider
 from kupala.requests import Request
 from kupala.routing import Router, Routes
 from kupala.templating import ContextProcessor, TemplateRenderer
@@ -25,6 +26,7 @@ class Kupala:
         renderer: TemplateRenderer = None,
         context_processors: t.List[ContextProcessor] = None,
         error_handlers: t.Dict[t.Union[t.Type[Exception], int], ErrorHandler] = None,
+        providers: t.Iterable[Provider] = None,
     ) -> None:
         self.lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = []
         self._asgi_app: t.Optional[ASGIApp] = None
@@ -32,6 +34,7 @@ class Kupala:
         self.config = Config()
         self.middleware = MiddlewareStack()
         self.services = Container()
+        self.providers = providers or []
         self.renderer: t.Optional[TemplateRenderer] = renderer
         self.context_processors: t.List[ContextProcessor] = context_processors or []
         self.error_handlers = error_handlers or {}
@@ -78,7 +81,10 @@ class Kupala:
         self.bootstrap()
 
     def bootstrap(self) -> None:
-        pass
+        for provider in self.providers:
+            provider.register(self.services)
+        for provider in self.providers:
+            provider.bootstrap(self.services)
 
     def _create_app(self) -> ASGIApp:
         app: ASGIApp = Router(routes=self.routes)
