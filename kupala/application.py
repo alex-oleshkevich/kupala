@@ -10,6 +10,7 @@ from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.config import Config
+from kupala.container import Container
 from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import MiddlewareStack
 from kupala.requests import Request
@@ -30,6 +31,7 @@ class Kupala:
         self.routes = Routes(list(routes) if routes else [])
         self.config = Config()
         self.middleware = MiddlewareStack()
+        self.services = Container()
         self.renderer: t.Optional[TemplateRenderer] = renderer
         self.context_processors: t.List[ContextProcessor] = context_processors or []
         self.error_handlers = error_handlers or {}
