@@ -10,11 +10,9 @@ from kupala.responses import HTMLResponse, Response
 
 
 class HTTPException(BaseHTTPException):
-    status_code: int = 500
-    message: str = 'Internal Server Error'
+    message: t.Optional[str] = None
 
-    def __init__(self, status_code: int = None, message: str = None) -> None:  # pragma: nocover
-        status_code = status_code or self.status_code
+    def __init__(self, status_code: int, message: str = None) -> None:  # pragma: nocover
         message = message or self.message
         super().__init__(status_code=status_code, detail=message)
 
