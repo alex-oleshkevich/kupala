@@ -188,7 +188,7 @@ class ResourceRoute(routing.BaseRoute):
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
         redirect_slashes: bool = True,
-        id_param: str = 'id',
+        id_param: str = 'id:int',
     ) -> None:
         assert path == "" or path.startswith("/"), "Routed paths must start with '/'"
         assert bool(only and exclude) is False, '"exclude" and "only" arguments are mutually exclusive.'
@@ -555,7 +555,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         exclude: list[str] = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
-        id_param: str = 'id',
+        id_param: str = 'id:int',
     ) -> None:
         self._routes.append(
             ResourceRoute(
@@ -580,7 +580,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         exclude: list[str] = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
-        id_param: str = 'id',
+        id_param: str = 'id:int',
     ) -> None:
         excluded = ['new', 'edit']
         only = [action for action in only if action not in excluded] if only else None

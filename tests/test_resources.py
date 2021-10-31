@@ -143,7 +143,7 @@ def test_resource_partial_views_with_exclude() -> None:
     assert client.post('/users/1').status_code == 405
 
     # here /users/export will be caught by /users/{id} route, so 405 here
-    assert client.post('/users/export').status_code == 405
+    assert client.post('/users/export').status_code == 404
 
 
 def test_custom_collection_actions() -> None:
