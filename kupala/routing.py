@@ -188,6 +188,7 @@ class ResourceRoute(routing.BaseRoute):
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
         redirect_slashes: bool = True,
+        id_param: str = 'id',
     ) -> None:
         assert path == "" or path.startswith("/"), "Routed paths must start with '/'"
         assert bool(only and exclude) is False, '"exclude" and "only" arguments are mutually exclusive.'
@@ -197,6 +198,7 @@ class ResourceRoute(routing.BaseRoute):
         self.only = only
         self.exclude = exclude
         self.resource = resource
+        self.id_param = id_param
         self.middleware = middleware
         self.include_in_schema = include_in_schema
 
@@ -274,7 +276,7 @@ class ResourceRoute(routing.BaseRoute):
         if object_route_methods:
             routes.append(
                 Route(
-                    '%s/{id}' % self.path,
+                    '%s/{%s}' % (self.path, self.id_param),
                     self._object_view,
                     methods=object_route_methods,
                     name=f'{self.name}.detail',
@@ -293,7 +295,12 @@ class ResourceRoute(routing.BaseRoute):
         edit_action = getattr(self.resource, 'edit', None)
         if self._is_action_allowed('edit') and edit_action:
             routes.append(
-                Route('%s/{id}/edit' % self.path, edit_action, name=f'{self.name}.edit', middleware=self.middleware)
+                Route(
+                    '%s/{%s}/edit' % (self.path, self.id_param),
+                    edit_action,
+                    name=f'{self.name}.edit',
+                    middleware=self.middleware,
+                )
             )
         return routes
 
@@ -303,9 +310,14 @@ class ResourceRoute(routing.BaseRoute):
         for name, fn in inspect.getmembers(self.resource, inspect.ismethod):
             action = get_resource_action(fn)
             if action and self._is_action_allowed(name):
+                path = '{base}{id_param}{action}'.format(
+                    base=self.path,
+                    id_param=('/{%s}' % self.id_param if action.is_for_object else ''),
+                    action=action.path,
+                )
                 routes.append(
                     Route(
-                        path='%s%s%s' % (self.path, ('/{id}' if action.is_for_object else ''), action.path),
+                        path=path,
                         endpoint=fn,
                         name=f'{self.name}.{action.path_name}',
                         include_in_schema=action.include_in_schema,
@@ -543,6 +555,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         exclude: list[str] = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
+        id_param: str = 'id',
     ) -> None:
         self._routes.append(
             ResourceRoute(
@@ -553,7 +566,34 @@ class Routes(t.Sequence[routing.BaseRoute]):
                 exclude=exclude,
                 include_in_schema=include_in_schema,
                 middleware=middleware,
+                id_param=id_param,
             )
+        )
+
+    def api_resource(
+        self,
+        path: str,
+        resource: object,
+        *,
+        name: str = None,
+        only: list[str] = None,
+        exclude: list[str] = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+        id_param: str = 'id',
+    ) -> None:
+        excluded = ['new', 'edit']
+        only = [action for action in only if action not in excluded] if only else None
+        exclude = list({*exclude, *excluded}) if exclude else excluded
+        self.resource(
+            path,
+            resource,
+            name=name,
+            only=only,
+            exclude=exclude,
+            include_in_schema=include_in_schema,
+            middleware=middleware,
+            id_param=id_param,
         )
 
     def __iter__(self) -> t.Iterator[routing.BaseRoute]:

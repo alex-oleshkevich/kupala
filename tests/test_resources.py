@@ -110,6 +110,18 @@ class PartialExampleResource:
         return Response('show')
 
 
+def test_partial_resource() -> None:
+    app = Kupala()
+    app.routes.resource('/users', PartialExampleResource())
+    client = TestClient(app)
+    assert client.get('/users').text == 'index'
+    assert client.get('/users/1').text == 'show'
+    assert client.post('/users').status_code == 405
+    assert client.post('/users/1').status_code == 405
+    assert client.put('/users/1').status_code == 405
+    assert client.delete('/users/1').status_code == 405
+
+
 def test_resource_partial_views_with_only() -> None:
     app = Kupala()
     app.routes.resource('/users', ExampleResource(), only=['index', 'show', 'export'])
@@ -123,7 +135,7 @@ def test_resource_partial_views_with_only() -> None:
 
 def test_resource_partial_views_with_exclude() -> None:
     app = Kupala()
-    app.routes.resource('/users', PartialExampleResource(), exclude=['create', 'update', 'export'])
+    app.routes.resource('/users', ExampleResource(), exclude=['create', 'update', 'export'])
     client = TestClient(app)
     assert client.get('/users').text == 'index'
     assert client.get('/users/1').text == 'show'
@@ -166,3 +178,11 @@ def test_custom_resource_action_middleware() -> None:
     client = TestClient(app)
     assert client.get('/users/middleware').status_code == 200
     assert client.get('/users/middleware').text == 'yes'
+
+
+def test_api_resource_route() -> None:
+    app = Kupala()
+    app.routes.api_resource('/users', ExampleResource(), id_param='id:int')
+    client = TestClient(app)
+    assert client.get('/users/new').status_code == 404
+    assert client.get('/users/1/edit').status_code == 404
