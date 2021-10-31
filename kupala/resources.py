@@ -27,6 +27,7 @@ def action(
     include_in_schema: bool = True,
     middleware: t.Sequence[Middleware] = None,
 ) -> t.Callable:
+    """Mark resource class method as custom action."""
     assert path.startswith("/"), "Routed paths must start with '/'"
 
     def wrapper(fn: t.Callable) -> t.Callable:
@@ -47,5 +48,6 @@ def action(
     return wrapper
 
 
-def get_resource_action(resource: object) -> t.Optional[ResourceAction]:
-    return getattr(resource, 'action', None)
+def get_resource_action(method: t.Callable) -> t.Optional[ResourceAction]:
+    """Get resource action spec from resource method."""
+    return getattr(method, 'action', None)
