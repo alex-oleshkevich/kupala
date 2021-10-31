@@ -11,7 +11,9 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.middleware import Middleware
-from kupala.responses import RedirectResponse
+from kupala.requests import Request
+from kupala.resources import Resource
+from kupala.responses import RedirectResponse, Response
 
 
 def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASGIApp:
@@ -148,6 +150,10 @@ class GroupRoutes(_RouteAdapter):
     async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
         assert self._base_app  # silence mypy
         await self._base_app.handle(scope, receive, send)
+
+
+class ResourceRoute(Route):
+    def __init__(self, ):
 
 
 class Routes(t.Sequence[routing.BaseRoute]):
@@ -346,6 +352,88 @@ class Routes(t.Sequence[routing.BaseRoute]):
             path,
             RedirectResponse(destination, status_code=status_code, headers=headers),
         )
+
+    _actions = t.Literal['index', 'new', 'create', 'show', 'edit', 'update', 'destroy']
+
+    def resource(
+        self,
+        path: str,
+        resource: Resource,
+        *,
+        name: str = None,
+        only: list[_actions] = None,
+        exclude: list[_actions] = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        assert bool(only and exclude) is False, '"exclude" and "only" arguments are mutually exclusive.'
+        allowed = ['index', 'new', 'create', 'show', 'edit', 'update', 'destroy']
+        if only:
+            allowed = [action for action in allowed if action in only]
+        if exclude:
+            allowed = [action for action in allowed if action not in exclude]
+
+        collection_method_map = {
+            'head': resource.index,
+            'get': resource.index,
+            'post': resource.create,
+        }
+        object_method_map = {
+            'head': resource.index,
+            'get': resource.show,
+            'put': resource.update,
+            'patch': resource.update,
+            'delete': resource.destroy,
+        }
+
+        async def resource_list_view(request: Request) -> Response:
+            method = request.method.lower()
+            return await collection_method_map[method](request)
+
+        async def resource_object_view(request: Request) -> Response:
+            method = request.method.lower()
+            return await object_method_map[method](request)
+
+        name = name or resource.__class__.__name__.lower().replace('resource', '')
+        with self.group(path) as resource_urls:
+            object_route_methods: list[str] = []
+            collection_route_methods: list[str] = []
+
+            if 'new' in allowed:
+                resource_urls.get('/new', resource.new, name=f'{name}.new')
+
+            if 'edit' in allowed:
+                resource_urls.get('/{id}/edit', resource.edit, name=f'{name}.edit')
+
+            if 'index' in allowed:
+                collection_route_methods.extend(['HEAD', 'GET'])
+            if 'create' in allowed:
+                collection_route_methods.append('POST')
+            if collection_route_methods:
+                resource_urls.add(
+                    '/',
+                    resource_list_view,
+                    methods=collection_route_methods,
+                    name=f'{name}.list',
+                    include_in_schema=include_in_schema,
+                    middleware=middleware,
+                )
+
+            if 'show' in allowed:
+                object_route_methods.extend(['HEAD', 'GET'])
+            if 'update' in allowed:
+                object_route_methods.extend(['PUT', 'PATCH'])
+            if 'destroy' in allowed:
+                object_route_methods.append('DELETE')
+            if object_route_methods:
+                resource_urls.add(
+                    '/{id}',
+                    resource_object_view,
+                    methods=object_route_methods,
+                    name=f'{name}.detail',
+                    include_in_schema=include_in_schema,
+                    middleware=middleware,
+                )
 
     def __iter__(self) -> t.Iterator[routing.BaseRoute]:
         return iter(self._routes)
