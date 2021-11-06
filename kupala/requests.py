@@ -37,18 +37,18 @@ class OldFormInput(t.Mapping):
 
 
 class FormErrors:
-    def __init__(self, errors: t.Mapping, error_message: str) -> None:
-        self._errors = errors
-        self._error_message = error_message
+    def __init__(self, error_message: str, errors: t.Mapping) -> None:
+        self.message = error_message
+        self.field_errors = errors
 
     def to_json(self) -> dict:
         return {
-            'message': self._error_message,
-            'field_errors': self._errors,
+            'message': self.message,
+            'field_errors': self.field_errors,
         }
 
     def __bool__(self) -> bool:
-        return bool(self._errors or self._error_message)
+        return bool(self.field_errors or self.message)
 
 
 class QueryParams(requests.QueryParams):
@@ -138,10 +138,7 @@ class Request(requests.Request):
     @property
     def form_errors(self) -> FormErrors:
         """Get form errors generated on the previous page."""
-        return FormErrors(
-            errors=self.session.pop('_form_field_errors'),
-            error_message=self.session.pop('_form_error'),
-        )
+        return FormErrors(self.session.pop('_form_error', ''), self.session.pop('_form_field_errors', {}))
 
     def set_form_errors(self, error_message: str = '', field_errors: dict = None) -> None:
         """Flush form error message and form field errors into session.
