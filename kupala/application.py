@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import contextvars
+import contextvars as cv
 import logging
 import traceback
 import typing as t
@@ -10,7 +10,8 @@ from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.config import Config
-from kupala.container import Container
+from kupala.container import Container, Resolver
+from kupala.contracts import Invoker
 from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import MiddlewareStack
 from kupala.providers import Provider
@@ -33,12 +34,24 @@ class Kupala:
         self.routes = Routes(list(routes) if routes else [])
         self.config = Config()
         self.middleware = MiddlewareStack()
-        self.services = Container()
         self.providers = providers or []
         self.renderer: t.Optional[TemplateRenderer] = renderer
         self.context_processors: t.List[ContextProcessor] = context_processors or []
         self.error_handlers = error_handlers or {}
-        self._request: contextvars.ContextVar[t.Optional[Request]] = contextvars.ContextVar('_current_request')
+
+        self._shared_services = Container()
+        self._request_services: cv.ContextVar[Container] = cv.ContextVar(
+            '_request_services', default=self._shared_services
+        )
+        self._request: cv.ContextVar[t.Optional[Request]] = cv.ContextVar('_current_request')
+
+        self._shared_services.bind(Container, self._shared_services)
+        self._shared_services.bind(Resolver, self._shared_services)
+        self._shared_services.bind(Invoker, self._shared_services)
+
+    @property
+    def services(self) -> Container:
+        return self._request_services.get()
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI lifespan events handler."""
@@ -63,18 +76,25 @@ class Kupala:
         scope["app"] = self
         set_current_application(self)
 
+        request_container = Container(parent=self.services)
+
         if scope["type"] == "lifespan":
             await self.lifespan_handler(scope, receive, send)
             return
 
         if scope["type"] == "http":
             request = Request(scope, receive, send)
+            request_container.bind(Request, request)
             scope["request"] = request
             self._request.set(request)
 
         if self._asgi_app is None:
             self._asgi_app = self._create_app()
-        await self._asgi_app(scope, receive, send)
+
+        scope['resolver'] = request_container
+        self._request_services.set(request_container)
+        with request_container.change_context():
+            await self._asgi_app(scope, receive, send)
 
     def cli(self) -> None:
         set_current_application(self)
@@ -108,8 +128,15 @@ class Kupala:
             pass
         return self.renderer.render(template_name, context)
 
+    def invoke(self, fn_or_class: t.Union[t.Callable, t.Type], extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
+        """Resolve callable dependencies and call it passing dependencies to callable arguments.
+        If `fn_or_class` is a type then it will be instantiated.
 
-_current_app: contextvars.ContextVar[Kupala] = contextvars.ContextVar('_current_app')
+        Use `extra_kwargs` to provide dependency hints to the injector."""
+        return self.services.invoke(fn_or_class, extra_kwargs=extra_kwargs)
+
+
+_current_app: cv.ContextVar[Kupala] = cv.ContextVar('_current_app')
 
 
 def set_current_application(app: Kupala) -> None:

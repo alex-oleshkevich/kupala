@@ -121,3 +121,17 @@ def test_contains_in_parent(container: Container) -> None:
 def test_setgetitem(container: Container) -> None:
     container['key'] = 'value'
     assert container['key'] == 'value'
+
+
+def test_scoped_services(container: Container) -> None:
+    class LonelyClass:
+        ...
+
+    container.factory(LonelyClass, lambda r: LonelyClass(), scope=Scope.SCOPED)
+    with container.change_context():
+        instance1 = container.resolve(LonelyClass)
+        instance2 = container.resolve(LonelyClass)
+        assert instance1 == instance2
+    instance3 = container.resolve(LonelyClass)
+    assert instance3 != instance1
+    assert instance3 != instance2
