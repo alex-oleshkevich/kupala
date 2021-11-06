@@ -12,6 +12,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from kupala.config import Config
 from kupala.container import Container, Resolver
 from kupala.contracts import Invoker
+from kupala.dotenv import DotEnv
 from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import MiddlewareStack
 from kupala.providers import Provider
@@ -39,8 +40,8 @@ class Kupala:
         self._asgi_app: t.Optional[ASGIApp] = None
         self._router: t.Optional[Router] = None
         self.routes = Routes(list(routes) if routes else [])
-        self.config = Config(config, dotenv, prefix=env_prefix)
-        self.dotenv = self.config.dotenv
+        self.config = Config(config)
+        self.dotenv = DotEnv(dotenv or ['.env.defaults', '.env'], env_prefix)
         self.env = self.dotenv.str('APP_ENV', 'production')
         self.debug = self.dotenv.bool('APP_DEBUG', False) if debug is None else debug
         self.middleware = MiddlewareStack()
