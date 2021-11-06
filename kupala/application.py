@@ -19,6 +19,8 @@ from kupala.requests import Request
 from kupala.routing import Router, Routes
 from kupala.templating import ContextProcessor, TemplateRenderer
 
+_SERVICE = t.TypeVar('_SERVICE')
+
 
 class Kupala:
     def __init__(
@@ -39,19 +41,13 @@ class Kupala:
         self.context_processors: t.List[ContextProcessor] = context_processors or []
         self.error_handlers = error_handlers or {}
 
-        self._shared_services = Container()
-        self._request_services: cv.ContextVar[Container] = cv.ContextVar(
-            '_request_services', default=self._shared_services
-        )
+        self.services = Container()
+        self._request_container: cv.ContextVar[Container] = cv.ContextVar('_request_container', default=self.services)
         self._request: cv.ContextVar[t.Optional[Request]] = cv.ContextVar('_current_request')
 
-        self._shared_services.bind(Container, self._shared_services)
-        self._shared_services.bind(Resolver, self._shared_services)
-        self._shared_services.bind(Invoker, self._shared_services)
-
-    @property
-    def services(self) -> Container:
-        return self._request_services.get()
+        self.services.bind(Container, self.services)
+        self.services.bind(Resolver, self.services)
+        self.services.bind(Invoker, self.services)
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI lifespan events handler."""
@@ -77,6 +73,7 @@ class Kupala:
         set_current_application(self)
 
         request_container = Container(parent=self.services)
+        scope['resolver'] = request_container
 
         if scope["type"] == "lifespan":
             await self.lifespan_handler(scope, receive, send)
@@ -91,8 +88,7 @@ class Kupala:
         if self._asgi_app is None:
             self._asgi_app = self._create_app()
 
-        scope['resolver'] = request_container
-        self._request_services.set(request_container)
+        self._request_container.set(request_container)
         with request_container.change_context():
             await self._asgi_app(scope, receive, send)
 
@@ -133,7 +129,11 @@ class Kupala:
         If `fn_or_class` is a type then it will be instantiated.
 
         Use `extra_kwargs` to provide dependency hints to the injector."""
-        return self.services.invoke(fn_or_class, extra_kwargs=extra_kwargs)
+        return self._request_container.get().invoke(fn_or_class, extra_kwargs=extra_kwargs)
+
+    def resolve(self, key: t.Type[_SERVICE]) -> _SERVICE:
+        """Resolve a service from the current container."""
+        return self._request_container.get().resolve(key)
 
 
 _current_app: cv.ContextVar[Kupala] = cv.ContextVar('_current_app')
