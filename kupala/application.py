@@ -28,6 +28,7 @@ class Kupala:
         self,
         debug: bool = None,
         config: t.Mapping = None,
+        environment: str = None,
         env_prefix: str = '',
         dotenv: t.List[str] = None,
         routes: t.Union[Routes, t.List[BaseRoute]] = None,
@@ -37,20 +38,20 @@ class Kupala:
         providers: t.Iterable[Provider] = None,
     ) -> None:
         self.lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = []
-        self._asgi_app: t.Optional[ASGIApp] = None
-        self._router: t.Optional[Router] = None
         self.routes = Routes(list(routes) if routes else [])
         self.config = Config(config)
         self.dotenv = DotEnv(dotenv or ['.env.defaults', '.env'], env_prefix)
-        self.env = self.dotenv.str('APP_ENV', 'production')
+        self.env = self.dotenv.str('APP_ENV', 'production') if environment is None else environment
         self.debug = self.dotenv.bool('APP_DEBUG', False) if debug is None else debug
         self.middleware = MiddlewareStack()
         self.providers = providers or []
         self.renderer: t.Optional[TemplateRenderer] = renderer
         self.context_processors: t.List[ContextProcessor] = context_processors or []
         self.error_handlers = error_handlers or {}
-
         self.services = Container()
+
+        self._asgi_app: t.Optional[ASGIApp] = None
+        self._router: t.Optional[Router] = None
         self._request_container: cv.ContextVar[Container] = cv.ContextVar('_request_container', default=self.services)
         self._request: cv.ContextVar[t.Optional[Request]] = cv.ContextVar('_current_request')
 
