@@ -12,6 +12,22 @@ if t.TYPE_CHECKING:
     from .application import Kupala
 
 
+class QueryParams(requests.QueryParams):
+    def get_bool(self, key: str, default: bool = None) -> t.Optional[bool]:
+        value = self.get(key, None)
+        return value.lower() in ['t', 'true', 'yes', 'on', '1'] if value is not None else default
+
+    def get_list(self, key: str, subcast: t.Callable = None) -> list[str]:
+        items = self.getlist(key)
+        if subcast:
+            return list(map(subcast, items))
+        return items
+
+    def get_int(self, key: str, default: int = None) -> t.Optional[int]:
+        value: str = self.get(key, None)
+        return int(value) if value is not None and value.isnumeric() else default
+
+
 class Request(requests.Request):
     def __new__(cls, scope: Scope, receive: Receive = empty_receive, send: Send = empty_send) -> Request:
         if 'request' not in scope:
@@ -19,6 +35,10 @@ class Request(requests.Request):
             instance.__init__(scope, receive, send)
             scope['request'] = instance
         return scope['request']
+
+    @property
+    def query_params(self) -> QueryParams:
+        return QueryParams(super().query_params)
 
     @property
     def app(self) -> 'Kupala':
