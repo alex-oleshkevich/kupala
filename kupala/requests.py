@@ -8,6 +8,9 @@ from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 from starsessions import Session
 
+if t.TYPE_CHECKING:
+    from .application import Kupala
+
 
 class Request(requests.Request):
     def __new__(cls, scope: Scope, receive: Receive = empty_receive, send: Send = empty_send) -> Request:
@@ -16,6 +19,10 @@ class Request(requests.Request):
             instance.__init__(scope, receive, send)
             scope['request'] = instance
         return scope['request']
+
+    @property
+    def app(self) -> 'Kupala':
+        return self.scope['app']
 
     @property
     def auth(self) -> UserToken:

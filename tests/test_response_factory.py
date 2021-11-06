@@ -256,52 +256,6 @@ def test_disposition_inline() -> None:
     assert res.headers['content-disposition'] == 'inline; filename="numbers.txt"'
 
 
-# class _FormatRenderer(Renderer):
-#     def render(
-#         self,
-#         template_name: str,
-#         context: Dict[str, Any] = None,
-#         request: Request = None,
-#     ) -> str:
-#         with open(template_name, 'r') as f:
-#             return f.read() % context
-#
-#
-# def test_template_response(tmpdir, app_f):
-#     template_path = os.path.join(tmpdir, 'index.html')
-#     with open(template_path, 'w') as f:
-#         f.write('Username: %(username)s')
-#
-#     def view(request: Request) -> Response:
-#         return request.response().template(template_path, {'username': 'root'})
-#
-#     app = Kupala()
-#     app.routes.get('/', view)
-#     app.bind(Renderer, _FormatRenderer())
-#
-#     client = TestClient(app)
-#     response = client.get("/")
-#     assert response.text == 'Username: root'
-#
-#
-# def test_render(tmpdir, app_f):
-#     template_path = os.path.join(tmpdir, 'index.html')
-#     with open(template_path, 'w') as f:
-#         f.write('Username: %(username)s')
-#
-#     def view(request: Request) -> Response:
-#         return request.response().template(template_path, {'username': 'root'})
-#
-#     app = Kupala()
-#     app.bind(Renderer, _FormatRenderer())
-#     app.routes.get('/', view)
-#
-#     client = TestClient(app)
-#     response = client.get("/")
-#     assert response.text == 'Username: root'
-#
-
-
 def test_plain_text() -> None:
     def view(request: Request) -> Response:
         return response(request).text('plain text response')

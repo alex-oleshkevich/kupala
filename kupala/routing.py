@@ -6,17 +6,42 @@ import typing
 import typing as t
 from os import PathLike
 from starlette import routing
-from starlette.routing import Mount, WebSocketRoute, compile_path, get_name, request_response
+from starlette.concurrency import run_in_threadpool
+from starlette.routing import Mount, WebSocketRoute, compile_path, get_name, iscoroutinefunction_or_partial
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.exceptions import MethodNotAllowed
 from kupala.middleware import Middleware
+from kupala.requests import Request
+from kupala.resources import get_resource_action
 from kupala.responses import RedirectResponse
+from kupala.utils import camel_to_snake
 
 
 def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASGIApp:
     for mw in reversed(middleware):
         app = mw.wrap(app)
+    return app
+
+
+def request_response(func: typing.Callable) -> ASGIApp:
+    """
+    Takes a function or coroutine `func(request) -> response`,
+    and returns an ASGI application.
+    """
+    is_coroutine = iscoroutinefunction_or_partial(func)
+
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        request: Request = scope['request']
+        extra_kwargs = request.path_params
+
+        if is_coroutine:
+            response = await request.app.invoke(func, extra_kwargs=extra_kwargs)
+        else:
+            response = await run_in_threadpool(request.app.invoke, func, extra_kwargs=extra_kwargs)
+        await response(scope, receive, send)
+
     return app
 
 
@@ -64,6 +89,9 @@ class Route(routing.Route):
                 self.methods.add("HEAD")
 
         self.path_regex, self.path_format, self.param_convertors = compile_path(path)
+
+    def __repr__(self) -> str:
+        return f'<Route: path={self.path}, methods={self.methods}, name={self.name}>'
 
 
 class _RouteAdapter:
@@ -148,6 +176,178 @@ class GroupRoutes(_RouteAdapter):
     async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
         assert self._base_app  # silence mypy
         await self._base_app.handle(scope, receive, send)
+
+
+class ResourceRoute(routing.BaseRoute):
+    def __init__(
+        self,
+        path: str,
+        resource: object,
+        *,
+        name: str = None,
+        only: list[str] = None,
+        exclude: list[str] = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+        redirect_slashes: bool = True,
+        id_param: str = 'id:int',
+    ) -> None:
+        assert path == "" or path.startswith("/"), "Routed paths must start with '/'"
+        assert bool(only and exclude) is False, '"exclude" and "only" arguments are mutually exclusive.'
+
+        self.path = path.rstrip("/")
+        self.name = name or camel_to_snake(resource.__class__.__name__).replace('_resource', '')
+        self.only = only
+        self.exclude = exclude
+        self.resource = resource
+        self.id_param = id_param
+        self.middleware = middleware
+        self.include_in_schema = include_in_schema
+
+        self.collection_method_map: dict[str, t.Callable] = {
+            'head': getattr(self.resource, 'index', None),
+            'get': getattr(self.resource, 'index', None),
+            'post': getattr(self.resource, 'create', None),
+        }
+        self.object_method_map: dict[str, t.Callable] = {
+            'head': getattr(self.resource, 'show', None),
+            'get': getattr(self.resource, 'show', None),
+            'put': getattr(self.resource, 'update', None),
+            'patch': getattr(self.resource, 'partial_update', getattr(self.resource, 'update', None)),
+            'delete': getattr(self.resource, 'destroy', None),
+        }
+
+        routes = self._create_routes()
+        self.app = Router(routes, redirect_slashes=redirect_slashes)
+
+    def _create_routes(self) -> list[routing.BaseRoute]:
+        return [
+            *self._get_custom_action_routes(),
+            *self._get_edit_routes(),
+            *self._get_list_routes(),
+            *self._get_object_routes(),
+        ]
+
+    @property
+    def routes(self) -> list[routing.BaseRoute]:
+        return getattr(self.app, "routes", None)
+
+    def matches(self, scope: Scope) -> t.Tuple[routing.Match, Scope]:
+        for route in self.routes:
+            match, child_scope = route.matches(scope)
+            if match != routing.Match.NONE:
+                return match, child_scope
+        return routing.Match.NONE, {}
+
+    def url_path_for(self, name: str, **path_params: str) -> routing.URLPath:
+        return self.app.url_path_for(name, **path_params)
+
+    async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await self.app(scope, receive, send)
+
+    def _get_list_routes(self) -> list[routing.BaseRoute]:
+        routes: list[routing.BaseRoute] = []
+        collection_route_methods: list[str] = []
+        if self._is_action_allowed('index'):
+            collection_route_methods.extend(['HEAD', 'GET'])
+        if self._is_action_allowed('create'):
+            collection_route_methods.append('POST')
+
+        if collection_route_methods:
+            routes.append(
+                Route(
+                    self.path,
+                    self._list_view,
+                    methods=collection_route_methods,
+                    name=f'{self.name}.list',
+                    include_in_schema=self.include_in_schema,
+                    middleware=self.middleware,
+                )
+            )
+        return routes
+
+    def _get_object_routes(self) -> list[routing.BaseRoute]:
+        routes: list[routing.BaseRoute] = []
+        object_route_methods: list[str] = []
+        if self._is_action_allowed('show'):
+            object_route_methods.extend(['HEAD', 'GET'])
+        if self._is_action_allowed('update'):
+            object_route_methods.extend(['PUT', 'PATCH'])
+        if self._is_action_allowed('destroy'):
+            object_route_methods.append('DELETE')
+        if object_route_methods:
+            routes.append(
+                Route(
+                    '%s/{%s}' % (self.path, self.id_param),
+                    self._object_view,
+                    methods=object_route_methods,
+                    name=f'{self.name}.detail',
+                    include_in_schema=self.include_in_schema,
+                    middleware=self.middleware,
+                )
+            )
+        return routes
+
+    def _get_edit_routes(self) -> list[routing.BaseRoute]:
+        routes: list[routing.BaseRoute] = []
+        new_action = getattr(self.resource, 'new', None)
+        if self._is_action_allowed('new') and new_action:
+            routes.append(Route('%s/new' % self.path, new_action, name=f'{self.name}.new', middleware=self.middleware))
+
+        edit_action = getattr(self.resource, 'edit', None)
+        if self._is_action_allowed('edit') and edit_action:
+            routes.append(
+                Route(
+                    '%s/{%s}/edit' % (self.path, self.id_param),
+                    edit_action,
+                    name=f'{self.name}.edit',
+                    middleware=self.middleware,
+                )
+            )
+        return routes
+
+    def _get_custom_action_routes(self) -> list[routing.BaseRoute]:
+        routes: list[routing.BaseRoute] = []
+
+        for name, fn in inspect.getmembers(self.resource, inspect.ismethod):
+            action = get_resource_action(fn)
+            if action and self._is_action_allowed(name):
+                path = '{base}{id_param}{action}'.format(
+                    base=self.path,
+                    id_param=('/{%s}' % self.id_param if action.is_for_object else ''),
+                    action=action.path,
+                )
+                routes.append(
+                    Route(
+                        path=path,
+                        endpoint=fn,
+                        name=f'{self.name}.{action.path_name}',
+                        include_in_schema=action.include_in_schema,
+                        methods=action.methods,
+                        middleware=action.middleware,
+                    )
+                )
+
+        return routes
+
+    async def _list_view(self, request: Request) -> ASGIApp:
+        action = self.collection_method_map.get(request.method.lower())
+        if not action:
+            raise MethodNotAllowed()
+        return request_response(action)
+
+    async def _object_view(self, request: Request) -> ASGIApp:
+        action = self.object_method_map.get(request.method.lower())
+        if not action:
+            raise MethodNotAllowed()
+        return request_response(action)
+
+    def _is_action_allowed(self, action: str) -> bool:
+        if self.only:
+            return action in self.only
+        if self.exclude:
+            return action not in self.exclude
+        return True
 
 
 class Routes(t.Sequence[routing.BaseRoute]):
@@ -345,6 +545,57 @@ class Routes(t.Sequence[routing.BaseRoute]):
         self.mount(
             path,
             RedirectResponse(destination, status_code=status_code, headers=headers),
+        )
+
+    def resource(
+        self,
+        path: str,
+        resource: object,
+        *,
+        name: str = None,
+        only: list[str] = None,
+        exclude: list[str] = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+        id_param: str = 'id:int',
+    ) -> None:
+        self._routes.append(
+            ResourceRoute(
+                path,
+                resource,
+                name=name,
+                only=only,
+                exclude=exclude,
+                include_in_schema=include_in_schema,
+                middleware=middleware,
+                id_param=id_param,
+            )
+        )
+
+    def api_resource(
+        self,
+        path: str,
+        resource: object,
+        *,
+        name: str = None,
+        only: list[str] = None,
+        exclude: list[str] = None,
+        include_in_schema: bool = True,
+        middleware: t.Sequence[Middleware] = None,
+        id_param: str = 'id:int',
+    ) -> None:
+        excluded = ['new', 'edit']
+        only = [action for action in only if action not in excluded] if only else None
+        exclude = list({*exclude, *excluded}) if exclude else excluded
+        self.resource(
+            path,
+            resource,
+            name=name,
+            only=only,
+            exclude=exclude,
+            include_in_schema=include_in_schema,
+            middleware=middleware,
+            id_param=id_param,
         )
 
     def __iter__(self) -> t.Iterator[routing.BaseRoute]:

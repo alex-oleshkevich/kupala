@@ -1,20 +1,25 @@
 from __future__ import annotations
 
-import contextvars
+import contextvars as cv
 import logging
 import traceback
 import typing as t
 from contextlib import AsyncExitStack
-from starlette.exceptions import ExceptionMiddleware
 from starlette.middleware.errors import ServerErrorMiddleware
 from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.config import Config
+from kupala.container import Container, Resolver
+from kupala.contracts import Invoker
+from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import MiddlewareStack
+from kupala.providers import Provider
 from kupala.requests import Request
 from kupala.routing import Router, Routes
 from kupala.templating import ContextProcessor, TemplateRenderer
+
+_SERVICE = t.TypeVar('_SERVICE')
 
 
 class Kupala:
@@ -27,18 +32,30 @@ class Kupala:
         routes: t.Union[Routes, t.List[BaseRoute]] = None,
         renderer: TemplateRenderer = None,
         context_processors: t.List[ContextProcessor] = None,
+        error_handlers: t.Dict[t.Union[t.Type[Exception], int], ErrorHandler] = None,
+        providers: t.Iterable[Provider] = None,
     ) -> None:
         self.lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = []
         self._asgi_app: t.Optional[ASGIApp] = None
+        self._router: t.Optional[Router] = None
         self.routes = Routes(list(routes) if routes else [])
         self.config = Config(config, dotenv, prefix=env_prefix)
         self.dotenv = self.config.dotenv
         self.env = self.dotenv.str('APP_ENV', 'production')
         self.debug = self.dotenv.bool('APP_DEBUG', False) if debug is None else debug
         self.middleware = MiddlewareStack()
+        self.providers = providers or []
         self.renderer: t.Optional[TemplateRenderer] = renderer
         self.context_processors: t.List[ContextProcessor] = context_processors or []
-        self._request: contextvars.ContextVar[t.Optional[Request]] = contextvars.ContextVar('_current_request')
+        self.error_handlers = error_handlers or {}
+
+        self.services = Container()
+        self._request_container: cv.ContextVar[Container] = cv.ContextVar('_request_container', default=self.services)
+        self._request: cv.ContextVar[t.Optional[Request]] = cv.ContextVar('_current_request')
+
+        self.services.bind(Container, self.services)
+        self.services.bind(Resolver, self.services)
+        self.services.bind(Invoker, self.services)
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI lifespan events handler."""
@@ -63,29 +80,40 @@ class Kupala:
         scope["app"] = self
         set_current_application(self)
 
+        request_container = Container(parent=self.services)
+        scope['resolver'] = request_container
+
         if scope["type"] == "lifespan":
             await self.lifespan_handler(scope, receive, send)
             return
 
         if scope["type"] == "http":
             request = Request(scope, receive, send)
+            request_container.bind(Request, request)
             scope["request"] = request
             self._request.set(request)
 
         if self._asgi_app is None:
             self._asgi_app = self._create_app()
-        await self._asgi_app(scope, receive, send)
+
+        self._request_container.set(request_container)
+        with request_container.change_context():
+            await self._asgi_app(scope, receive, send)
 
     def cli(self) -> None:
         set_current_application(self)
         self.bootstrap()
 
     def bootstrap(self) -> None:
-        pass
+        for provider in self.providers:
+            provider.register(self.services)
+        for provider in self.providers:
+            provider.bootstrap(self.services)
 
     def _create_app(self) -> ASGIApp:
         app: ASGIApp = Router(routes=self.routes)
-        self.middleware.top(ExceptionMiddleware, handlers={})
+        self._router = t.cast(Router, app)
+        self.middleware.top(ExceptionMiddleware, handlers=self.error_handlers)
         self.middleware.top(ServerErrorMiddleware, debug=True)
         for mw in reversed(self.middleware):
             app = mw.wrap(app)
@@ -105,8 +133,19 @@ class Kupala:
             pass
         return self.renderer.render(template_name, context)
 
+    def invoke(self, fn_or_class: t.Union[t.Callable, t.Type], extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
+        """Resolve callable dependencies and call it passing dependencies to callable arguments.
+        If `fn_or_class` is a type then it will be instantiated.
 
-_current_app: contextvars.ContextVar[Kupala] = contextvars.ContextVar('_current_app')
+        Use `extra_kwargs` to provide dependency hints to the injector."""
+        return self._request_container.get().invoke(fn_or_class, extra_kwargs=extra_kwargs)
+
+    def resolve(self, key: t.Type[_SERVICE]) -> _SERVICE:
+        """Resolve a service from the current container."""
+        return self._request_container.get().resolve(key)
+
+
+_current_app: cv.ContextVar[Kupala] = cv.ContextVar('_current_app')
 
 
 def set_current_application(app: Kupala) -> None:

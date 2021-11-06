@@ -1,7 +1,13 @@
+from __future__ import annotations
+
 import os
 import typing as t
 import urllib.parse
 from starlette import responses
+from starlette.background import BackgroundTask
+from starlette.datastructures import UploadFile
+from starlette.types import Receive, Scope, Send
+from urllib.parse import quote
 
 from kupala import json
 from kupala.constants import REDIRECT_INPUT_DATA_SESSION_KEY
@@ -94,34 +100,76 @@ class RedirectResponse(responses.RedirectResponse):
         status_code: int = 302,
         headers: dict = None,
         *,
-        input_data: t.Any = None,
+        input_data: t.Mapping = None,
         flash_message: str = None,
-        flash_type: str = "info",
+        flash_category: str = "info",
         path_name: str = None,
         path_params: dict = None,
-        request: Request = None,
     ):
-        if not any([url, path_name]):
-            raise ValueError('Either "url" or "path_name" argument must be passed.')
+        self.status_code = status_code
+        self.body = b''
+        self.background: t.Optional[BackgroundTask] = None
+        self.init_headers(headers)
 
-        if path_name:
-            assert request, '"path_name" requires "request" argument.'
-            url = request.url_for(path_name, **(path_params or {}))
+        self._url = url
+        self._flash_message = flash_message
+        self._flash_message_category = flash_category
+        self._input_data = input_data
+        self._path_name = path_name
+        self._path_params = path_params
 
-        if input_data:
-            assert request, '"input_data" requires "request" argument.'
-            if 'session' in request.scope:
-                request.session[REDIRECT_INPUT_DATA_SESSION_KEY] = input_data
+        assert url or path_name, 'Either "url" or "path_name" argument must be passed.'
 
-        if flash_message:
-            assert request, '"flash_message" requires "request" argument.'
-            if 'flash_messages' in request.scope:
-                request.scope['flash_messages'].add(flash_message, flash_type)
+    def flash(self, message: str, category: str = 'success') -> RedirectResponse:
+        """Set a flash message to the response."""
+        self._flash_message = message
+        self._flash_message_category = category
+        return self
 
-        assert url
-        super().__init__(url, status_code, headers)
+    def with_input(self, input_data: t.Mapping) -> RedirectResponse:
+        """Redirect with form input data. Uploaded files will be removed from data."""
+        self._input_data = {k: v for k, v in input_data.items() if not isinstance(v, UploadFile)}
+        return self
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if self._flash_message and 'flash_messages' in scope:
+            scope['flash_messages'].add(self._flash_message, self._flash_message_category)
+
+        if self._input_data and 'session' in scope:
+            scope['session'][REDIRECT_INPUT_DATA_SESSION_KEY] = self._input_data
+
+        if self._path_name:
+            url = scope['request'].url_for(self._path_name, **(self._path_params or {}))
+        else:
+            url = self._url
+
+        self.headers["location"] = quote(str(url), safe=":/%#?=@[]!$&'()*+,;")
+
+        return await super().__call__(scope, receive, send)
 
 
 class EmptyResponse(responses.Response):
     def __init__(self, headers: dict = None) -> None:
         super().__init__(b'', status_code=204, headers=headers)
+
+
+class GoBackResponse(RedirectResponse):
+    def __init__(
+        self,
+        request: Request,
+        flash_message: str = None,
+        flash_category: str = 'info',
+        input_data: t.Any = None,
+        status_code: int = 302,
+    ) -> None:
+        redirect_to = request.headers.get('referer', '/')
+        current_origin = request.url.netloc
+        if current_origin not in redirect_to:
+            redirect_to = '/'
+        super().__init__(
+            redirect_to,
+            status_code=status_code,
+            input_data=input_data,
+            flash_message=flash_message,
+            flash_category=flash_category,
+        )
