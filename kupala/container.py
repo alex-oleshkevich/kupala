@@ -25,8 +25,14 @@ class InjectionError(ContainerError):
 
     ErrorType = InjectionErrorType
 
-    def __init__(self, message: str, error_type: InjectionErrorType) -> None:
-        super().__init__(message)
+    def __init__(
+        self, message: str, error_type: InjectionErrorType, invokation_target: t.Union[t.Callable, t.Type]
+    ) -> None:
+        class_name = (
+            invokation_target.__class__.__name__ if inspect.isclass(invokation_target) else invokation_target.__name__
+        )
+        addon = f'Tried to invoke: {class_name}{inspect.signature(invokation_target)}.'
+        super().__init__(message + f'\n{addon}')
         self.error_type = error_type
 
 
@@ -164,39 +170,44 @@ class Container:
             return abs_factory.resolve(key, self)
         return service_resolver.resolve()
 
-    def invoke(self, fn: t.Union[t.Callable, t.Type], extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
+    def invoke(self, fn_or_class: t.Union[t.Callable, t.Type], extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
         """Invoke a callable resolving and injecting dependencies."""
         injections = {}
         extra_kwargs = extra_kwargs or {}
-        class_name = fn.__class__.__name__ if inspect.isclass(fn) else fn.__name__
-        for argument in get_callable_types(fn):
+
+        for argument in get_callable_types(fn_or_class):
             if argument.name in extra_kwargs:
                 injections[argument.name] = extra_kwargs[argument.name]
                 continue
 
             if argument.is_positional_only:
                 raise InjectionError(
-                    'Position-only arguments are not supported. '
-                    f'Tried to invoke: {class_name}{inspect.signature(fn)}.',
-                    InjectionErrorType.POSITIONAL_ONLY_ERROR,
+                    'Position-only arguments are not supported. ', InjectionErrorType.POSITIONAL_ONLY_ERROR, fn_or_class
                 )
             if not argument.is_annotated:
                 raise InjectionError(
-                    f'Argument "{argument.name}" is not annotated thus injector cannot resolve object to inject. '
-                    f'Tried to invoke: {class_name}{inspect.signature(fn)}.',
+                    f'Argument "{argument.name}" is not annotated thus injector cannot resolve object to inject. ',
                     InjectionErrorType.NOT_ANNOTATED_ERROR,
+                    fn_or_class,
                 )
 
             try:
                 injections[argument.name] = self.resolve(argument.annotation)
             except ServiceNotFoundError as ex:
                 raise InjectionError(
-                    f'Argument "{argument.name}" refers to unregistered service "{argument.annotation}". '
-                    f'Tried to invoke: {class_name}{inspect.signature(fn)}.',
+                    f'Argument "{argument.name}" refers to unregistered service "{argument.annotation}". ',
                     InjectionErrorType.SERVICE_NOT_FOUND,
+                    fn_or_class,
                 ) from ex
 
-        return fn(**injections)
+        if inspect.iscoroutinefunction(fn_or_class):
+
+            async def wrapper() -> t.Any:
+                return await fn_or_class(**injections)
+
+            return wrapper()
+        else:
+            return fn_or_class(**injections)
 
     def add_abstract_factory(self, factory: AbstractFactory) -> None:
         self._abs_factories.append(factory)

@@ -111,7 +111,7 @@ class ClassToInject:
     ...
 
 
-def test_invoke_callable() -> None:
+def test_invokes_callable() -> None:
     service_instance = ClassToInject()
     container = Container()
     container.bind(ClassToInject, service_instance)
@@ -120,6 +120,19 @@ def test_invoke_callable() -> None:
         return some_class
 
     assert container.invoke(some_callable) == service_instance
+
+
+@pytest.mark.asyncio
+async def test_invokes_async_callable() -> None:
+    service_instance = ClassToInject()
+    container = Container()
+    container.bind(ClassToInject, service_instance)
+
+    async def some_callable(some_class: ClassToInject) -> ClassToInject:
+        return some_class
+
+    instance = await container.invoke(some_callable)
+    assert instance == service_instance
 
 
 def test_positional_only_not_supported() -> None:
