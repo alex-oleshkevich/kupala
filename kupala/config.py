@@ -15,8 +15,8 @@ class LockedError(ConfigError):
 class Config:
     """Keeps application configuration three."""
 
-    def __init__(self, initial: dict = None) -> None:
-        self._data = initial or {}
+    def __init__(self, initial: t.Mapping = None) -> None:
+        self._data = dict(initial or {})
         self._is_locked = False
 
     def get(self, key: str, default: t.Any = None) -> t.Any:
