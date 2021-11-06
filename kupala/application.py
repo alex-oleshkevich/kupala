@@ -10,6 +10,7 @@ from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.config import Config
+from kupala.console import console
 from kupala.container import Container, Resolver
 from kupala.contracts import Invoker
 from kupala.exceptions import ErrorHandler, ExceptionMiddleware
@@ -96,6 +97,8 @@ class Kupala:
     def cli(self) -> None:
         set_current_application(self)
         self.bootstrap()
+
+        return console()
 
     def bootstrap(self) -> None:
         for provider in self.providers:
