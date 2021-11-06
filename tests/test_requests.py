@@ -156,3 +156,23 @@ def test_full_url_matches() -> None:
     assert request.full_url_matches(r'http://example.com/account/*')
     assert request.full_url_matches(r'http://example.com/account/login')
     assert not request.full_url_matches(r'http://another.com/account/login')
+
+
+def test_query_params() -> None:
+    request = Request(
+        {
+            "type": "http",
+            "scheme": "http",
+            "server": ("example.com", 80),
+            "query_string": b"token=TOKEN&enable=true&count=10&items=a&items=b&int=1&int=2",
+            "path": "/account/login",
+            "headers": {},
+        }
+    )
+    assert request.query_params.get('token') == 'TOKEN'
+    assert request.query_params.get_bool('enable') is True
+    assert request.query_params.get_list('items') == ['a', 'b']
+    assert request.query_params.get_list('int', int) == [1, 2]
+    assert request.query_params.get_int('count') == 10
+    assert request.query_params.get_int('count_missing', 42) == 42
+    assert request.query_params.get_int('enable') is None
