@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import builtins as bi
+import datetime as datetimelib
 import decimal
+import enum as enumlib
 import functools
+import json
+import logging
 import os
+import pathlib
 import typing as t
+import uuid as uuidlib
 from dotenv import load_dotenv
+from urllib.parse import ParseResult, urlparse
 
 CastFn = t.Callable[[str], t.Any]
 ValidatorFn = t.Callable[[t.Any], bool]
@@ -46,7 +53,7 @@ def min_max_validator(
 
 
 class DotEnv:
-    def __init__(self, paths: t.Iterable[t.Union[str, os.PathLike[str]]], prefix: str = '') -> None:
+    def __init__(self, paths: t.Iterable[t.Union[str, os.PathLike[str]]], prefix: bi.str = '') -> None:
         self._prefix = prefix
         for path in paths:
             self.load(path)
@@ -64,8 +71,9 @@ class DotEnv:
         *,
         validators: list[ValidatorFn] = None,
         check_file: bool = False,
+        prefix: bi.str = '',
     ) -> t.Any:
-        key = f'{self._prefix}{name}'
+        key = f'{prefix or self._prefix}{name}'
         value = os.environ.get(key, default)
         if value == undefined:
             base_message = f'Environment variable "{name}" is undefined and has no default.'
@@ -102,6 +110,7 @@ class DotEnv:
         *,
         validators: list[ValidatorFn] = None,
         check_file: bool = False,
+        prefix: bi.str = '',
         min: int = None,
         min_inclusive: bool = True,
         max: int = None,
@@ -114,7 +123,7 @@ class DotEnv:
                     min_max_validator, min=min, min_inclusive=min_inclusive, max=max, max_inclusive=max_inclusive
                 )
             )
-        return self.get(name, default, int, validators=validators, check_file=check_file)
+        return self.get(name, default, int, validators=validators, check_file=check_file, prefix=prefix)
 
     def float(
         self,
@@ -123,6 +132,7 @@ class DotEnv:
         *,
         validators: list[ValidatorFn] = None,
         check_file: bool = False,
+        prefix: bi.str = '',
         min: float = None,
         min_inclusive: bool = True,
         max: float = None,
@@ -135,7 +145,7 @@ class DotEnv:
                     min_max_validator, min=min, min_inclusive=min_inclusive, max=max, max_inclusive=max_inclusive
                 )
             )
-        return self.get(name, default, float, validators=validators, check_file=check_file)
+        return self.get(name, default, float, validators=validators, check_file=check_file, prefix=prefix)
 
     def decimal(
         self,
@@ -144,6 +154,7 @@ class DotEnv:
         *,
         validators: list[ValidatorFn] = None,
         check_file: bool = False,
+        prefix: bi.str = '',
         min: decimal.Decimal = None,
         min_inclusive: bool = True,
         max: decimal.Decimal = None,
@@ -156,7 +167,7 @@ class DotEnv:
                     min_max_validator, min=min, min_inclusive=min_inclusive, max=max, max_inclusive=max_inclusive
                 )
             )
-        return self.get(name, default, decimal.Decimal, validators=validators, check_file=check_file)
+        return self.get(name, default, decimal.Decimal, validators=validators, check_file=check_file, prefix=prefix)
 
     def str(
         self,
@@ -165,12 +176,13 @@ class DotEnv:
         *,
         validators: list[ValidatorFn] = None,
         check_file: bool = False,
+        prefix: bi.str = '',
         choices: list[bi.str] = None,
     ) -> bi.str:
         validators = validators or []
         if choices:
             validators.append(functools.partial(one_of_validator, choices=choices))
-        return self.get(name, default, str, validators=validators, check_file=check_file)
+        return self.get(name, default, str, validators=validators, check_file=check_file, prefix=prefix)
 
     def bool(
         self,
@@ -179,6 +191,7 @@ class DotEnv:
         *,
         validators: list[ValidatorFn] = None,
         check_file: bool = False,
+        prefix: bi.str = '',
         allowed_values: list[bi.str] = None,
     ) -> bi.bool:
         allowed_values = allowed_values or ['1', 'true', 't', 'yes', 'on']
@@ -187,7 +200,7 @@ class DotEnv:
             assert allowed_values
             return value.lower() in allowed_values
 
-        return self.get(name, default, caster, validators=validators, check_file=check_file)
+        return self.get(name, default, caster, validators=validators, check_file=check_file, prefix=prefix)
 
     def list(
         self,
@@ -197,6 +210,7 @@ class DotEnv:
         sub_cast: CastFn = None,
         validators: list[ValidatorFn] = None,
         check_file: bi.bool = False,
+        prefix: bi.str = '',
         separator: bi.str = ',',
     ) -> bi.list:
         sub_cast = sub_cast or (lambda x: x)
@@ -206,4 +220,155 @@ class DotEnv:
             parts = value.split(separator)
             return list(map(sub_cast, parts))
 
-        return self.get(name, default, caster, validators=validators, check_file=check_file)
+        return self.get(name, default, caster, validators=validators, check_file=check_file, prefix=prefix)
+
+    def json(
+        self,
+        name: bi.str,
+        default: t.Union[t.Any, _Undefined] = undefined,
+        *,
+        validators: bi.list[ValidatorFn] = None,
+        check_file: bi.bool = False,
+        prefix: bi.str = '',
+    ) -> t.Any:
+        return self.get(name, default, cast=json.loads, validators=validators, check_file=check_file, prefix=prefix)
+
+    def datetime(
+        self,
+        name: bi.str,
+        default: t.Union[datetimelib.datetime, _Undefined] = undefined,
+        *,
+        validators: bi.list[ValidatorFn] = None,
+        check_file: bi.bool = False,
+        prefix: bi.str = '',
+    ) -> datetimelib.datetime:
+        return self.get(
+            name,
+            default,
+            cast=datetimelib.datetime.fromisoformat,
+            validators=validators,
+            check_file=check_file,
+            prefix=prefix,
+        )
+
+    def date(
+        self,
+        name: bi.str,
+        default: t.Union[datetimelib.date, _Undefined] = undefined,
+        *,
+        validators: bi.list[ValidatorFn] = None,
+        check_file: bi.bool = False,
+        prefix: bi.str = '',
+    ) -> datetimelib.date:
+        return self.get(
+            name,
+            default,
+            cast=datetimelib.date.fromisoformat,
+            validators=validators,
+            check_file=check_file,
+            prefix=prefix,
+        )
+
+    def time(
+        self,
+        name: bi.str,
+        default: t.Union[datetimelib.time, _Undefined] = undefined,
+        *,
+        validators: bi.list[ValidatorFn] = None,
+        check_file: bi.bool = False,
+        prefix: bi.str = '',
+    ) -> datetimelib.time:
+        return self.get(
+            name,
+            default,
+            cast=datetimelib.time.fromisoformat,
+            validators=validators,
+            check_file=check_file,
+            prefix=prefix,
+        )
+
+    def timedelta(
+        self,
+        name: bi.str,
+        default: t.Union[datetimelib.timedelta, _Undefined] = undefined,
+        *,
+        validators: bi.list[ValidatorFn] = None,
+        check_file: bi.bool = False,
+        prefix: bi.str = '',
+    ) -> datetimelib.timedelta:
+        def caster(value: str) -> datetimelib.timedelta:
+            return datetimelib.timedelta(seconds=int(value))
+
+        return self.get(name, default, cast=caster, validators=validators, check_file=check_file, prefix=prefix)
+
+    def uuid(
+        self,
+        name: bi.str,
+        default: t.Union[uuidlib.UUID, _Undefined] = undefined,
+        *,
+        validators: bi.list[ValidatorFn] = None,
+        check_file: bi.bool = False,
+        prefix: bi.str = '',
+    ) -> uuidlib.UUID:
+        return self.get(name, default, cast=uuidlib.UUID, validators=validators, check_file=check_file, prefix=prefix)
+
+    def url(
+        self,
+        name: bi.str,
+        default: t.Union[bi.str, _Undefined] = undefined,
+        *,
+        validators: bi.list[ValidatorFn] = None,
+        check_file: bi.bool = False,
+        prefix: bi.str = '',
+    ) -> ParseResult:
+        url = self.get(name, default, cast=urlparse, validators=validators, check_file=check_file, prefix=prefix)
+        if url == default:
+            url = urlparse(url)
+        return url
+
+    def log_level(
+        self,
+        name: bi.str,
+        default: t.Union[bi.str, _Undefined] = undefined,
+        *,
+        validators: bi.list[ValidatorFn] = None,
+        check_file: bi.bool = False,
+        prefix: bi.str = '',
+    ) -> bi.int:
+        def caster(value: bi.str) -> bi.int:
+            return logging.getLevelName(value)
+
+        return self.get(name, default, cast=caster, validators=validators, check_file=check_file, prefix=prefix)
+
+    def path(
+        self,
+        name: bi.str,
+        default: t.Union[t.Union[bi.str, os.PathLike], _Undefined] = undefined,
+        *,
+        validators: bi.list[ValidatorFn] = None,
+        check_file: bi.bool = False,
+        prefix: bi.str = '',
+    ) -> pathlib.Path:
+        value = self.get(name, default, cast=pathlib.Path, validators=validators, check_file=check_file, prefix=prefix)
+        if value == default and isinstance(value, bi.str):
+            value = pathlib.Path(value)
+        return value
+
+    E = t.TypeVar('E', bound=enumlib.Enum)
+
+    def enum(
+        self,
+        name: bi.str,
+        enum_class: t.Type[E],
+        default: t.Union[E, _Undefined] = undefined,
+        *,
+        validators: bi.list[ValidatorFn] = None,
+        check_file: bi.bool = False,
+        prefix: bi.str = '',
+    ) -> E:
+        def caster(value: bi.str) -> t.Any:
+            for enum_value in enum_class:
+                if enum_value.name == value:
+                    return enum_value
+
+        return self.get(name, default, cast=caster, validators=validators, check_file=check_file, prefix=prefix)

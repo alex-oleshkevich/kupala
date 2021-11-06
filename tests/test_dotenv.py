@@ -1,5 +1,10 @@
+import datetime
+import enum
 import io
+import logging
+import pathlib
 import pytest
+import uuid
 from _pytest.monkeypatch import MonkeyPatch
 from decimal import Decimal
 from pathlib import Path
@@ -18,7 +23,7 @@ DATE_VALUE=2020-01-01
 TIME_VALUE=23:59
 LIST_VALUE=3.14,2.036,6.626
 JSON_VALUE={"key": "value"}
-TIMEDELTA_VAULE=60
+TIMEDELTA_VALUE=60
 BOOL_VALUE=true
 URL_VALUE=https://username:password@example.com/path/
 UUID_VALUE=d30513a2-3697-4bde-a43a-177c85c5a151
@@ -28,6 +33,9 @@ ENUM_VALUE=/tmp
 BOOLEAN_VALUE=true
 DOMAIN=example.org
 ADMIN_EMAIL=admin@${DOMAIN}
+ENUM_INT_VALUE=INFO
+ENUM_STR_VALUE=INFO
+MYPREFIX_KEYNAME=value
 """
 
 
@@ -43,6 +51,18 @@ def test_get(dotenv: DotEnv) -> None:
 
 def test_default_value(dotenv: DotEnv) -> None:
     assert dotenv.get('MISSING_KEY', 'default') == 'default'
+
+
+def test_interpolation_value(dotenv: DotEnv) -> None:
+    assert dotenv.get('ADMIN_EMAIL') == 'admin@example.org'
+
+
+def test_prefixed(dotenv_content: str, dotenv: DotEnv) -> None:
+    stream = io.StringIO(dotenv_content)
+    prefixed_dotenv = DotEnv([], prefix='MYPREFIX_').load(stream=stream)
+
+    assert prefixed_dotenv.get('KEYNAME') == 'value'
+    assert dotenv.get('KEYNAME', prefix='MYPREFIX_') == 'value'
 
 
 def test_raises_for_missing_default(dotenv: DotEnv) -> None:
@@ -158,3 +178,63 @@ def test_bool_value(dotenv: DotEnv) -> None:
 
 def test_list_value(dotenv: DotEnv) -> None:
     assert dotenv.list('LIST_VALUE', sub_cast=float) == [3.14, 2.036, 6.626]
+
+
+def test_json_value(dotenv: DotEnv) -> None:
+    assert dotenv.json('JSON_VALUE') == {'key': 'value'}
+
+
+def test_datetime_value(dotenv: DotEnv) -> None:
+    assert dotenv.datetime('DATETIME_VALUE') == datetime.datetime(2020, 1, 1, 0, 0)
+
+
+def test_date_value(dotenv: DotEnv) -> None:
+    assert dotenv.date('DATE_VALUE') == datetime.date(2020, 1, 1)
+
+
+def test_time_value(dotenv: DotEnv) -> None:
+    assert dotenv.time('TIME_VALUE') == datetime.time(23, 59)
+
+
+def test_timedelta_value(dotenv: DotEnv) -> None:
+    assert dotenv.timedelta('TIMEDELTA_VALUE') == datetime.timedelta(seconds=60)
+
+
+def test_uuid_value(dotenv: DotEnv) -> None:
+    assert dotenv.uuid('UUID_VALUE') == uuid.UUID('d30513a2-3697-4bde-a43a-177c85c5a151')
+
+
+def test_url_value(dotenv: DotEnv) -> None:
+    url = dotenv.url('URL_VALUE')
+    assert url.scheme == 'https'
+    assert url.username == 'username'
+    assert url.password == 'password'
+    assert url.hostname == 'example.com'
+    assert url.path == '/path/'
+
+    url = dotenv.url('URL_VALUE_MISSING', 'http://domain.tld')
+    assert url.scheme == 'http'
+    assert url.hostname == 'domain.tld'
+
+
+def test_log_level(dotenv: DotEnv) -> None:
+    assert dotenv.log_level('LOG_LEVEL_VALUE') == logging.INFO
+
+
+def test_path(dotenv: DotEnv) -> None:
+    assert dotenv.path('PATH_VALUE') == pathlib.Path('/tmp')
+    assert dotenv.path('PATH_VALUE_MISSING', '/etc') == pathlib.Path('/etc')
+
+
+def test_string_enum(dotenv: DotEnv) -> None:
+    class ExampleStringEnum(enum.Enum):
+        INFO = 'info'
+
+    assert dotenv.enum('ENUM_STR_VALUE', ExampleStringEnum) == ExampleStringEnum.INFO
+
+
+def test_integer_enum(dotenv: DotEnv) -> None:
+    class ExampleIntegerEnum(enum.Enum):
+        INFO = 1
+
+    assert dotenv.enum('ENUM_INT_VALUE', ExampleIntegerEnum) == ExampleIntegerEnum.INFO
