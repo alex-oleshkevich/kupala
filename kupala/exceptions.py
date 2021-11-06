@@ -95,6 +95,10 @@ class TooManyRequests(_BasePredefinedHTTPException):
     status_code = 429
 
 
+class ValidationError(Exception):
+    """Raised when data is not valid by any criteria."""
+
+
 ErrorHandler = t.Callable[[Request, Exception], t.Any]
 
 _renderer = jinja2.Environment(loader=jinja2.PackageLoader(__name__.split('.')[0]))

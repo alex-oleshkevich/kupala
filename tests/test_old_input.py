@@ -29,7 +29,7 @@ def test_old_input() -> None:
             '/',
             allow_redirects=True,
             data=[('first_name', 'root'), ('last_name', 'user')],
-            files=[{'avatar', f}],
+            files=[('avatar', f)],
         )
         assert response.status_code == 200
         assert response.json() == {
