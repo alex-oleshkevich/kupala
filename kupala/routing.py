@@ -15,7 +15,7 @@ from kupala.exceptions import MethodNotAllowed
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.resources import get_resource_action
-from kupala.responses import RedirectResponse, Response
+from kupala.responses import RedirectResponse
 from kupala.utils import camel_to_snake
 
 
@@ -33,11 +33,13 @@ def request_response(func: typing.Callable) -> ASGIApp:
     is_coroutine = iscoroutinefunction_or_partial(func)
 
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        request = Request(scope, receive=receive, send=send)
+        request: Request = scope['request']
+        extra_kwargs = request.path_params
+
         if is_coroutine:
-            response = await func(request)
+            response = await request.app.invoke(func, extra_kwargs=extra_kwargs)
         else:
-            response = await run_in_threadpool(func, request)
+            response = await run_in_threadpool(request.app.invoke, func, extra_kwargs=extra_kwargs)
         await response(scope, receive, send)
 
     return app
@@ -328,17 +330,17 @@ class ResourceRoute(routing.BaseRoute):
 
         return routes
 
-    async def _list_view(self, request: Request) -> Response:
+    async def _list_view(self, request: Request) -> ASGIApp:
         action = self.collection_method_map.get(request.method.lower())
         if not action:
             raise MethodNotAllowed()
-        return await action(request)
+        return request_response(action)
 
-    async def _object_view(self, request: Request) -> Response:
+    async def _object_view(self, request: Request) -> ASGIApp:
         action = self.object_method_map.get(request.method.lower())
         if not action:
             raise MethodNotAllowed()
-        return await action(request)
+        return request_response(action)
 
     def _is_action_allowed(self, action: str) -> bool:
         if self.only:

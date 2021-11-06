@@ -6,7 +6,7 @@ from kupala.application import Kupala
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.resources import action
-from kupala.responses import Response
+from kupala.responses import JSONResponse, Response
 from kupala.routing import Router, Routes
 from kupala.testclient import TestClient
 
@@ -182,7 +182,27 @@ def test_custom_resource_action_middleware() -> None:
 
 def test_api_resource_route() -> None:
     app = Kupala()
-    app.routes.api_resource('/users', ExampleResource(), id_param='id:int')
+    app.routes.api_resource('/users', ExampleResource())
     client = TestClient(app)
     assert client.get('/users/new').status_code == 404
     assert client.get('/users/1/edit').status_code == 404
+
+
+class SomeService:
+    ...
+
+
+class InjectionResource:
+    async def show(self, id: int, service: SomeService) -> JSONResponse:
+        return JSONResponse({'id': id, 'service': service.__class__.__name__})
+
+
+def test_resource_route_injects_path_params() -> None:
+    app = Kupala()
+    app.services.bind(SomeService, SomeService())
+    app.routes.resource('/test', InjectionResource())
+
+    client = TestClient(app)
+    response = client.get('/test/2')
+    assert response.status_code == 200
+    assert response.json() == {'id': 2, 'service': 'SomeService'}
