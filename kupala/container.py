@@ -1,9 +1,14 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import abc
+import contextvars
 import enum
 import inspect
 import typing as t
+import uuid
+from contextlib import contextmanager
 
 
 class ContainerError(Exception):
@@ -83,7 +88,7 @@ class Scope(enum.Enum):
 
 
 class ServiceResolver(abc.ABC):  # pragma: no cover
-    def resolve(self) -> t.Any:
+    def resolve(self, context: dict) -> t.Any:
         raise NotImplementedError()
 
 
@@ -91,7 +96,7 @@ class InstanceResolver(ServiceResolver):
     def __init__(self, instance: t.Any) -> None:
         self.instance = instance
 
-    def resolve(self) -> t.Any:
+    def resolve(self, context: dict) -> t.Any:
         return self.instance
 
 
@@ -106,7 +111,7 @@ class FactoryResolver(ServiceResolver):
         self.factory = factory
         self.initializer = initializer
 
-    def resolve(self) -> t.Any:
+    def resolve(self, context: dict) -> t.Any:
         instance = self.factory(self.resolver)
 
         if self.initializer:
@@ -119,10 +124,21 @@ class SingletonResolver(FactoryResolver):
         super().__init__(*args, **kwargs)
         self.instance = None
 
-    def resolve(self) -> t.Any:
+    def resolve(self, context: dict) -> t.Any:
         if not self.instance:
-            self.instance = super().resolve()
+            self.instance = super().resolve(context)
         return self.instance
+
+
+class ScopedResolver(FactoryResolver):
+    def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._resolver_id = uuid.uuid4()
+
+    def resolve(self, context: dict) -> t.Any:
+        if self._resolver_id not in context:
+            context[self._resolver_id] = super().resolve(context)
+        return context[self._resolver_id]
 
 
 class Container:
@@ -132,6 +148,7 @@ class Container:
         self._registry: dict[Key, ServiceResolver] = {}
         self._abs_factories: list[AbstractFactory] = []
         self._abs_factory_cache: dict[Key, AbstractFactory] = {}
+        self._context: contextvars.ContextVar[dict] = contextvars.ContextVar('_context', default={})
 
     def bind(self, key: Key, instance: t.Any) -> None:
         """Add an instance to the container."""
@@ -146,6 +163,8 @@ class Container:
     ) -> None:
         if scope == Scope.SINGLETON:
             self._registry[key] = SingletonResolver(self, factory, initializer)
+        elif scope == Scope.SCOPED:
+            self._registry[key] = ScopedResolver(self, factory, initializer)
         else:
             self._registry[key] = FactoryResolver(self, factory, initializer)
 
@@ -168,7 +187,7 @@ class Container:
             if abs_factory is None:
                 raise ServiceNotFoundError('Service "%s" is not registered.' % key)
             return abs_factory.resolve(key, self)
-        return service_resolver.resolve()
+        return service_resolver.resolve(self._context.get())
 
     def invoke(self, fn_or_class: t.Union[t.Callable, t.Type], extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
         """Invoke a callable resolving and injecting dependencies."""
@@ -211,6 +230,15 @@ class Container:
 
     def add_abstract_factory(self, factory: AbstractFactory) -> None:
         self._abs_factories.append(factory)
+
+    @contextmanager
+    def change_context(self, context_data: t.Dict = None) -> t.Generator[Container, None, None]:
+        context = self._context.get()
+        self._context.set(context_data or {})
+        try:
+            yield self
+        finally:
+            self._context.set(context)
 
     def _get_abstract_factory_for(self, key: Key) -> t.Optional[AbstractFactory]:
         if key not in self._abs_factory_cache:

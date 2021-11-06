@@ -6,17 +6,39 @@ import typing
 import typing as t
 from os import PathLike
 from starlette import routing
-from starlette.routing import Mount, WebSocketRoute, compile_path, get_name, request_response
+from starlette.concurrency import run_in_threadpool
+from starlette.routing import Mount, WebSocketRoute, compile_path, get_name, iscoroutinefunction_or_partial
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.middleware import Middleware
+from kupala.requests import Request
 from kupala.responses import RedirectResponse
 
 
 def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASGIApp:
     for mw in reversed(middleware):
         app = mw.wrap(app)
+    return app
+
+
+def request_response(func: typing.Callable) -> ASGIApp:
+    """
+    Takes a function or coroutine `func(request) -> response`,
+    and returns an ASGI application.
+    """
+    is_coroutine = iscoroutinefunction_or_partial(func)
+
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        request: Request = scope['request']
+        extra_kwargs = request.path_params
+
+        if is_coroutine:
+            response = await request.app.invoke(func, extra_kwargs=extra_kwargs)
+        else:
+            response = await run_in_threadpool(request.app.invoke, func, extra_kwargs=extra_kwargs)
+        await response(scope, receive, send)
+
     return app
 
 
