@@ -33,6 +33,7 @@ class Kupala:
     ) -> None:
         self.lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = []
         self._asgi_app: t.Optional[ASGIApp] = None
+        self._router: t.Optional[Router] = None
         self.routes = Routes(list(routes) if routes else [])
         self.config = Config()
         self.middleware = MiddlewareStack()
@@ -104,6 +105,7 @@ class Kupala:
 
     def _create_app(self) -> ASGIApp:
         app: ASGIApp = Router(routes=self.routes)
+        self._router = t.cast(Router, app)
         self.middleware.top(ExceptionMiddleware, handlers=self.error_handlers)
         self.middleware.top(ServerErrorMiddleware, debug=True)
         for mw in reversed(self.middleware):
