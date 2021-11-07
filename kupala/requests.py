@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import anyio
+import os
 import re
+import typing
 import typing as t
 from imia import UserToken
-from starlette import requests
-from starlette.datastructures import UploadFile
+from starlette import datastructures as ds, requests
 from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 from starsessions import Session
@@ -65,6 +67,40 @@ class QueryParams(requests.QueryParams):
     def get_int(self, key: str, default: int = None) -> t.Optional[int]:
         value: str = self.get(key, None)
         return int(value) if value is not None and value.isnumeric() else default
+
+
+class FormData(requests.FormData):
+    pass
+
+
+class UploadFile(ds.UploadFile):
+    def __init__(self, filename: str, file: typing.IO = None, content_type: str = "") -> None:
+        super().__init__(filename, file, content_type)
+
+    @classmethod
+    def from_base_upload_file(cls, upload_file: ds.UploadFile) -> UploadFile:
+        return UploadFile(filename=upload_file.filename, file=upload_file.file, content_type=upload_file.content_type)
+
+    async def store(self, path: t.Union[str, os.PathLike]) -> None:
+        async with await anyio.open_file(path, mode='wb') as f:
+            await f.write(await self.read())
+
+    async def read(self, size: int = -1) -> bytes:
+        return t.cast(bytes, await super().read(size))
+
+    async def read_string(self, size: int = -1, encoding: str = 'utf8', errors: str = 'strict') -> str:
+        return (await self.read(size)).decode(encoding, errors)
+
+
+class FilesData:
+    def __init__(self, files: FormData) -> None:
+        self._files = files
+
+    def get(self, key: str, default: t.Any = None) -> t.Optional[UploadFile]:
+        return self._files.get(key, default)
+
+    def getlist(self, key: str) -> list[UploadFile]:
+        return t.cast(list[UploadFile], self._files.getlist(key))
 
 
 class Request(requests.Request):
@@ -133,7 +169,7 @@ class Request(requests.Request):
     async def remember_form_data(self) -> None:
         """Flush current form data into session so it can be used on the next page to render form errors."""
         data = await self.form()
-        self.session['_form_old_input'] = {k: v for k, v in data.items() if not isinstance(v, UploadFile)}
+        self.session['_form_old_input'] = {k: v for k, v in data.items() if not isinstance(v, ds.UploadFile)}
 
     @property
     def form_errors(self) -> FormErrors:
@@ -161,3 +197,16 @@ class Request(requests.Request):
             if re.match(pattern, str(self.url)):
                 return True
         return False
+
+    async def form(self) -> FormData:
+        data = await super().form()
+        return FormData(
+            [
+                (k, UploadFile.from_base_upload_file(v) if isinstance(v, ds.UploadFile) else v)
+                for k, v in data.multi_items()
+            ]
+        )
+
+    async def files(self) -> FilesData:
+        data = await self.form()
+        return FilesData(FormData([(k, v) for k, v in data.multi_items() if isinstance(v, UploadFile)]))
