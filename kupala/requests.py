@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import anyio
+import mimetypes
 import os
+import pathlib
 import re
 import typing
 import typing as t
+import uuid
 from imia import UserToken
 from starlette import datastructures as ds, requests
 from starlette.requests import empty_receive, empty_send
@@ -81,9 +84,18 @@ class UploadFile(ds.UploadFile):
     def from_base_upload_file(cls, upload_file: ds.UploadFile) -> UploadFile:
         return UploadFile(filename=upload_file.filename, file=upload_file.file, content_type=upload_file.content_type)
 
-    async def store(self, path: t.Union[str, os.PathLike]) -> None:
-        async with await anyio.open_file(path, mode='wb') as f:
+    async def save(self, directory: t.Union[str, os.PathLike], filename: str = None) -> str:
+        uploaded_filename = self.filename
+        prefix = str(uuid.uuid4().fields[-1])[:5]
+        extension = pathlib.Path(uploaded_filename).suffix
+        if not extension:
+            extension = mimetypes.guess_extension(self.content_type) or 'bin'
+        suggested_filename = f'{prefix}_{uploaded_filename}.{extension}'
+
+        file_path = os.path.join(directory, filename or suggested_filename)
+        async with await anyio.open_file(file_path, mode='wb') as f:
             await f.write(await self.read())
+        return file_path
 
     async def read(self, size: int = -1) -> bytes:
         return t.cast(bytes, await super().read(size))

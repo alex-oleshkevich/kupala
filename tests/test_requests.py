@@ -1,6 +1,8 @@
 import io
+import os.path
 import pytest
 import typing as t
+from pathlib import Path
 
 from kupala.application import Kupala
 from kupala.requests import Request
@@ -216,3 +218,76 @@ def test_file_uploads() -> None:
         {'filename': 'file1.txt', 'content-type': 'text/plain', 'content': 'праўда'},
         {'filename': 'files', 'content-type': '', 'content': 'file2'},
     ]
+
+
+def test_file_upload_store(tmp_path: Path) -> None:
+    async def upload_view(request: Request) -> JSONResponse:
+        files = await request.files()
+        file = files.get('file')
+        filename = ''
+        if file:
+            filename = await file.save(tmp_path)
+
+        return JSONResponse(filename)
+
+    app = Kupala(routes=[Route('/', upload_view, methods=['POST'])])
+    client = TestClient(app)
+
+    file1 = io.BytesIO(b'content')
+    response = client.post(
+        '/',
+        data={'text': 'data'},
+        files=[('file', ('file1.txt', file1, 'text/plain'))],
+    )
+    assert response.status_code == 200
+    filename = response.json()
+    assert os.path.exists(filename)
+    with open(filename, 'r') as f:
+        assert f.read() == 'content'
+
+
+def test_file_upload_store_with_filename(tmp_path: Path) -> None:
+    async def upload_view(request: Request) -> JSONResponse:
+        files = await request.files()
+        filename = ''
+        file = files.get('file')
+        if file:
+            filename = await file.save(tmp_path, 'myfile.txt')
+        return JSONResponse(filename)
+
+    app = Kupala(routes=[Route('/', upload_view, methods=['POST'])])
+    client = TestClient(app)
+
+    file1 = io.BytesIO(b'content')
+    response = client.post(
+        '/',
+        data={'text': 'data'},
+        files=[('file', ('file1.txt', file1, 'text/plain'))],
+    )
+    assert response.status_code == 200
+    filename = response.json()
+    assert 'myfile.txt' in filename
+
+
+def test_file_upload_store_without_filename(tmp_path: Path) -> None:
+    async def upload_view(request: Request) -> JSONResponse:
+        files = await request.files()
+        filename = ''
+        file = files.get('file')
+        if file:
+            filename = await file.save(tmp_path)
+
+        return JSONResponse(filename)
+
+    app = Kupala(routes=[Route('/', upload_view, methods=['POST'])])
+    client = TestClient(app)
+
+    file1 = io.BytesIO(b'content')
+    response = client.post(
+        '/',
+        data={'text': 'data'},
+        files=[('file', file1)],
+    )
+    assert response.status_code == 200
+    filename = response.json()
+    assert '.bin' in filename
