@@ -1,3 +1,3 @@
-from starlette.testclient import TestClient  # noqa
+from starlette.testclient import TestClient
 
 __all__ = ['TestClient']
