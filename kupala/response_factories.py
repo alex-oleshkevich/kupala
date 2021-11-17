@@ -112,9 +112,7 @@ class ResponseFactory:
     def empty(self) -> EmptyResponse:
         return EmptyResponse(headers=self.headers)
 
-    def template(
-        self, template_name: str, context: t.Mapping = None, media_type: str = 'text/html'
-    ) -> TemplateResponse:
+    def template(self, template_name: str, context: t.Dict = None, media_type: str = 'text/html') -> TemplateResponse:
         return TemplateResponse(
             request=self.request,
             template_name=template_name,

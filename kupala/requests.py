@@ -41,10 +41,13 @@ class OldFormInput(t.Mapping):
         return self._data
 
 
-class FormErrors:
-    def __init__(self, error_message: str, errors: t.Mapping) -> None:
+class FormErrors(t.Mapping):
+    def __init__(self, error_message: str, errors: t.Mapping[str, list[str]]) -> None:
         self.message = error_message
         self.field_errors = errors
+
+    def get(self, key: str, default: t.Any = None) -> t.Optional[list[str]]:
+        return self.field_errors.get(key, default)
 
     def to_json(self) -> dict:
         return {
@@ -52,8 +55,23 @@ class FormErrors:
             'field_errors': self.field_errors,
         }
 
+    def keys(self) -> t.AbstractSet[str]:
+        return self.field_errors.keys()
+
     def __bool__(self) -> bool:
         return bool(self.field_errors or self.message)
+
+    def __getitem__(self, item: str) -> list[str]:
+        return self.field_errors[item]
+
+    def __contains__(self, item: object) -> bool:
+        return item in self.field_errors
+
+    def __iter__(self) -> t.Iterator:
+        return iter(self.field_errors)
+
+    def __len__(self) -> int:
+        return len(self.field_errors)
 
 
 class QueryParams(requests.QueryParams):

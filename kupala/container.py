@@ -168,16 +168,17 @@ class Container:
         else:
             self._registry[key] = FactoryResolver(self, factory, initializer)
 
-    @t.overload
-    def resolve(self, key: t.Type[S]) -> S:  # pragma: nocover noqa
-        ...
+    def add_singleton(self, key: Key, factory: Factory, initializer: Initializer = None) -> None:
+        return self.factory(key, factory, scope=Scope.SINGLETON, initializer=initializer)
 
-    @t.overload
-    def resolve(self, key: str) -> t.Any:  # pragma: nocover noqa
-        ...
+    def add_scoped(self, key: Key, factory: Factory, initializer: Initializer = None) -> None:
+        return self.factory(key, factory, scope=Scope.SCOPED, initializer=initializer)
 
-    def resolve(self, key: Key) -> t.Any:
-        """Get a service instance from the container."""
+    def resolve(self, key: t.Any) -> t.Any:
+        """Get a service instance from the container.
+
+        fixme: https://github.com/python/mypy/issues/4717
+        """
         service_resolver = self._registry.get(key)
         if service_resolver is None:
             if self._parent is not None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import anyio
 import contextvars as cv
 import logging
 import traceback
@@ -11,31 +12,30 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.config import Config
 from kupala.container import Container, Resolver
-from kupala.contracts import Invoker
+from kupala.contracts import ContextProcessor, Invoker
 from kupala.dotenv import DotEnv
 from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import MiddlewareStack
-from kupala.providers import Provider
 from kupala.requests import Request
 from kupala.routing import Router, Routes
-from kupala.templating import ContextProcessor, TemplateRenderer
 
-_SERVICE = t.TypeVar('_SERVICE')
+if t.TYPE_CHECKING:
+    from kupala.providers import Provider
 
 
 class Kupala:
     def __init__(
         self,
         debug: bool = None,
-        config: t.Mapping = None,
-        environment: str = None,
         env_prefix: str = '',
+        environment: str = None,
+        config: t.Mapping = None,
         dotenv: t.List[str] = None,
+        template_dirs: list[str] = None,
+        providers: t.Iterable['Provider'] = None,
         routes: t.Union[Routes, t.List[BaseRoute]] = None,
-        renderer: TemplateRenderer = None,
         context_processors: t.List[ContextProcessor] = None,
         error_handlers: t.Dict[t.Union[t.Type[Exception], int], ErrorHandler] = None,
-        providers: t.Iterable[Provider] = None,
     ) -> None:
         self.lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = []
         self.routes = Routes(list(routes) if routes else [])
@@ -45,10 +45,10 @@ class Kupala:
         self.debug = self.dotenv.bool('APP_DEBUG', False) if debug is None else debug
         self.middleware = MiddlewareStack()
         self.providers = providers or []
-        self.renderer: t.Optional[TemplateRenderer] = renderer
         self.context_processors: t.List[ContextProcessor] = context_processors or []
         self.error_handlers = error_handlers or {}
         self.services = Container()
+        self.template_dirs = template_dirs or []
 
         self._asgi_app: t.Optional[ASGIApp] = None
         self._router: t.Optional[Router] = None
@@ -69,7 +69,10 @@ class Kupala:
                     await stack.enter_async_context(hook(self))
 
                 await send({"type": "lifespan.startup.complete"})
-                await receive()
+                try:
+                    await receive()
+                except anyio.get_cancelled_exc_class():
+                    pass
         except BaseException as ex:
             logging.exception(ex)
             text = traceback.format_exc()
@@ -108,7 +111,7 @@ class Kupala:
 
     def bootstrap(self) -> None:
         for provider in self.providers:
-            provider.register(self.services)
+            provider.register(self)
         for provider in self.providers:
             provider.bootstrap(self.services)
 
@@ -121,20 +124,6 @@ class Kupala:
             app = mw.wrap(app)
         return app
 
-    def render(self, template_name: str, context: t.Mapping = None) -> str:
-        assert self.renderer, 'A template renderer is not set on the application instance.'
-
-        context = dict(context or {})
-        try:
-            # it will raise LookupError if self._request is unset
-            request: Request = t.cast(Request, context.get('request') or self._request.get())
-            context['request'] = self._request
-            for processor in self.context_processors:
-                context.update(processor(request))
-        except LookupError:
-            pass
-        return self.renderer.render(template_name, context)
-
     def invoke(self, fn_or_class: t.Union[t.Callable, t.Type], extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
         """Resolve callable dependencies and call it passing dependencies to callable arguments.
         If `fn_or_class` is a type then it will be instantiated.
@@ -142,7 +131,7 @@ class Kupala:
         Use `extra_kwargs` to provide dependency hints to the injector."""
         return self._request_container.get().invoke(fn_or_class, extra_kwargs=extra_kwargs)
 
-    def resolve(self, key: t.Type[_SERVICE]) -> _SERVICE:
+    def resolve(self, key: t.Any) -> t.Any:
         """Resolve a service from the current container."""
         return self._request_container.get().resolve(key)
 
