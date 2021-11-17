@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import anyio
 import mimetypes
 import os
 import pathlib
@@ -8,11 +7,14 @@ import re
 import typing
 import typing as t
 import uuid
+from deesk.storage import Storage
 from imia import UserToken
 from starlette import datastructures as ds, requests
 from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 from starsessions import Session
+
+from .storages import Storages
 
 if t.TYPE_CHECKING:
     from .application import Kupala
@@ -95,14 +97,20 @@ class FormData(requests.FormData):
 
 
 class UploadFile(ds.UploadFile):
-    def __init__(self, filename: str, file: typing.IO = None, content_type: str = "") -> None:
+    def __init__(self, request: Request, filename: str, file: typing.IO = None, content_type: str = "") -> None:
+        self.request = request
         super().__init__(filename, file, content_type)
 
     @classmethod
-    def from_base_upload_file(cls, upload_file: ds.UploadFile) -> UploadFile:
-        return UploadFile(filename=upload_file.filename, file=upload_file.file, content_type=upload_file.content_type)
+    def from_base_upload_file(cls, upload_file: ds.UploadFile, request: Request) -> UploadFile:
+        return UploadFile(
+            filename=upload_file.filename,
+            file=upload_file.file,
+            content_type=upload_file.content_type,
+            request=request,
+        )
 
-    async def save(self, directory: t.Union[str, os.PathLike], filename: str = None) -> str:
+    async def save(self, directory: t.Union[str, os.PathLike], filename: str = None, disk: str = 'default') -> str:
         uploaded_filename = self.filename
         prefix = str(uuid.uuid4().fields[-1])[:5]
         extension = pathlib.Path(uploaded_filename).suffix
@@ -111,8 +119,8 @@ class UploadFile(ds.UploadFile):
         suggested_filename = f'{prefix}_{uploaded_filename}.{extension}'
 
         file_path = os.path.join(directory, filename or suggested_filename)
-        async with await anyio.open_file(file_path, mode='wb') as f:
-            await f.write(await self.read())
+        storage: Storage = self.request.app.resolve(Storages).get(disk)
+        await storage.put(file_path, await self.read())
         return file_path
 
     async def read(self, size: int = -1) -> bytes:
@@ -232,7 +240,7 @@ class Request(requests.Request):
         data = await super().form()
         return FormData(
             [
-                (k, UploadFile.from_base_upload_file(v) if isinstance(v, ds.UploadFile) else v)
+                (k, UploadFile.from_base_upload_file(v, self) if isinstance(v, ds.UploadFile) else v)
                 for k, v in data.multi_items()
             ]
         )
