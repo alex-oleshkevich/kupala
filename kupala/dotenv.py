@@ -372,3 +372,5 @@ class DotEnv:
                     return enum_value
 
         return self.get(name, default, cast=caster, validators=validators, check_file=check_file, prefix=prefix)
+
+    __call__ = str

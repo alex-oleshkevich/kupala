@@ -238,3 +238,7 @@ def test_integer_enum(dotenv: DotEnv) -> None:
         INFO = 1
 
     assert dotenv.enum('ENUM_INT_VALUE', ExampleIntegerEnum) == ExampleIntegerEnum.INFO
+
+
+def test_callable(dotenv: DotEnv) -> None:
+    assert dotenv('DOMAIN', choices=['example.org', 'domain.tld']) == 'example.org'
