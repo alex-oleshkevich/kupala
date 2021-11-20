@@ -42,6 +42,22 @@ def test_old_input() -> None:
     assert response.json() == {}
 
 
+def test_old_input_without_session() -> None:
+    app = Kupala(routes=[Route('/', set_view, methods=['POST']), Route('/get', get_view)])
+    client = TestClient(app)
+
+    response = client.post(
+        '/',
+        allow_redirects=True,
+        data=[('first_name', 'root'), ('last_name', 'user')],
+    )
+    assert response.status_code == 200
+    assert response.json() == {}
+
+    # when accessing page for the second time, the session data has to be absent
+    assert response.json() == {}
+
+
 async def set_form_errors_view(request: Request) -> RedirectResponse:
     request.set_form_errors(
         'Form is invalid.',
@@ -77,6 +93,29 @@ def test_form_errors() -> None:
             'first_name': ['This field is required.'],
             'last_name': ['This field is required.'],
         },
+    }
+
+    # when accessing page for the second time, the session data has to be absent
+    response = client.get('/get')
+    assert response.json() == {'message': '', 'field_errors': {}}
+
+
+def test_form_errors_without_session() -> None:
+    app = Kupala(routes=[Route('/', set_form_errors_view, methods=['POST']), Route('/get', get_form_errors_view)])
+    client = TestClient(app)
+
+    response = client.post(
+        '/',
+        allow_redirects=True,
+        data={
+            'first_name': 'root',
+            'last_name': 'user',
+        },
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        'message': '',
+        'field_errors': {},
     }
 
     # when accessing page for the second time, the session data has to be absent

@@ -202,23 +202,29 @@ class Request(requests.Request):
     @property
     def old_input(self) -> OldFormInput:
         """Get previous form input. This value does not include uploaded files."""
+        if 'session' not in self.scope:
+            return OldFormInput({})
         return OldFormInput(self.session.pop('_form_old_input', {}))
 
     async def remember_form_data(self) -> None:
         """Flush current form data into session so it can be used on the next page to render form errors."""
-        data = await self.form()
-        self.session['_form_old_input'] = {k: v for k, v in data.items() if not isinstance(v, ds.UploadFile)}
+        if 'session' in self.scope:
+            data = await self.form()
+            self.session['_form_old_input'] = {k: v for k, v in data.items() if not isinstance(v, ds.UploadFile)}
 
     @property
     def form_errors(self) -> FormErrors:
         """Get form errors generated on the previous page."""
+        if 'session' not in self.scope:
+            return FormErrors('', {})
         return FormErrors(self.session.pop('_form_error', ''), self.session.pop('_form_field_errors', {}))
 
     def set_form_errors(self, error_message: str = '', field_errors: dict = None) -> None:
         """Flush form error message and form field errors into session.
         This data can be later retrieved via `request.form_errors` attribute."""
-        self.session['_form_error'] = error_message
-        self.session['_form_field_errors'] = field_errors or {}
+        if 'session' in self.scope:
+            self.session['_form_error'] = error_message
+            self.session['_form_field_errors'] = field_errors or {}
 
     def url_matches(self, *patterns: t.Union[str, t.Pattern]) -> bool:
         for pattern in patterns:
