@@ -147,6 +147,11 @@ class Request(requests.Request):
             instance = super().__new__(cls)
             instance.__init__(scope, receive, send)
             scope['request'] = instance
+        elif scope['request'].__class__ != cls:
+            # view function uses custom request class
+            request = scope['request']
+            request.__class__ = cls
+            scope['request'] = request
         return scope['request']
 
     @property

@@ -32,9 +32,12 @@ def request_response(func: typing.Callable) -> ASGIApp:
     """
     is_coroutine = iscoroutinefunction_or_partial(func)
 
+    # determine request class
+    request_class = t.get_type_hints(func).get('request', Request)
+
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        request: Request = scope['request']
-        extra_kwargs = request.path_params
+        request: Request = request_class(scope, receive, send)
+        extra_kwargs = {'request': request, **request.path_params}
 
         if is_coroutine:
             response = await request.app.invoke(func, extra_kwargs=extra_kwargs)
