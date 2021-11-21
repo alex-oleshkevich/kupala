@@ -17,6 +17,16 @@ async def path_params_view(id: int) -> PlainTextResponse:
     return PlainTextResponse(id)
 
 
+class CustomRequest(Request):
+    @property
+    def request_type(self) -> str:
+        return 'custom'
+
+
+async def custom_request_class_view(request: CustomRequest) -> JSONResponse:
+    return JSONResponse({'class': request.__class__.__name__, 'type': request.request_type})
+
+
 class SomeService:
     ...
 
@@ -35,6 +45,7 @@ app = Kupala(
         Route("/async", async_view),
         Route("/users/{id}", path_params_view),
         Route("/service", service_injection_view),
+        Route("/custom-request", custom_request_class_view),
         Route("/users/service/{id}", service_and_path_params_view),
     ]
 )
@@ -71,3 +82,11 @@ def test_injects_services_and_path_params() -> None:
     assert response.status_code == 200
     assert response.json()['id'] == '2'
     assert response.json()['service'] == 'SomeService'
+
+
+def test_custom_request_class() -> None:
+    response = client.get("/custom-request")
+    assert response.json() == {
+        'class': 'CustomRequest',
+        'type': 'custom',
+    }
