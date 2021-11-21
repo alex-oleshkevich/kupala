@@ -42,6 +42,9 @@ class OldFormInput(t.Mapping):
     def __contains__(self, item: object) -> bool:
         return item in self._data
 
+    def __repr__(self) -> str:
+        return f'<OldFormInput: data={self._data}>'
+
     __call__ = get
 
 
@@ -76,6 +79,9 @@ class FormErrors(t.Mapping):
 
     def __len__(self) -> int:
         return len(self.field_errors)
+
+    def __repr__(self) -> str:
+        return f'<FormErrors: message="{self.message}", field_errors={self.field_errors}>'
 
     __call__ = get
 
