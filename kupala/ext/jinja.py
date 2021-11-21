@@ -6,7 +6,6 @@ from kupala.application import Kupala
 from kupala.container import Resolver
 from kupala.contracts import TemplateRenderer
 from kupala.providers import Provider
-from kupala.templating import form_errors_context, form_old_input_context
 
 
 class JinjaRenderer:
@@ -38,9 +37,6 @@ class JinjaProvider(Provider):
         self.template_dirs = [*self.template_dirs, *app.template_dirs]
         app.services.add_singleton(jinja2.Environment, self.make_environment)
         app.services.add_singleton(TemplateRenderer, self.make_renderer)
-
-        app.context_processors.append(form_old_input_context)
-        app.context_processors.append(form_errors_context)
 
     def make_renderer(self, resolver: Resolver) -> TemplateRenderer:
         return JinjaRenderer(env=resolver.resolve(jinja2.Environment))
