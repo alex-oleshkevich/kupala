@@ -9,7 +9,11 @@ from kupala.requests import Request
 from kupala.responses import HTMLResponse, Response
 
 
-class HTTPException(BaseHTTPException):
+class KupalaError(Exception):
+    """Base class for all Kupala framework errors."""
+
+
+class HTTPException(BaseHTTPException, KupalaError):
     message: t.Optional[str] = None
 
     def __init__(self, status_code: int, message: str = None) -> None:  # pragma: nocover
@@ -95,8 +99,19 @@ class TooManyRequests(_BasePredefinedHTTPException):
     status_code = 429
 
 
-class ValidationError(Exception):
+class ValidationError(BadRequest, KupalaError):
     """Raised when data is not valid by any criteria."""
+
+    def __init__(
+        self,
+        message: str = None,
+        form_errors: t.Mapping[str, list[str]] = None,
+        non_field_errors: list[str] = None,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.form_errors = form_errors or {}
+        self.non_field_errors = non_field_errors or []
 
 
 ErrorHandler = t.Callable[[Request, Exception], t.Any]
@@ -120,9 +135,7 @@ class ErrorHandlers:
 
     def get_for_exception(self, exc: Exception) -> t.Optional[ErrorHandler]:
         class_name = type(exc)
-        status_code = 0
-        if isinstance(exc, BaseHTTPException):
-            status_code = exc.status_code
+        status_code = exc.status_code if isinstance(exc, BaseHTTPException) else 0
         if status_code in self.handlers:
             return self.handlers[status_code]
 
