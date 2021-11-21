@@ -77,6 +77,8 @@ class FormErrors(t.Mapping):
     def __len__(self) -> int:
         return len(self.field_errors)
 
+    __call__ = get
+
 
 class QueryParams(requests.QueryParams):
     def get_bool(self, key: str, default: bool = None) -> t.Optional[bool]:
