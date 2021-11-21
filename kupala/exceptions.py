@@ -114,7 +114,8 @@ class ValidationError(BadRequest, KupalaError):
         self.non_field_errors = non_field_errors or []
 
 
-ErrorHandler = t.Callable[[Request, Exception], t.Any]
+E = t.TypeVar('E', bound=Exception)
+ErrorHandler = t.Callable[[Request, E], t.Any]
 
 _renderer = jinja2.Environment(loader=jinja2.PackageLoader(__name__.split('.')[0]))
 
