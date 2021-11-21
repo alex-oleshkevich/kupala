@@ -136,3 +136,71 @@ def test_redirect_with_flash_message_via_method() -> None:
     response = client.get('/', allow_redirects=True)
     assert response.status_code == 200
     assert response.json() == [{'category': 'success', 'message': 'Saved.'}]
+
+
+def test_redirect_with_success() -> None:
+    def view(request: Request) -> RedirectResponse:
+        return RedirectResponse('/about').with_success('Saved.')
+
+    def data_view(request: Request) -> JSONResponse:
+        messages = flash(request).all()
+        return JSONResponse(messages)
+
+    app = Kupala()
+    app.routes.get('/', view)
+    app.routes.get('/about', data_view, name='about')
+    app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
+    app.middleware.use(FlashMessagesMiddleware, storage='session')
+
+    client = TestClient(app)
+    response = client.get('/', allow_redirects=True)
+    assert response.status_code == 200
+    assert response.json() == [{'category': 'success', 'message': 'Saved.'}]
+
+
+def test_redirect_with_error() -> None:
+    def view(request: Request) -> RedirectResponse:
+        return RedirectResponse('/about').with_error('Error.')
+
+    def data_view(request: Request) -> JSONResponse:
+        messages = flash(request).all()
+        return JSONResponse(messages)
+
+    app = Kupala()
+    app.routes.get('/', view)
+    app.routes.get('/about', data_view, name='about')
+    app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
+    app.middleware.use(FlashMessagesMiddleware, storage='session')
+
+    client = TestClient(app)
+    response = client.get('/', allow_redirects=True)
+    assert response.status_code == 200
+    assert response.json() == [{'category': 'error', 'message': 'Error.'}]
+
+
+def test_redirect_with_error_and_input() -> None:
+    def view(request: Request) -> RedirectResponse:
+        return RedirectResponse('/about').with_error('Error.', {'name': 'invalid'})
+
+    def data_view(request: Request) -> JSONResponse:
+        messages = flash(request).all()
+        return JSONResponse(
+            {
+                'messages': messages,
+                'input': request.old_input,
+            }
+        )
+
+    app = Kupala()
+    app.routes.get('/', view)
+    app.routes.get('/about', data_view, name='about')
+    app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
+    app.middleware.use(FlashMessagesMiddleware, storage='session')
+
+    client = TestClient(app)
+    response = client.get('/', allow_redirects=True)
+    assert response.status_code == 200
+    assert response.json() == {
+        'messages': [{'category': 'error', 'message': 'Error.'}],
+        'input': {'name': 'invalid'},
+    }

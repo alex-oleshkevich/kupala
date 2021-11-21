@@ -126,6 +126,15 @@ class RedirectResponse(responses.RedirectResponse):
         self._flash_message_category = category
         return self
 
+    def with_error(self, message: str, input_data: t.Mapping = None) -> RedirectResponse:
+        response = self.flash(message, category='error')
+        if input_data:
+            response = self.with_input(input_data)
+        return response
+
+    def with_success(self, message: str) -> RedirectResponse:
+        return self.flash(message, category='success')
+
     def with_input(self, input_data: t.Mapping) -> RedirectResponse:
         """Redirect with form input data. Uploaded files will be removed from data."""
         self._input_data = {k: v for k, v in input_data.items() if not isinstance(v, UploadFile)}
