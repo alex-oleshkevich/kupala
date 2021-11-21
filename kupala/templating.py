@@ -6,12 +6,16 @@ from kupala.contracts import TemplateRenderer
 from kupala.requests import Request
 
 
-def form_old_input_context(request: Request) -> t.Mapping:
-    return request.old_input
-
-
-def form_errors_context(request: Request) -> t.Mapping:
-    return request.form_errors
+def default_app_context(request: Request) -> t.Mapping:
+    return {
+        'debug': request.app.debug,
+        'environment': request.app.env,
+        'envvar': request.app.dotenv,
+        'url': request.url_for,
+        'config': request.app.config,
+        'form_errors': request.form_errors,
+        'old_input': request.old_input,
+    }
 
 
 class RenderError(Exception):
