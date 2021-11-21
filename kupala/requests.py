@@ -234,7 +234,7 @@ class Request(requests.Request):
             return FormErrors('', {})
         return FormErrors(self.session.pop('_form_error', ''), self.session.pop('_form_field_errors', {}))
 
-    def set_form_errors(self, error_message: str = '', field_errors: dict = None) -> None:
+    def set_form_errors(self, field_errors: dict = None, error_message: str = '') -> None:
         """Flush form error message and form field errors into session.
         This data can be later retrieved via `request.form_errors` attribute."""
         if 'session' in self.scope:

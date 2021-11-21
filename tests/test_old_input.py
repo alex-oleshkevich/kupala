@@ -60,11 +60,11 @@ def test_old_input_without_session() -> None:
 
 async def set_form_errors_view(request: Request) -> RedirectResponse:
     request.set_form_errors(
-        'Form is invalid.',
         {
             'first_name': ['This field is required.'],
             'last_name': ['This field is required.'],
         },
+        'Form is invalid.',
     )
     return RedirectResponse('/get')
 
