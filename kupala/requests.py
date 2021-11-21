@@ -27,6 +27,9 @@ class OldFormInput(t.Mapping):
     def get(self, key: str, default: t.Any = None) -> t.Any:
         return self._data.get(key, default)
 
+    def to_json(self) -> dict:
+        return self._data
+
     def __getitem__(self, item: str) -> t.Any:
         return self._data[item]
 
@@ -39,8 +42,7 @@ class OldFormInput(t.Mapping):
     def __contains__(self, item: object) -> bool:
         return item in self._data
 
-    def to_json(self) -> dict:
-        return self._data
+    __call__ = get
 
 
 class FormErrors(t.Mapping):
