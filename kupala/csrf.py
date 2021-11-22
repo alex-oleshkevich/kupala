@@ -138,7 +138,7 @@ class CSRFMiddleware:
 
 
 def get_csrf_token(request: Request) -> t.Optional[str]:
-    return request.state.csrf_token if hasattr(request.state, 'csrf_token') else None
+    return request.state.csrf_timed_token if hasattr(request.state, 'csrf_timed_token') else None
 
 
 def get_csrf_input(request: Request) -> str:
