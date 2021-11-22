@@ -217,9 +217,12 @@ class Request(requests.Request):
     @property
     def old_input(self) -> OldFormInput:
         """Get previous form input. This value does not include uploaded files."""
-        if 'session' not in self.scope:
-            return OldFormInput({})
-        return OldFormInput(self.session.pop('_form_old_input', {}))
+        if '_form_old_input' not in self.scope:
+            old_form_input = OldFormInput({})
+            if 'session' in self.scope:
+                old_form_input = OldFormInput(self.session.pop('_form_old_input', {}))
+            self.scope['_form_old_input'] = old_form_input
+        return self.scope['_form_old_input']
 
     async def remember_form_data(self) -> None:
         """Flush current form data into session so it can be used on the next page to render form errors."""
@@ -230,9 +233,12 @@ class Request(requests.Request):
     @property
     def form_errors(self) -> FormErrors:
         """Get form errors generated on the previous page."""
-        if 'session' not in self.scope:
-            return FormErrors('', {})
-        return FormErrors(self.session.pop('_form_error', ''), self.session.pop('_form_field_errors', {}))
+        if '_form_error' not in self.scope:
+            form_error = FormErrors('', {})
+            if 'session' in self.scope:
+                form_error = FormErrors(self.session.pop('_form_error', ''), self.session.pop('_form_field_errors', {}))
+            self.scope['_form_error'] = form_error
+        return self.scope['_form_error']
 
     def set_form_errors(self, field_errors: dict = None, error_message: str = '') -> None:
         """Flush form error message and form field errors into session.
