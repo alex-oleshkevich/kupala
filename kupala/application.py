@@ -118,7 +118,7 @@ class Kupala:
     def _create_app(self) -> ASGIApp:
         app: ASGIApp = Router(routes=self.routes)
         self._router = t.cast(Router, app)
-        self.middleware.top(ExceptionMiddleware, handlers=self.error_handlers)
+        self.middleware.use(ExceptionMiddleware, handlers=self.error_handlers)
         self.middleware.top(ServerErrorMiddleware, debug=True)
         for mw in reversed(self.middleware):
             app = mw.wrap(app)
