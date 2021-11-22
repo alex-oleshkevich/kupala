@@ -5,8 +5,8 @@ from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
 from kupala.csrf import (
-    CsrfError,
-    CsrfMiddleware,
+    CSRFError,
+    CSRFMiddleware,
     TokenDecodeError,
     TokenExpiredError,
     TokenMismatchError,
@@ -14,6 +14,7 @@ from kupala.csrf import (
     generate_token,
     validate_csrf_token,
 )
+from kupala.exceptions import PermissionDenied
 from kupala.requests import Request
 from kupala.responses import PlainTextResponse
 
@@ -65,8 +66,8 @@ def test_validate_csrf_token_mismatch(csrf_token: str, csrf_timed_token: str) ->
 
 def test_middleware_needs_session() -> None:
     app = Kupala()
-    app.middleware.use(CsrfMiddleware, secret_key='secret')
-    with pytest.raises(CsrfError) as ex:
+    app.middleware.use(CSRFMiddleware, secret_key='secret')
+    with pytest.raises(CSRFError) as ex:
         client = TestClient(app)
         client.get('/')
     assert str(ex.value) == 'CsrfMiddleware requires SessionMiddleware.'
@@ -78,7 +79,7 @@ def test_middleware_checks_access() -> None:
 
     app = Kupala()
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
-    app.middleware.use(CsrfMiddleware, secret_key='key!')
+    app.middleware.use(CSRFMiddleware, secret_key='key!')
     app.routes.any('/', view)
 
     client = TestClient(app)
@@ -88,10 +89,17 @@ def test_middleware_checks_access() -> None:
     assert response.status_code == 200
 
     # test POST, PUT, DELETE, PATCH are denied without token
-    assert client.post('/').status_code == 403
-    assert client.put('/').status_code == 403
-    assert client.patch('/').status_code == 403
-    assert client.delete('/').status_code == 403
+    with pytest.raises(PermissionDenied):
+        assert client.post('/')
+
+    with pytest.raises(PermissionDenied):
+        assert client.put('/').status_code
+
+    with pytest.raises(PermissionDenied):
+        assert client.patch('/').status_code
+
+    with pytest.raises(PermissionDenied):
+        assert client.delete('/').status_code
 
     # test POST, PUT, DELETE, PATCH are allowed with token
     token = response.text
@@ -118,7 +126,7 @@ def test_middleware_allow_from_whitelist() -> None:
     app = Kupala()
     app.middleware.use(SessionMiddleware, secret_key='secret')
     app.middleware.use(
-        CsrfMiddleware,
+        CSRFMiddleware,
         secret_key='secret',
         exclude_urls=[
             r'/login',
@@ -144,7 +152,7 @@ def test_middleware_allow_from_whitelist_using_full_url() -> None:
     app = Kupala()
     app.middleware.use(SessionMiddleware, secret_key='secret')
     app.middleware.use(
-        CsrfMiddleware,
+        CSRFMiddleware,
         secret_key='secret',
         exclude_urls=[
             'http://testserver/',

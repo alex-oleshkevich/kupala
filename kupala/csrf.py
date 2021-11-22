@@ -6,8 +6,8 @@ import typing as t
 from itsdangerous import BadData, SignatureExpired, URLSafeTimedSerializer
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.exceptions import PermissionDenied
 from kupala.requests import Request
-from kupala.responses import PlainTextResponse
 
 CSRF_SESSION_KEY = '_csrf_token'
 CSRF_HEADER = 'x-csrf-token'
@@ -19,23 +19,23 @@ _this_request_token: contextvars.ContextVar[str] = contextvars.ContextVar(
 )
 
 
-class CsrfError(Exception):
+class CSRFError(Exception):
     pass
 
 
-class TokenMissingError(CsrfError):
+class TokenMissingError(CSRFError):
     pass
 
 
-class TokenExpiredError(CsrfError):
+class TokenExpiredError(CSRFError):
     pass
 
 
-class TokenDecodeError(CsrfError):
+class TokenDecodeError(CSRFError):
     pass
 
 
-class TokenMismatchError(CsrfError):
+class TokenMismatchError(CSRFError):
     pass
 
 
@@ -70,7 +70,7 @@ def validate_csrf_token(
     return True
 
 
-class CsrfMiddleware:
+class CSRFMiddleware:
     exclude_urls: t.Optional[t.Iterable[str]] = None
     safe_methods: t.Iterable[str] = ['get', 'head', 'options']
 
@@ -90,7 +90,7 @@ class CsrfMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if 'session' not in scope:
-            raise CsrfError('CsrfMiddleware requires SessionMiddleware.')
+            raise CSRFError('CsrfMiddleware requires SessionMiddleware.')
 
         await scope['session'].load()
         request = scope['request']
@@ -114,10 +114,8 @@ class CsrfMiddleware:
                     salt=self._salt,
                     max_age=self._max_age,
                 )
-            except CsrfError:
-                response = PlainTextResponse('CSRF token is invalid.', 403)
-                await response(scope, receive, send)
-                return
+            except CSRFError:
+                raise PermissionDenied('CSRF token is invalid.')
         await self.app(scope, receive, send)
 
     async def get_csrf_token(self, request: Request) -> str:
@@ -137,3 +135,12 @@ class CsrfMiddleware:
                 request.full_url_matches(*self._exclude_urls),
             ]
         )
+
+
+def get_csrf_token(request: Request) -> t.Optional[str]:
+    return request.state.csrf_token if hasattr(request.state, 'csrf_token') else None
+
+
+def get_csrf_input(request: Request) -> str:
+    token = get_csrf_token(request) or ''
+    return f'<input type="hidden" name="{CSRF_POST_FIELD}" value="{token}">'

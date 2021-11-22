@@ -3,6 +3,8 @@ import typing as t
 from kupala import responses
 from kupala.container import ServiceNotFoundError
 from kupala.contracts import TemplateRenderer
+from kupala.csrf import get_csrf_input, get_csrf_token
+from kupala.messages import FlashBag, flash
 from kupala.requests import Request
 
 
@@ -15,6 +17,9 @@ def default_app_context(request: Request) -> t.Mapping:
         'config': request.app.config,
         'form_errors': request.form_errors,
         'old_input': request.old_input,
+        'csrf_token': get_csrf_token(request),
+        'csrf_input': get_csrf_input(request),
+        'messages': flash(request) if 'flash_messages' in request.scope else FlashBag(),
     }
 
 
