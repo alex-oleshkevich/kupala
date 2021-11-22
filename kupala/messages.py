@@ -1,8 +1,11 @@
+from dataclasses import dataclass
+
 import abc
 import enum
 import typing as t
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from kupala.json import jsonify
 from kupala.requests import Request
 
 SCOPE_KEY = 'flash_messages'
@@ -17,21 +20,33 @@ class MessageCategory(enum.Enum):
     ERROR = 'error'
 
 
-class FlashMessage(t.TypedDict):
+@dataclass
+class FlashMessage:
     category: str
     message: str
+
+    def __str__(self) -> str:
+        return self.message
 
 
 class FlashBag:
     Category = MessageCategory
 
-    def __init__(self, messages: t.List[FlashMessage] = None):
-        self._messages = messages or []
+    def __init__(self, messages: list[FlashMessage] = None):
+        self._messages: list[FlashMessage] = messages or []
 
     def add(self, message: str, category: t.Union[MessageCategory, str]) -> None:
         if isinstance(category, MessageCategory):
             category = category.value
-        self._messages.append({'category': category, 'message': message})
+        self._messages.append(FlashMessage(category, message))
+
+    def get_by_category(self, category: t.Union[MessageCategory, str]) -> list[FlashMessage]:
+        if isinstance(category, MessageCategory):
+            category = category.value
+
+        messages = [message for message in self._messages if message.category == category]
+        self._messages = [message for message in self._messages if message.category != category]
+        return messages
 
     def debug(self, message: str) -> None:
         self.add(message, MessageCategory.DEBUG)
@@ -51,15 +66,20 @@ class FlashBag:
     def all(self) -> t.List[FlashMessage]:
         return self._messages
 
-    def stream(self) -> t.Generator[FlashMessage, None, None]:
-        while len(self._messages):
-            yield self._messages.pop(0)
+    def consume(self) -> list[FlashMessage]:
+        """Return all messages and empty the bag."""
+        messages = self._messages.copy()
+        self._messages.clear()
+        return messages
 
     def clear(self) -> None:
         self._messages = []
 
     def __len__(self) -> int:
         return len(self._messages)
+
+    def __iter__(self) -> t.Iterator[FlashMessage]:
+        return iter(self.consume())
 
 
 class MessageStorage(abc.ABC):  # pragma: nocover
@@ -77,10 +97,12 @@ class SessionStorage(MessageStorage):
         if 'session' not in scope:
             raise KeyError('Sessions are disabled. Flash messages depend on SessionMiddleware.')
 
-        return FlashBag(scope['session'].get(SESSION_KEY, []))
+        return FlashBag(
+            [FlashMessage(message['category'], message['message']) for message in scope['session'].get(SESSION_KEY, [])]
+        )
 
     def save(self, scope: Scope, bag: FlashBag) -> None:
-        scope['session'][SESSION_KEY] = bag.all()
+        scope['session'][SESSION_KEY] = jsonify(bag.all())
 
 
 _storage_map: t.Dict[str, t.Type[MessageStorage]] = {
@@ -109,6 +131,7 @@ class FlashMessagesMiddleware:
             await send(message)
 
         scope[SCOPE_KEY] = bag
+
         await self.app(scope, receive, send_wrapper)
 
 

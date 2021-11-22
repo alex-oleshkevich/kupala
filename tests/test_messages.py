@@ -3,7 +3,7 @@ import typing as t
 from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
-from kupala.messages import FlashBag, FlashMessagesMiddleware, flash
+from kupala.messages import FlashBag, FlashMessage, FlashMessagesMiddleware, MessageCategory, flash
 from kupala.requests import Request
 from kupala.responses import JSONResponse
 from kupala.testclient import TestClient
@@ -17,7 +17,7 @@ def test_flash_messages(storage: t.Literal['session']) -> None:
 
     def get_view(request: Request) -> JSONResponse:
         bag = flash(request)
-        return JSONResponse({'messages': list(bag.stream())})
+        return JSONResponse({'messages': list(bag)})
 
     app = Kupala()
     app.routes.post('/set', set_view)
@@ -74,12 +74,13 @@ def test_flash_bag() -> None:
     assert len(bag) == 0
 
 
-def test_flash_bag_stream() -> None:
+def test_flash_messages_by_category() -> None:
     bag = FlashBag()
     bag.success('one')
-    bag.success('two')
+    bag.error('two')
 
-    gen = bag.stream()
-    assert next(gen)['message'] == 'one'
-    assert next(gen)['message'] == 'two'
-    assert len(bag) == 0
+    assert bag.get_by_category(MessageCategory.SUCCESS) == [FlashMessage('success', 'one')]
+    assert len(bag.get_by_category(MessageCategory.SUCCESS)) == 0
+
+    assert bag.get_by_category(MessageCategory.ERROR) == [FlashMessage('error', 'two')]
+    assert len(bag.get_by_category(MessageCategory.ERROR)) == 0
