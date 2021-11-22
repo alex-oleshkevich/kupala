@@ -6,7 +6,7 @@ from starlette.exceptions import HTTPException as BaseHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from kupala.requests import Request
-from kupala.responses import HTMLResponse, Response
+from kupala.responses import GoBackResponse, HTMLResponse, JSONResponse, Response
 
 
 class KupalaError(Exception):
@@ -17,7 +17,7 @@ class HTTPException(BaseHTTPException, KupalaError):
     message: t.Optional[str] = None
 
     def __init__(self, status_code: int, message: str = None) -> None:  # pragma: nocover
-        message = message or self.message
+        self.message = message or self.message
         super().__init__(status_code=status_code, detail=message)
 
 
@@ -105,13 +105,11 @@ class ValidationError(BadRequest, KupalaError):
     def __init__(
         self,
         message: str = None,
-        form_errors: t.Mapping[str, list[str]] = None,
-        non_field_errors: list[str] = None,
+        errors: t.Mapping[str, list[str]] = None,
     ) -> None:
         super().__init__(message)
         self.message = message
-        self.form_errors = form_errors or {}
-        self.non_field_errors = non_field_errors or []
+        self.errors = errors or {}
 
 
 E = t.TypeVar('E', bound=Exception)
@@ -120,13 +118,33 @@ ErrorHandler = t.Callable[[Request, E], t.Any]
 _renderer = jinja2.Environment(loader=jinja2.PackageLoader(__name__.split('.')[0]))
 
 
-async def default_error_handler(request: Request, exc: HTTPException) -> Response:
-    content = _renderer.get_template('errors/http_error.html').render({'request': request, 'exc': exc})
-    return HTMLResponse(content, status_code=exc.status_code)
+async def default_validation_error_handler(request: Request, exc: ValidationError) -> Response:
+    if request.wants_json:
+        return JSONResponse({'message': exc.message, 'errors': exc.errors}, exc.status_code)
+    if 'session' in request.scope:
+        await request.remember_form_data()
+        request.set_form_errors(dict(exc.errors or {}), exc.message or '')
+    return GoBackResponse(request, exc.message, flash_category='error')
+
+
+async def default_http_error_handler(request: Request, exc: HTTPException) -> Response:
+    if request.wants_json:
+        data = {'message': exc.message, 'errors': getattr(exc, 'errors', {})}
+        if request.app.debug:
+            exception_type = f'{exc.__class__.__module__}.{exc.__class__.__qualname__}'
+            data['exception_type'] = exception_type
+            data['exception'] = repr(exc)
+        return JSONResponse(data, status_code=exc.status_code)
+    elif request.app.debug:
+        raise exc from None
+    else:
+        content = _renderer.get_template('errors/http_error.html').render({'request': request, 'exc': exc})
+        return HTMLResponse(content, status_code=exc.status_code)
 
 
 _default_error_handlers = {
-    BaseHTTPException: default_error_handler,
+    BaseHTTPException: default_http_error_handler,
+    ValidationError: default_validation_error_handler,
 }
 
 
