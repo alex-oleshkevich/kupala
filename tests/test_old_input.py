@@ -64,7 +64,6 @@ async def set_form_errors_view(request: Request) -> RedirectResponse:
             'first_name': ['This field is required.'],
             'last_name': ['This field is required.'],
         },
-        'Form is invalid.',
     )
     return RedirectResponse('/get')
 
@@ -88,7 +87,6 @@ def test_form_errors() -> None:
     )
     assert response.status_code == 200
     assert response.json() == {
-        'message': 'Form is invalid.',
         'field_errors': {
             'first_name': ['This field is required.'],
             'last_name': ['This field is required.'],
@@ -97,7 +95,7 @@ def test_form_errors() -> None:
 
     # when accessing page for the second time, the session data has to be absent
     response = client.get('/get')
-    assert response.json() == {'message': '', 'field_errors': {}}
+    assert response.json() == {'field_errors': {}}
 
 
 def test_form_errors_without_session() -> None:
@@ -114,10 +112,9 @@ def test_form_errors_without_session() -> None:
     )
     assert response.status_code == 200
     assert response.json() == {
-        'message': '',
         'field_errors': {},
     }
 
     # when accessing page for the second time, the session data has to be absent
     response = client.get('/get')
-    assert response.json() == {'message': '', 'field_errors': {}}
+    assert response.json() == {'field_errors': {}}

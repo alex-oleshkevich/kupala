@@ -49,8 +49,7 @@ class OldFormInput(t.Mapping):
 
 
 class FormErrors(t.Mapping):
-    def __init__(self, error_message: str, errors: t.Mapping[str, list[str]]) -> None:
-        self.message = error_message
+    def __init__(self, errors: t.Mapping[str, list[str]]) -> None:
         self.field_errors = errors
 
     def get(self, key: str, default: t.Any = None) -> t.Optional[list[str]]:
@@ -58,7 +57,6 @@ class FormErrors(t.Mapping):
 
     def to_json(self) -> dict:
         return {
-            'message': self.message,
             'field_errors': self.field_errors,
         }
 
@@ -66,7 +64,7 @@ class FormErrors(t.Mapping):
         return self.field_errors.keys()
 
     def __bool__(self) -> bool:
-        return bool(self.field_errors or self.message)
+        return bool(self.field_errors)
 
     def __getitem__(self, item: str) -> list[str]:
         return self.field_errors[item]
@@ -81,7 +79,7 @@ class FormErrors(t.Mapping):
         return len(self.field_errors)
 
     def __repr__(self) -> str:
-        return f'<FormErrors: message="{self.message}", field_errors={self.field_errors}>'
+        return f'<FormErrors: field_errors={self.field_errors}>'
 
     __call__ = get
 
@@ -234,17 +232,16 @@ class Request(requests.Request):
     def form_errors(self) -> FormErrors:
         """Get form errors generated on the previous page."""
         if '_form_error' not in self.scope:
-            form_error = FormErrors('', {})
+            form_error = FormErrors({})
             if 'session' in self.scope:
-                form_error = FormErrors(self.session.pop('_form_error', ''), self.session.pop('_form_field_errors', {}))
+                form_error = FormErrors(self.session.pop('_form_field_errors', {}))
             self.scope['_form_error'] = form_error
         return self.scope['_form_error']
 
-    def set_form_errors(self, field_errors: dict = None, error_message: str = '') -> None:
+    def set_form_errors(self, field_errors: dict = None) -> None:
         """Flush form error message and form field errors into session.
         This data can be later retrieved via `request.form_errors` attribute."""
         if 'session' in self.scope:
-            self.session['_form_error'] = error_message
             self.session['_form_field_errors'] = field_errors or {}
 
     def url_matches(self, *patterns: t.Union[str, t.Pattern]) -> bool:

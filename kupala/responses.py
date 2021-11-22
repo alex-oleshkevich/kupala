@@ -93,6 +93,9 @@ class StreamingResponse(responses.StreamingResponse):
         )
 
 
+RT = t.TypeVar('RT', bound='RedirectResponse')
+
+
 class RedirectResponse(responses.RedirectResponse):
     def __init__(
         self,
@@ -120,22 +123,22 @@ class RedirectResponse(responses.RedirectResponse):
 
         assert url or path_name, 'Either "url" or "path_name" argument must be passed.'
 
-    def flash(self, message: str, category: str = 'success') -> RedirectResponse:
+    def flash(self: RT, message: str, category: str = 'success') -> RT:
         """Set a flash message to the response."""
         self._flash_message = message
         self._flash_message_category = category
         return self
 
-    def with_error(self, message: str, input_data: t.Mapping = None) -> RedirectResponse:
+    def with_error(self: RT, message: str, input_data: t.Mapping = None) -> RT:
         response = self.flash(message, category='error')
         if input_data:
             response = self.with_input(input_data)
         return response
 
-    def with_success(self, message: str) -> RedirectResponse:
+    def with_success(self: RT, message: str) -> RT:
         return self.flash(message, category='success')
 
-    def with_input(self, input_data: t.Mapping) -> RedirectResponse:
+    def with_input(self: RT, input_data: t.Mapping) -> RT:
         """Redirect with form input data. Uploaded files will be removed from data."""
         self._input_data = {k: v for k, v in input_data.items() if not isinstance(v, UploadFile)}
         return self

@@ -123,7 +123,7 @@ async def default_validation_error_handler(request: Request, exc: ValidationErro
         return JSONResponse({'message': exc.message, 'errors': exc.errors}, exc.status_code)
     if 'session' in request.scope:
         await request.remember_form_data()
-        request.set_form_errors(dict(exc.errors or {}), exc.message or '')
+        request.set_form_errors(dict(exc.errors or {}))
     return GoBackResponse(request, exc.message, flash_category='error')
 
 
