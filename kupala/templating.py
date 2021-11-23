@@ -39,12 +39,13 @@ class TemplateResponse(responses.Response):
     ) -> None:
         try:
             context = context or {}
-            context['request'] = request
+            full_context = {'request': request}
             renderer: TemplateRenderer = request.app.resolve(TemplateRenderer)
             context_processors = request.app.context_processors
             for context_processor in context_processors:
-                context.update(context_processor(request))
-            content = renderer.render(template_name, context)
+                full_context.update(context_processor(request))
+            full_context = {**full_context, **context}
+            content = renderer.render(template_name, full_context)
             super().__init__(content, status_code, headers, media_type)
         except ServiceNotFoundError as ex:
             raise RenderError('A template renderer is not configured for current application.') from ex
