@@ -141,7 +141,7 @@ class ScopedResolver(FactoryResolver):
 
 
 class Container:
-    def __init__(self, parent: Resolver = None) -> None:
+    def __init__(self, parent: Container = None) -> None:
         self._parent = parent
         self._instances: dict[Key, t.Any] = {}
         self._registry: dict[Key, ServiceResolver] = {}
@@ -181,7 +181,8 @@ class Container:
         service_resolver = self._registry.get(key)
         if service_resolver is None:
             if self._parent is not None:
-                return self._parent.resolve(key)
+                with self._parent.change_context(self._context.get()):
+                    return self._parent.resolve(key)
 
             abs_factory = self._get_abstract_factory_for(key)
             if abs_factory is None:
