@@ -102,7 +102,7 @@ class Kupala:
             self._asgi_app = self._create_app()
 
         self._request_container.set(request_container)
-        with request_container.change_context():
+        with request_container.change_context({}):
             await self._asgi_app(scope, receive, send)
 
     def cli(self) -> None:

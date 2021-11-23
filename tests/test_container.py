@@ -1,6 +1,6 @@
 import pytest
 
-from kupala.container import BaseAbstractFactory, Container, Key, Resolver, Scope, ServiceNotFoundError
+from kupala.container import BaseAbstractFactory, Container, ContainerError, Key, Resolver, Scope, ServiceNotFoundError
 
 
 class ExampleService:
@@ -128,10 +128,29 @@ def test_scoped_services(container: Container) -> None:
         ...
 
     container.factory(LonelyClass, lambda r: LonelyClass(), scope=Scope.SCOPED)
-    with container.change_context():
+    with container.change_context({}):
         instance1 = container.resolve(LonelyClass)
         instance2 = container.resolve(LonelyClass)
         assert instance1 == instance2
-    instance3 = container.resolve(LonelyClass)
-    assert instance3 != instance1
-    assert instance3 != instance2
+
+    with pytest.raises(ContainerError, match='Tried to instantiate a scoped service without an active context.'):
+        container.resolve(LonelyClass)
+
+
+def test_container_should_temporary_lease_context_to_parent() -> None:
+    """When a child container resolves a scoped service bound in parent,
+    the resolved service must be stored in the child container context, not in the parent."""
+    parent_container = Container()
+    parent_container.factory('someservice', lambda resolver: ExampleService(), scope=Scope.SCOPED)
+
+    container = Container(parent_container)
+    with container.change_context({}):
+        instance1 = container.resolve('someservice')
+        instance2 = container.resolve('someservice')
+        assert instance1 == instance2
+
+    with pytest.raises(ContainerError, match='Tried to instantiate a scoped service without an active context.'):
+        container.resolve('someservice')
+
+    assert container._context.get() is None
+    assert parent_container._context.get() is None

@@ -87,7 +87,7 @@ class Scope(enum.Enum):
 
 
 class ServiceResolver(abc.ABC):  # pragma: no cover
-    def resolve(self, context: dict) -> t.Any:
+    def resolve(self, context: t.Optional[dict] = None) -> t.Any:
         raise NotImplementedError()
 
 
@@ -95,7 +95,7 @@ class InstanceResolver(ServiceResolver):
     def __init__(self, instance: t.Any) -> None:
         self.instance = instance
 
-    def resolve(self, context: dict) -> t.Any:
+    def resolve(self, context: t.Optional[dict] = None) -> t.Any:
         return self.instance
 
 
@@ -110,7 +110,7 @@ class FactoryResolver(ServiceResolver):
         self.factory = factory
         self.initializer = initializer
 
-    def resolve(self, context: dict) -> t.Any:
+    def resolve(self, context: t.Optional[dict] = None) -> t.Any:
         instance = self.factory(self.resolver)
 
         if self.initializer:
@@ -123,7 +123,7 @@ class SingletonResolver(FactoryResolver):
         super().__init__(*args, **kwargs)
         self.instance = None
 
-    def resolve(self, context: dict) -> t.Any:
+    def resolve(self, context: t.Optional[dict] = None) -> t.Any:
         if not self.instance:
             self.instance = super().resolve(context)
         return self.instance
@@ -134,7 +134,10 @@ class ScopedResolver(FactoryResolver):
         super().__init__(*args, **kwargs)
         self._resolver_id = uuid.uuid4()
 
-    def resolve(self, context: dict) -> t.Any:
+    def resolve(self, context: t.Optional[dict] = None) -> t.Any:
+        if context is None:
+            raise ContainerError('Tried to instantiate a scoped service without an active context.')
+
         if self._resolver_id not in context:
             context[self._resolver_id] = super().resolve(context)
         return context[self._resolver_id]
@@ -147,7 +150,7 @@ class Container:
         self._registry: dict[Key, ServiceResolver] = {}
         self._abs_factories: list[AbstractFactory] = []
         self._abs_factory_cache: dict[Key, AbstractFactory] = {}
-        self._context: contextvars.ContextVar[dict] = contextvars.ContextVar('_context', default={})
+        self._context: contextvars.ContextVar[t.Optional[dict]] = contextvars.ContextVar('_context', default=None)
 
     def bind(self, key: Key, instance: t.Any) -> None:
         """Add an instance to the container."""
@@ -179,6 +182,7 @@ class Container:
         fixme: https://github.com/python/mypy/issues/4717
         """
         service_resolver = self._registry.get(key)
+
         if service_resolver is None:
             if self._parent is not None:
                 with self._parent.change_context(self._context.get()):
@@ -188,6 +192,7 @@ class Container:
             if abs_factory is None:
                 raise ServiceNotFoundError('Service "%s" is not registered.' % key)
             return abs_factory.resolve(key, self)
+
         return service_resolver.resolve(self._context.get())
 
     def invoke(self, fn_or_class: t.Union[t.Callable, t.Type], extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
@@ -233,13 +238,12 @@ class Container:
         self._abs_factories.append(factory)
 
     @contextmanager
-    def change_context(self, context_data: t.Dict = None) -> t.Generator[Container, None, None]:
-        context = self._context.get()
-        self._context.set(context_data or {})
+    def change_context(self, context_data: t.Optional[dict] = None) -> t.Generator[Container, None, None]:
         try:
+            self._context.set(context_data)
             yield self
         finally:
-            self._context.set(context)
+            self._context.set(None)
 
     def _get_abstract_factory_for(self, key: Key) -> t.Optional[AbstractFactory]:
         if key not in self._abs_factory_cache:
