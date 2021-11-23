@@ -62,40 +62,40 @@ def test_redirect_to_path_name_with_path_params() -> None:
     assert response.headers['location'] == 'http://testserver/about/42'
 
 
-def test_redirect_with_input_data() -> None:
+def test_redirect_with_input_capture() -> None:
     def view(request: Request) -> RedirectResponse:
-        return RedirectResponse('/about', input_data={'id': 42, 'name': 'test'})
+        return RedirectResponse('/about', capture_input=True)
 
     def data_view(request: Request) -> JSONResponse:
-        return JSONResponse(request.session[REDIRECT_INPUT_DATA_SESSION_KEY])
+        return JSONResponse(request.old_input)
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.post('/', view)
     app.routes.get('/about', data_view, name='about')
 
     app = SessionMiddleware(app, secret_key='key!', autoload=True)
     client = TestClient(app)
-    response = client.get('/', allow_redirects=True)
+    response = client.post('/', allow_redirects=True, data={'id': '42', 'name': 'test'})
     assert response.status_code == 200
-    assert response.json() == {'id': 42, 'name': 'test'}
+    assert response.json() == {'id': '42', 'name': 'test'}
 
 
 def test_redirect_with_input_data_via_method() -> None:
     def view(request: Request) -> RedirectResponse:
-        return RedirectResponse('/about').with_input({'id': 42, 'name': 'test'})
+        return RedirectResponse('/about').with_input()
 
     def data_view(request: Request) -> JSONResponse:
         return JSONResponse(request.session[REDIRECT_INPUT_DATA_SESSION_KEY])
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.post('/', view)
     app.routes.get('/about', data_view, name='about')
 
     app = SessionMiddleware(app, secret_key='key!', autoload=True)
     client = TestClient(app)
-    response = client.get('/', allow_redirects=True)
+    response = client.post('/', allow_redirects=True, data={'id': 42, 'name': 'test'})
     assert response.status_code == 200
-    assert response.json() == {'id': 42, 'name': 'test'}
+    assert response.json() == {'id': '42', 'name': 'test'}
 
 
 def test_redirect_with_flash_message() -> None:
@@ -180,7 +180,7 @@ def test_redirect_with_error() -> None:
 
 def test_redirect_with_error_and_input() -> None:
     def view(request: Request) -> RedirectResponse:
-        return RedirectResponse('/about').with_error('Error.', {'name': 'invalid'})
+        return RedirectResponse('/about').with_error('Error.')
 
     def data_view(request: Request) -> JSONResponse:
         messages = flash(request).all()
@@ -192,13 +192,13 @@ def test_redirect_with_error_and_input() -> None:
         )
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.post('/', view)
     app.routes.get('/about', data_view, name='about')
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
     app.middleware.use(FlashMessagesMiddleware, storage='session')
 
     client = TestClient(app)
-    response = client.get('/', allow_redirects=True)
+    response = client.post('/', allow_redirects=True, data={'name': 'invalid'})
     assert response.status_code == 200
     assert response.json() == {
         'messages': [{'category': 'error', 'message': 'Error.'}],

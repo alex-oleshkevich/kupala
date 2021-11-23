@@ -65,7 +65,7 @@ class ResponseFactory:
         url: str = None,
         status_code: int = 302,
         *,
-        input_data: t.Any = None,
+        capture_input: bool = False,
         flash_message: str = None,
         flash_category: str = "info",
         path_name: str = None,
@@ -75,7 +75,7 @@ class ResponseFactory:
             url=url,
             status_code=status_code,
             headers=self.headers,
-            input_data=input_data,
+            capture_input=capture_input,
             flash_message=flash_message,
             flash_category=flash_category,
             path_name=path_name,
@@ -83,13 +83,17 @@ class ResponseFactory:
         )
 
     def back(
-        self, input_data: t.Any = None, status_code: int = 302, flash_message: str = None, flash_category: str = "info"
+        self,
+        capture_input: bool = False,
+        status_code: int = 302,
+        flash_message: str = None,
+        flash_category: str = "info",
     ) -> RedirectResponse:
         return GoBackResponse(
             request=self.request,
             flash_message=flash_message,
             flash_category=flash_category,
-            input_data=input_data,
+            capture_input=capture_input,
             status_code=status_code,
         )
 
