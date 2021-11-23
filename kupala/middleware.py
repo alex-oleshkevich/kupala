@@ -18,6 +18,9 @@ class Middleware:
     def __repr__(self) -> str:  # pragma: no cover
         return "<Middleware: %s, kwargs=%r>" % (self.obj, self.args)
 
+    def __iter__(self) -> t.Iterator:
+        return iter(tuple([self.obj, self.args]))
+
 
 class MiddlewareStack:
     """Keeps track about all middleware used."""

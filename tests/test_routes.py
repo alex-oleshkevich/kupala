@@ -232,6 +232,22 @@ def test_group_with_middleware(app: Kupala) -> None:
     assert call_stack == ['one', 'two']  # check middleware call order
 
 
+def test_group_url_generation_with_middleware() -> None:
+    call_stack: list[str] = []
+    middleware = [Middleware(SampleMiddleware, callback=lambda: call_stack.append('one'))]
+    middleware2 = [Middleware(SampleMiddleware, callback=lambda: call_stack.append('two'))]
+
+    routes = Routes()
+    with routes.group("/admin", middleware=middleware) as admin:
+        admin.get("/users", view, name='admin_users')
+        with admin.group('/category', middleware=middleware2) as category:
+            category.get('/items', view, name='category_items')
+
+    router = Router(routes=routes)
+    assert router.url_path_for('admin_users') == '/admin/users'
+    assert router.url_path_for('category_items') == '/admin/category/items'
+
+
 @pytest.mark.parametrize('method', ['get', 'post', 'get_or_post', 'patch', 'put', 'delete', 'options', 'head', 'add'])
 def test_route_specific_middleware(app: Kupala, method: str) -> None:
     call_stack: list[str] = []

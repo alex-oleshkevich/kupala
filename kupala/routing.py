@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import functools
 import inspect
-import typing
 import typing as t
 from os import PathLike
 from starlette import routing
 from starlette.concurrency import run_in_threadpool
-from starlette.routing import Mount, WebSocketRoute, compile_path, get_name, iscoroutinefunction_or_partial
+from starlette.routing import WebSocketRoute, compile_path, get_name, iscoroutinefunction_or_partial
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -25,7 +24,7 @@ def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASG
     return app
 
 
-def request_response(func: typing.Callable) -> ASGIApp:
+def request_response(func: t.Callable) -> ASGIApp:
     """
     Takes a function or coroutine `func(request) -> response`,
     and returns an ASGI application.
@@ -48,6 +47,36 @@ def request_response(func: typing.Callable) -> ASGIApp:
     return app
 
 
+class Mount(routing.Mount):
+    def __init__(
+        self,
+        path: str,
+        app: ASGIApp = None,
+        routes: t.Sequence[routing.BaseRoute] = None,
+        name: str = None,
+        *,
+        middleware: t.Sequence[Middleware] = None,
+    ) -> None:
+        assert path == "" or path.startswith("/"), "Routed paths must start with '/'"
+        assert app is not None or routes is not None, "Either 'app=...', or 'routes=' must be specified"
+        self.path = path.rstrip("/")
+        if app is not None:
+            self.app: ASGIApp = app
+            self._routes = getattr(app, 'routes', [])
+        else:
+            self.app = Router(routes=routes)
+            self._routes = list(routes or [])
+        self.name = name
+        self.path_regex, self.path_format, self.param_convertors = compile_path(self.path + "/{path:path}")
+
+        if middleware:
+            self.app = apply_middleware(self.app, middleware)
+
+    @property
+    def routes(self) -> list[routing.BaseRoute]:
+        return self._routes
+
+
 class Router(routing.Router):
     pass
 
@@ -56,11 +85,11 @@ class Route(routing.Route):
     def __init__(
         self,
         path: str,
-        endpoint: typing.Callable,
+        endpoint: t.Callable,
         *,
         name: str = None,
         include_in_schema: bool = True,
-        methods: typing.List[str] = None,
+        methods: list[str] = None,
         middleware: t.Sequence[Middleware] = None,
     ) -> None:
         assert path.startswith("/"), "Routed paths must start with '/'"
@@ -170,11 +199,7 @@ class GroupRoutes(_RouteAdapter):
         return app
 
     def _create_base_asgi_app(self) -> ASGIApp:
-        router: ASGIApp = Router(self._routes)
-        if self._middleware:
-            for mw in reversed(self._middleware):
-                router = mw.wrap(router)
-        return routing.Mount(path=self._prefix, app=router, name=self._name)
+        return Mount(path=self._prefix, routes=self._routes, name=self._name, middleware=self._middleware)
 
     async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
         assert self._base_app  # silence mypy
