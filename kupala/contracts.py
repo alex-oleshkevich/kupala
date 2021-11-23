@@ -5,6 +5,16 @@ from kupala.requests import Request
 SERVICE = t.TypeVar('SERVICE')
 
 
+class PasswordHasher(t.Protocol):  # pragma: no cover
+    def hash(self, plain_password: str) -> str:
+        ...
+
+
+class PasswordVerifier(t.Protocol):  # pragma: no cover
+    def verify(self, plain: str, hashed: str) -> bool:
+        ...
+
+
 class Resolver(t.Protocol):  # pragma: nocover
     """A service resolver protocol."""
 
