@@ -77,6 +77,23 @@ class Mount(routing.Mount):
         return self._routes
 
 
+class Host(routing.Host):
+    def __init__(self, host: str, app: ASGIApp, name: str = None, *, middleware: t.Sequence[Middleware] = None) -> None:
+        self.host = host
+        self.app = app
+        self.name = name
+        self.host_regex, self.host_format, self.param_convertors = compile_path(host)
+        self.middleware = middleware
+        self._routes = getattr(app, 'routes', [])
+
+        if middleware:
+            self.app = apply_middleware(self.app, middleware)
+
+    @property
+    def routes(self) -> list[routing.BaseRoute]:
+        return self._routes
+
+
 class Router(routing.Router):
     pass
 
@@ -128,26 +145,13 @@ class Route(routing.Route):
 
 class _RouteAdapter:
     _routes: Routes
-    _wrapped_app: t.Optional[ASGIApp]
     _base_app: t.Optional[ASGIApp]
-    _middleware: t.Sequence[Middleware]
-
-    async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
-        assert self._wrapped_app  # silence mypy
-        await self._wrapped_app(scope, receive, send)
-
-    def _initialize_apps(self) -> None:
-        self._base_app = self._create_base_asgi_app()
-        self._wrapped_app = self._apply_middleware(self._base_app)
 
     def _create_base_asgi_app(self) -> ASGIApp:
         raise NotImplementedError()
 
-    def _apply_middleware(self, app: ASGIApp) -> ASGIApp:
-        return apply_middleware(app, self._middleware)
-
     def __enter__(self) -> Routes:
-        self._wrapped_app = None  # force app recreation when routes changed
+        self._base_app = None  # force app recreate when routes change
         return self._routes
 
     def __exit__(self, *args: t.Any) -> None:
@@ -157,7 +161,7 @@ class _RouteAdapter:
         try:
             return getattr(self._base_app, item)
         except AttributeError:
-            self._initialize_apps()
+            self._base_app = self._create_base_asgi_app()
             return getattr(self._base_app, item)
 
 
@@ -174,10 +178,10 @@ class HostRoutes(_RouteAdapter):
         self._routes = Routes(routes)
         self._middleware = middleware or []
         self._wrapped_app: t.Optional[ASGIApp] = None
-        self._base_app: t.Optional[routing.Host] = None
+        self._base_app: t.Optional[Host] = None
 
     def _create_base_asgi_app(self) -> ASGIApp:
-        return routing.Host(host=self._host, app=Router(routes=self._routes), name=self._name)
+        return Host(host=self._host, app=Router(routes=self._routes), name=self._name, middleware=self._middleware)
 
 
 class GroupRoutes(_RouteAdapter):
@@ -193,17 +197,10 @@ class GroupRoutes(_RouteAdapter):
         self._routes = Routes(routes)
         self._middleware = middleware or []
         self._wrapped_app: t.Optional[ASGIApp] = None
-        self._base_app: t.Optional[routing.Mount] = None
-
-    def _apply_middleware(self, app: ASGIApp) -> ASGIApp:
-        return app
+        self._base_app: t.Optional[Mount] = None
 
     def _create_base_asgi_app(self) -> ASGIApp:
         return Mount(path=self._prefix, routes=self._routes, name=self._name, middleware=self._middleware)
-
-    async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
-        assert self._base_app  # silence mypy
-        await self._base_app.handle(scope, receive, send)
 
 
 class ResourceRoute(routing.BaseRoute):
