@@ -33,10 +33,9 @@ class InjectionError(ContainerError):
     def __init__(
         self, message: str, error_type: InjectionErrorType, invokation_target: t.Union[t.Callable, t.Type]
     ) -> None:
-        class_name = (
-            invokation_target.__class__.__name__ if inspect.isclass(invokation_target) else invokation_target.__name__
-        )
-        addon = f'Tried to invoke: {class_name}{inspect.signature(invokation_target)}.'
+        class_name = invokation_target.__name__ if inspect.isclass(invokation_target) else invokation_target.__name__
+        module_name = invokation_target.__module__
+        addon = f'Tried to invoke: {module_name}.{class_name}{inspect.signature(invokation_target)}.'
         super().__init__(message + f'\n{addon}')
         self.error_type = error_type
 
