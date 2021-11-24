@@ -15,7 +15,7 @@ from kupala.container import Container, Resolver
 from kupala.contracts import ContextProcessor, Invoker
 from kupala.dotenv import DotEnv
 from kupala.exceptions import ErrorHandler, ExceptionMiddleware
-from kupala.middleware import MiddlewareStack
+from kupala.middleware import Middleware, MiddlewareStack
 from kupala.requests import Request
 from kupala.routing import Router, Routes
 
@@ -30,12 +30,13 @@ class Kupala:
         env_prefix: str = '',
         environment: str = None,
         config: t.Mapping = None,
-        dotenv: t.List[str] = None,
+        dotenv: list[str] = None,
         template_dirs: list[str] = None,
         providers: t.Iterable['Provider'] = None,
-        routes: t.Union[Routes, t.List[BaseRoute]] = None,
-        context_processors: t.List[ContextProcessor] = None,
-        error_handlers: t.Dict[t.Union[t.Type[Exception], int], ErrorHandler] = None,
+        routes: t.Union[Routes, list[BaseRoute]] = None,
+        context_processors: list[ContextProcessor] = None,
+        error_handlers: dict[t.Union[t.Type[Exception], int], t.Optional[ErrorHandler]] = None,
+        middleware: t.Union[list[Middleware], MiddlewareStack] = None,
     ) -> None:
         self.lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = []
         self.routes = Routes(list(routes) if routes else [])
@@ -43,7 +44,7 @@ class Kupala:
         self.dotenv = DotEnv(dotenv or ['.env.defaults', '.env'], env_prefix)
         self.env = self.dotenv.str('APP_ENV', 'production') if environment is None else environment
         self.debug = self.dotenv.bool('APP_DEBUG', False) if debug is None else debug
-        self.middleware = MiddlewareStack()
+        self.middleware = MiddlewareStack(list(middleware or []))
         self.providers = providers or []
         self.context_processors: t.List[ContextProcessor] = context_processors or []
         self.error_handlers = error_handlers or {}

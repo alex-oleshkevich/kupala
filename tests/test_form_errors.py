@@ -4,6 +4,7 @@ from kupala.application import Kupala
 from kupala.exceptions import ValidationError
 from kupala.form_errors import FormErrorsMiddleware
 from kupala.messages import FlashMessagesMiddleware
+from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.responses import JSONResponse
 from kupala.testclient import TestClient
@@ -48,13 +49,12 @@ def test_http_form_errors() -> None:
 
 
 def test_json_form_errors() -> None:
-    async def index_view(request: Request) -> None:
+    async def index_view() -> None:
         raise ValidationError('Invalid data.', {'email': ['Invalid email.']})
 
     app = Kupala()
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
     app.middleware.use(FlashMessagesMiddleware)
-    app.middleware.use(FormErrorsMiddleware)
     app.routes.get('/', index_view)
 
     client = TestClient(app)
@@ -66,13 +66,40 @@ def test_json_form_errors() -> None:
 
 
 def test_json_form_errors_debug_mode() -> None:
-    async def index_view(request: Request) -> None:
+    async def index_view() -> None:
         raise ValidationError('Invalid data.', {'email': ['Invalid email.']})
 
-    app = Kupala(debug=True)
-    app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
-    app.middleware.use(FlashMessagesMiddleware)
-    app.middleware.use(FormErrorsMiddleware)
+    app = Kupala(
+        debug=True,
+        middleware=[
+            Middleware(SessionMiddleware, secret_key='key!', autoload=True),
+            Middleware(FlashMessagesMiddleware),
+        ],
+    )
+    app.routes.get('/', index_view)
+
+    client = TestClient(app)
+    response = client.get('/', headers={'Accept': 'application/json'})
+    assert response.json() == {
+        'message': 'Invalid data.',
+        'errors': {'email': ['Invalid email.']},
+    }
+
+
+def test_form_errors_middleware() -> None:
+    async def index_view() -> None:
+        raise ValidationError('Invalid data.', {'email': ['Invalid email.']})
+
+    app = Kupala(
+        middleware=[
+            Middleware(SessionMiddleware, secret_key='key!', autoload=True),
+            Middleware(FlashMessagesMiddleware),
+            Middleware(FormErrorsMiddleware),
+        ],
+        error_handlers={
+            ValidationError: None,
+        },
+    )
     app.routes.get('/', index_view)
 
     client = TestClient(app)

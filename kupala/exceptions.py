@@ -121,10 +121,13 @@ _renderer = jinja2.Environment(loader=jinja2.PackageLoader(__name__.split('.')[0
 async def default_validation_error_handler(request: Request, exc: ValidationError) -> Response:
     if request.wants_json:
         return JSONResponse({'message': exc.message, 'errors': exc.errors}, exc.status_code)
-    if 'session' in request.scope:
-        await request.remember_form_data()
-        request.set_form_errors(dict(exc.errors or {}))
-    return GoBackResponse(request, exc.message, flash_category='error')
+
+    await request.remember_form_data()
+    request.set_form_errors(dict(exc.errors or {}))
+    response = GoBackResponse(request)
+    if exc.message:
+        response = response.with_error(exc.message)
+    return response
 
 
 async def default_http_error_handler(request: Request, exc: HTTPException) -> Response:

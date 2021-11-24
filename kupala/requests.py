@@ -272,3 +272,6 @@ class Request(requests.Request):
     async def files(self) -> FilesData:
         data = await self.form()
         return FilesData(FormData([(k, v) for k, v in data.multi_items() if isinstance(v, UploadFile)]))
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}: {self.method} {self.url}>'

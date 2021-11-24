@@ -1,8 +1,7 @@
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.exceptions import ValidationError
+from kupala.exceptions import ValidationError, default_validation_error_handler
 from kupala.requests import Request
-from kupala.responses import GoBackResponse, JSONResponse
 
 
 class FormErrorsMiddleware:
@@ -17,14 +16,5 @@ class FormErrorsMiddleware:
             await self.app(scope, receive, send)
         except ValidationError as exc:
             request = Request(scope)
-            if request.wants_json:
-                json_response = JSONResponse({'message': exc.message, 'errors': exc.errors}, exc.status_code)
-                await json_response(scope, receive, send)
-                return
-
-            await request.remember_form_data()
-            request.set_form_errors(dict(exc.errors or {}))
-            response = GoBackResponse(request)
-            if exc.message:
-                response = response.with_error(exc.message)
+            response = await default_validation_error_handler(request, exc)
             await response(scope, receive, send)

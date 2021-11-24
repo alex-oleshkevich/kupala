@@ -25,8 +25,8 @@ class Middleware:
 class MiddlewareStack:
     """Keeps track about all middleware used."""
 
-    def __init__(self) -> None:
-        self._global: list[Middleware] = []
+    def __init__(self, middleware: list[Middleware] = None) -> None:
+        self._global: list[Middleware] = middleware or []
 
     def top(self, mw: t.Type, **kwargs: t.Any) -> None:
         """Add middleware to the top of stack."""
