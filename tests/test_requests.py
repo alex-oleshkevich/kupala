@@ -4,6 +4,7 @@ import pytest
 import typing as t
 from deesk.drivers.fs import LocalFsDriver
 from deesk.storage import Storage
+from imia import AnonymousUser, LoginState, UserToken
 from pathlib import Path
 
 from kupala.application import Kupala
@@ -306,3 +307,8 @@ def test_file_upload_store_without_filename(tmp_path: Path) -> None:
     assert response.status_code == 200
     filename = response.json()
     assert '.bin' in filename
+
+
+def test_request_auth(form_request: Request) -> None:
+    form_request.scope['auth'] = UserToken(AnonymousUser(), LoginState.ANONYMOUS)
+    assert isinstance(form_request.user, AnonymousUser)

@@ -8,7 +8,7 @@ import typing
 import typing as t
 import uuid
 from deesk.storage import Storage
-from imia import UserToken
+from imia import UserLike, UserToken
 from starlette import datastructures as ds, requests
 from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
@@ -174,6 +174,10 @@ class Request(requests.Request):
     def auth(self) -> UserToken:
         assert "auth" in self.scope, "AuthenticationMiddleware must be installed to access request.auth"
         return self.scope["auth"]
+
+    @property
+    def user(self) -> UserLike:
+        return self.auth.user
 
     @property
     def wants_json(self) -> bool:
