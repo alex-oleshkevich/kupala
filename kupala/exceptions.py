@@ -99,7 +99,7 @@ class TooManyRequests(_BasePredefinedHTTPException):
     status_code = 429
 
 
-class ValidationError(BadRequest, KupalaError):
+class ValidationError(KupalaError):
     """Raised when data is not valid by any criteria."""
 
     def __init__(
@@ -120,7 +120,7 @@ _renderer = jinja2.Environment(loader=jinja2.PackageLoader(__name__.split('.')[0
 
 async def default_validation_error_handler(request: Request, exc: ValidationError) -> Response:
     if request.wants_json:
-        return JSONResponse({'message': exc.message, 'errors': exc.errors}, exc.status_code)
+        return JSONResponse({'message': exc.message, 'errors': exc.errors}, 400)
 
     await request.remember_form_data()
     request.set_form_errors(dict(exc.errors or {}))
