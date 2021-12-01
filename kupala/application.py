@@ -83,11 +83,15 @@ class Kupala:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         assert scope["type"] in {"http", "websocket", "lifespan"}
-        scope["app"] = self
         set_current_application(self)
 
+        if self._asgi_app is None:
+            self._asgi_app = self._create_app()
+
         request_container = Container(parent=self.services)
+        scope["app"] = self
         scope['resolver'] = request_container
+        scope["router"] = self._router
 
         if scope["type"] == "lifespan":
             await self.lifespan_handler(scope, receive, send)
@@ -99,11 +103,9 @@ class Kupala:
             scope["request"] = request
             self._request.set(request)
 
-        if self._asgi_app is None:
-            self._asgi_app = self._create_app()
-
         self._request_container.set(request_container)
         with request_container.change_context({}):
+            assert self._asgi_app
             await self._asgi_app(scope, receive, send)
 
     def cli(self) -> None:

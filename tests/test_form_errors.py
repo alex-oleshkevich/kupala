@@ -55,6 +55,7 @@ def test_json_form_errors() -> None:
     app = Kupala()
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
     app.middleware.use(FlashMessagesMiddleware)
+    app.middleware.use(FormErrorsMiddleware)
     app.routes.get('/', index_view)
 
     client = TestClient(app)
@@ -74,6 +75,7 @@ def test_json_form_errors_debug_mode() -> None:
         middleware=[
             Middleware(SessionMiddleware, secret_key='key!', autoload=True),
             Middleware(FlashMessagesMiddleware),
+            Middleware(FormErrorsMiddleware),
         ],
     )
     app.routes.get('/', index_view)

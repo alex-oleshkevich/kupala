@@ -118,16 +118,23 @@ class UploadFile(ds.UploadFile):
             request=request,
         )
 
-    async def save(self, directory: t.Union[str, os.PathLike], filename: str = None, disk: str = 'default') -> str:
-        uploaded_filename = self.filename
-        prefix = str(uuid.uuid4().fields[-1])[:5]
+    async def save(self, directory: t.Union[str, os.PathLike], filename: str = None, disk: str = None) -> str:
+        uploaded_filename = pathlib.Path(self.filename)
         extension = pathlib.Path(uploaded_filename).suffix
+        base_name = os.path.basename(uploaded_filename).replace(extension, '')
+        prefix = str(uuid.uuid4().fields[-1])[:5]
         if not extension:
-            extension = mimetypes.guess_extension(self.content_type) or 'bin'
-        suggested_filename = f'{prefix}_{uploaded_filename}.{extension}'
+            extension = '.' + (mimetypes.guess_extension(self.content_type) or 'bin')
+        extension = extension.lstrip('.')
+        suggested_filename = f'{prefix}_{base_name}.{extension}'
 
         file_path = os.path.join(directory, filename or suggested_filename)
-        storage: Storage = self.request.app.resolve(Storages).get(disk)
+
+        storage: Storage
+        if disk:
+            storage = self.request.app.resolve(Storages).get(disk)
+        else:
+            storage = self.request.app.resolve(Storages).get_default_disk()
         await storage.put(file_path, await self.read())
         return file_path
 
@@ -252,7 +259,7 @@ class Request(requests.Request):
         for pattern in patterns:
             if pattern == self.url.path:
                 return True
-            if re.match(pattern, self.url.path):
+            if re.search(pattern, self.url.path):
                 return True
         return False
 

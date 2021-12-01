@@ -12,7 +12,7 @@ class StoragesProvider(Provider):
         self.default = default
 
     def register(self, app: Kupala) -> None:
-        app.services.bind(Storages, Storages(self.disks))
+        app.services.bind(Storages, Storages(self.disks, default=self.default))
         app.services.factory(Storage, self.get_default_disk)
 
     def get_default_disk(self, resolver: Resolver) -> Storage:

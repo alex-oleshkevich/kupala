@@ -19,6 +19,14 @@ jobs:
 
         steps:
             -   uses: actions/checkout@v2
+                
+            -   name: Cache poetry
+                uses: actions/cache@v2
+                with:
+                    path: |
+                        ~/.cache/pypoetry
+                        ~/.cache/pip
+                    key: ${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
 
             -   name: Set up Python ${{ matrix.python-version }}
                 uses: actions/setup-python@v2

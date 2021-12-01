@@ -147,7 +147,6 @@ async def default_http_error_handler(request: Request, exc: HTTPException) -> Re
 
 _default_error_handlers = {
     BaseHTTPException: default_http_error_handler,
-    ValidationError: default_validation_error_handler,
 }
 
 
