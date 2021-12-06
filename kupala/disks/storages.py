@@ -27,7 +27,7 @@ class S3Storage(Storage):
 
     async def url(self, path: t.Union[str, os.PathLike]) -> str:
         async with self.driver.session.client('s3', endpoint_url=self.driver.endpoint_url) as client:
-            return client.generate_presigned_url(
+            return await client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': self.driver.bucket, 'Key': path},
                 ExpiresIn=self.link_ttl,
