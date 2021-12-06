@@ -29,6 +29,4 @@ class FileServer:
 
     def get_disk(self, scope: Scope) -> Storage:
         storages = scope['app'].resolve(Storages)
-        if self.disk:
-            return storages.get(self.disk)
-        return storages.get_default_disk()
+        return storages.get_or_default(self.disk)

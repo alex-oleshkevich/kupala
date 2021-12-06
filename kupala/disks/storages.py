@@ -30,7 +30,7 @@ class S3Storage(Storage):
             return client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': self.driver.bucket, 'Key': path},
-                expires_in=self.link_ttl,
+                ExpiresIn=self.link_ttl,
             )
 
 
@@ -40,7 +40,13 @@ class Storages:
         self._default = default
 
     def get(self, name: str) -> Storage:
+        """Get disk by name."""
         return self._disks[name]
 
     def get_default_disk(self) -> Storage:
+        """Get default configured disk."""
         return self._disks[self._default]
+
+    def get_or_default(self, name: t.Optional[str]) -> Storage:
+        """Retrieve disk by name or return default if missing."""
+        return self._disks[name] if name is not None and name in self._disks else self.get_default_disk()

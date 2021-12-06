@@ -8,7 +8,7 @@ from imia import AnonymousUser, LoginState, UserToken
 from pathlib import Path
 
 from kupala.application import Kupala
-from kupala.disks.providers import StoragesProvider
+from kupala.ext.disks import StoragesProvider
 from kupala.requests import Request
 from kupala.responses import JSONResponse
 from kupala.routing import Route
