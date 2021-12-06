@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "kupala"
 description = "A modern web framework for Python."
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Alex Oleshkevich <alex.oleshkevich@gmail.com>"]
 license = "MIT"
 readme = "README.md"
@@ -31,6 +31,7 @@ imia = "^0.3.1"
 python-multipart = "^0.0.5"
 python-dotenv = "^0.19.1"
 deesk = "^0.1.0"
+aioboto3 = { version = "^9.2.2", optional = true }
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"
@@ -41,6 +42,9 @@ black = "^21.7b0"
 mypy = "^0.910"
 flake8 = "^3.9.2"
 uvicorn = "^0.15.0"
+
+[tool.poetry.extras]
+s3 = ["aioboto3"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -99,7 +103,7 @@ exclude = "/*venv/"
 pretty = true
 
 [tool.pytest.ini_options]
-minversion =  "6.0"
+minversion = "6.0"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 norecursedirs = [
     "node_modules", "frontend", "storage", "dist", ".git",
