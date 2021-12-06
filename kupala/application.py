@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import anyio
+import click
 import contextvars as cv
 import logging
 import traceback
@@ -11,6 +12,7 @@ from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.config import Config
+from kupala.console.application import ConsoleApplication
 from kupala.container import Container, Resolver
 from kupala.contracts import ContextProcessor, Invoker
 from kupala.dotenv import DotEnv
@@ -35,6 +37,7 @@ class Kupala:
         providers: t.Iterable['Provider'] = None,
         routes: t.Union[Routes, list[BaseRoute]] = None,
         context_processors: list[ContextProcessor] = None,
+        commands: list[click.Command] = None,
         error_handlers: dict[t.Union[t.Type[Exception], int], t.Optional[ErrorHandler]] = None,
         middleware: t.Union[list[Middleware], MiddlewareStack] = None,
     ) -> None:
@@ -50,6 +53,7 @@ class Kupala:
         self.error_handlers = error_handlers or {}
         self.services = Container()
         self.template_dirs = template_dirs or []
+        self.commands = commands or []
 
         self._asgi_app: t.Optional[ASGIApp] = None
         self._router: t.Optional[Router] = None
@@ -108,9 +112,13 @@ class Kupala:
             assert self._asgi_app
             await self._asgi_app(scope, receive, send)
 
-    def cli(self) -> None:
+    def cli(self) -> int:
         set_current_application(self)
         self.bootstrap()
+        app = ConsoleApplication(self.services, self.commands)
+
+        with self.services.change_context({}):
+            return app.run()
 
     def bootstrap(self) -> None:
         for provider in self.providers:
