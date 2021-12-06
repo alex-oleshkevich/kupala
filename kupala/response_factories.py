@@ -24,7 +24,7 @@ class ResponseFactory:
 
     def json(
         self,
-        data: dict,
+        data: t.Any,
         default: t.Callable[[t.Any], t.Any] = None,
         indent: int = None,
         encoder_class: t.Type[JSONEncoder] = None,

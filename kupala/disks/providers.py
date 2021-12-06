@@ -2,8 +2,8 @@ from deesk.storage import Storage
 
 from kupala.application import Kupala
 from kupala.container import Resolver
+from kupala.disks.storages import Storages
 from kupala.providers import Provider
-from kupala.storages import Storages
 
 
 class StoragesProvider(Provider):

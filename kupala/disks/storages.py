@@ -1,0 +1,46 @@
+import os
+import typing as t
+from deesk.drivers.fs import LocalFsDriver
+from deesk.storage import Storage as BaseStorage
+
+
+class Storage(BaseStorage):
+    async def url(self, path: t.Union[str, os.PathLike]) -> str:
+        raise NotImplementedError()
+
+
+class LocalStorage(Storage):
+    def __init__(self, base_dir: t.Union[str, os.PathLike]) -> None:
+        super().__init__(driver=LocalFsDriver(base_dir=base_dir))
+
+    async def url(self, path: t.Union[str, os.PathLike]) -> str:
+        return str(path)
+
+
+class S3Storage(Storage):
+    def __init__(self, link_ttl: int = 300, **kwargs: t.Any) -> None:
+        from deesk.drivers.s3 import S3Driver
+
+        self.link_ttl = link_ttl
+        self.driver = S3Driver(**kwargs)
+        super().__init__(self.driver)
+
+    async def url(self, path: t.Union[str, os.PathLike]) -> str:
+        async with self.driver.session.client('s3', endpoint_url=self.driver.endpoint_url) as client:
+            return client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': self.driver.bucket, 'Key': path},
+                expires_in=self.link_ttl,
+            )
+
+
+class Storages:
+    def __init__(self, disks: dict[str, Storage], default: str) -> None:
+        self._disks = disks
+        self._default = default
+
+    def get(self, name: str) -> Storage:
+        return self._disks[name]
+
+    def get_default_disk(self) -> Storage:
+        return self._disks[self._default]

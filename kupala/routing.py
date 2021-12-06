@@ -10,6 +10,7 @@ from starlette.routing import WebSocketRoute, compile_path, get_name, iscoroutin
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.disks.file_server import FileServer
 from kupala.exceptions import MethodNotAllowed
 from kupala.middleware import Middleware
 from kupala.requests import Request
@@ -526,8 +527,8 @@ class Routes(t.Sequence[routing.BaseRoute]):
     def websocket(self, path: str, endpoint: t.Callable, *, name: str = None) -> None:
         self._routes.append(WebSocketRoute(path, endpoint, name=name))
 
-    def mount(self, path: str, app: ASGIApp, *, name: str = None) -> None:
-        self._routes.append(Mount(path, app, name=name))
+    def mount(self, path: str, app: ASGIApp, *, name: str = None, middleware: t.Sequence[Middleware] = None) -> None:
+        self._routes.append(Mount(path, app, name=name, middleware=middleware))
 
     def static(
         self,
@@ -538,9 +539,18 @@ class Routes(t.Sequence[routing.BaseRoute]):
         html: bool = False,
         check_dir: bool = True,
         name: str = None,
+        middleware: t.Sequence[Middleware] = None,
     ) -> None:
+        """Serve static files from local directories."""
         app = StaticFiles(directory=directory, packages=packages, html=html, check_dir=check_dir)
-        self._routes.append(Mount(path, app, name=name))
+        self.mount(path, app, name=name, middleware=middleware)
+
+    def files(
+        self, path: str, *, disk: str = None, name: str = None, middleware: t.Sequence[Middleware] = None
+    ) -> None:
+        """Serve file uploads from disk."""
+        app = FileServer(disk=disk)
+        self._routes.append(Mount(path, app, name=name, middleware=middleware))
 
     def host(
         self,
