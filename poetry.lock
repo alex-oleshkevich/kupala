@@ -788,8 +788,8 @@ s3 = ["aioboto3"]
 
 [metadata]
 lock-version = "1.1"
-python-versions = "^3.9.0"
-content-hash = "7cc7e32da56c83051532167094dd0d5d9fdb00e8ada57542c344f0079fba0d13"
+python-versions = "^3.9"
+content-hash = "78b180d3bb07e64ba57dd5f3a5dbc480feca374ed6de6b65d934d70de16ee563"
 
 [metadata.files]
 aioboto3 = [

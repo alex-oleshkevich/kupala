@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "kupala"
 description = "A modern web framework for Python."
-version = "0.9.15"
+version = "0.9.16"
 authors = ["Alex Oleshkevich <alex.oleshkevich@gmail.com>"]
 license = "MIT"
 readme = "README.md"
@@ -23,16 +23,16 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.9.0"
-starlette = "^0.17.0"
-Jinja2 = "^3.0.2"
-starsessions = "^1.1.5"
-imia = "^0.3.1"
+python = "^3.9"
+starlette = "^0.17"
+Jinja2 = "^3.0"
+starsessions = "^1.1"
+imia = "^0.3"
 python-multipart = "^0.0.5"
-python-dotenv = "^0.19.1"
-deesk = "^0.1.0"
-aioboto3 = { version = "^9.2.2", optional = true }
-click = "^8.0.3"
+python-dotenv = "^0.19"
+deesk = "^0.1"
+aioboto3 = { version = "^9.2", optional = true }
+click = "^8.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"
