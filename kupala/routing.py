@@ -633,6 +633,10 @@ class Routes(t.Sequence[routing.BaseRoute]):
             id_param=id_param,
         )
 
+    def include(self, routes: t.Union[t.Iterable[routing.BaseRoute], Routes]) -> None:
+        """Include routes."""
+        self._routes.extend(list(routes))
+
     def __iter__(self) -> t.Iterator[routing.BaseRoute]:
         return iter(self._routes)
 

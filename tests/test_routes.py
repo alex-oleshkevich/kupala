@@ -282,3 +282,20 @@ def test_iterable(routes: Routes) -> None:
     routes.get('/', view)
     routes.get('/two', view)
     assert len(list(routes)) == 2
+
+
+def test_include_routes_instance(app: Kupala) -> None:
+    routes = Routes()
+    routes.get('/included', view)
+
+    app.routes.include(routes)
+    client = TestClient(app)
+    assert client.get('/included').status_code == 200
+
+
+def test_include_routes_list(app: Kupala) -> None:
+    routes = [Route('/included', view)]
+
+    app.routes.include(routes)
+    client = TestClient(app)
+    assert client.get('/included').status_code == 200
