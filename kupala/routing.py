@@ -16,7 +16,7 @@ from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.resources import get_resource_action
 from kupala.responses import RedirectResponse
-from kupala.utils import camel_to_snake
+from kupala.utils import camel_to_snake, import_string
 
 
 def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASGIApp:
@@ -633,8 +633,15 @@ class Routes(t.Sequence[routing.BaseRoute]):
             id_param=id_param,
         )
 
-    def include(self, routes: t.Union[t.Iterable[routing.BaseRoute], Routes]) -> None:
+    def include(self, routes: t.Union[t.Iterable[routing.BaseRoute], str], callback: str = 'configure') -> None:
         """Include routes."""
+        IncludeRoutesCallback = t.Callable[[Routes], None]
+        if isinstance(routes, str):
+            if ':' not in routes:
+                routes += ':' + callback
+            configure_callback: IncludeRoutesCallback = import_string(routes)
+            configure_callback(self)
+            routes = t.cast(Routes, routes)
         self._routes.extend(list(routes))
 
     def __iter__(self) -> t.Iterator[routing.BaseRoute]:

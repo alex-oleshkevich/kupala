@@ -299,3 +299,9 @@ def test_include_routes_list(app: Kupala) -> None:
     app.routes.include(routes)
     client = TestClient(app)
     assert client.get('/included').status_code == 200
+
+
+def test_include_routes_string(app: Kupala) -> None:
+    app.routes.include('tests.assets.routes')
+    client = TestClient(app)
+    assert client.get('/callback-included').status_code == 200
