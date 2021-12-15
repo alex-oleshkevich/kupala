@@ -633,16 +633,18 @@ class Routes(t.Sequence[routing.BaseRoute]):
             id_param=id_param,
         )
 
-    def include(self, routes: t.Union[t.Iterable[routing.BaseRoute], str], callback: str = 'configure') -> None:
+    def include(
+        self, iterable_or_module: t.Union[t.Iterable[routing.BaseRoute], str], callback: str = 'configure'
+    ) -> None:
         """Include routes."""
         IncludeRoutesCallback = t.Callable[[Routes], None]
-        if isinstance(routes, str):
-            if ':' not in routes:
-                routes += ':' + callback
-            configure_callback: IncludeRoutesCallback = import_string(routes)
+        if isinstance(iterable_or_module, str):
+            if ':' not in iterable_or_module:
+                iterable_or_module += ':' + callback
+            configure_callback: IncludeRoutesCallback = import_string(iterable_or_module)
             configure_callback(self)
-            routes = t.cast(Routes, routes)
-        self._routes.extend(list(routes))
+        else:
+            self._routes.extend(list(iterable_or_module))
 
     def __iter__(self) -> t.Iterator[routing.BaseRoute]:
         return iter(self._routes)
