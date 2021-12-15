@@ -22,16 +22,19 @@ class JinjaProvider(Provider):
         template_dirs: list[str] = None,
         tests: t.Mapping[str, t.Callable] = None,
         filters: t.Mapping[str, t.Callable] = None,
-        globals: t.Mapping[str, t.Callable] = None,
-        policies: t.Mapping[str, t.Callable] = None,
+        globals: t.Mapping[str, t.Any] = None,
+        policies: t.Mapping[str, t.Any] = None,
         extensions: t.Sequence[t.Union[str, t.Type[Extension]]] = None,
     ) -> None:
         self.template_dirs = template_dirs or []
         self.filters = filters or {}
         self.globals = globals or {}
         self.tests = tests or {}
-        self.policies = policies or {}
+        self.policies = dict(policies or {})
         self.extensions = extensions or []
+
+        if 'json.dumps_kwargs' not in self.policies:
+            self.policies['json.dumps_kwargs'] = {'ensure_ascii': False, 'sort_keys': True}
 
     def register(self, app: Kupala) -> None:
         self.template_dirs = [*self.template_dirs, *app.template_dirs]
