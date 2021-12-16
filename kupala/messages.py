@@ -81,6 +81,9 @@ class FlashBag:
     def __iter__(self) -> t.Iterator[FlashMessage]:
         return iter(self.consume())
 
+    def __bool__(self) -> bool:
+        return len(self) > 0
+
 
 class MessageStorage(abc.ABC):  # pragma: nocover
     @abc.abstractmethod

@@ -195,6 +195,13 @@ class Container:
 
         return service_resolver.resolve(self._context.get())
 
+    def safe_resolve(self, key: t.Any) -> t.Optional[t.Any]:
+        """Return None if service does not exist instead of raising ServiceNotFoundError."""
+        try:
+            return self.resolve(key)
+        except ServiceNotFoundError:
+            return None
+
     def invoke(self, fn_or_class: t.Union[t.Callable, t.Type], extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
         """Invoke a callable resolving and injecting dependencies."""
         injections = {}

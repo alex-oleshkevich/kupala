@@ -92,6 +92,15 @@ def test_fails_when_service_not_registered() -> None:
         container.resolve(int)
 
 
+def test_safe_resolve() -> None:
+    """Container.safe_resolve returns None if service does not exists."""
+    container = Container()
+    assert container.safe_resolve(int) is None
+
+    container.bind(int, 1)
+    assert container.safe_resolve(int) == 1
+
+
 class StubAbsFactory(BaseAbstractFactory):
     def can_create(self, key: Key) -> bool:
         return key == ExampleService
