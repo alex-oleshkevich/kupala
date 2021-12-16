@@ -317,3 +317,9 @@ def test_file_upload_store_without_filename(tmp_path: Path) -> None:
 def test_request_auth(form_request: Request) -> None:
     form_request.scope['auth'] = UserToken(AnonymousUser(), LoginState.ANONYMOUS)
     assert isinstance(form_request.user, AnonymousUser)
+
+
+@pytest.mark.asyncio
+async def test_request_data(form_request: Request, json_request: Request) -> None:
+    assert dict(await form_request.data()) == {'id': '1', 'email': 'root@localhost'}
+    assert await json_request.data() == {'key': 'value', 'key2': 2}
