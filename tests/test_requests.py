@@ -117,6 +117,11 @@ def test_wants_json(json_request: Request, form_request: Request, xhr_request: R
     assert not xhr_request.wants_json
 
 
+def test_is_json(json_request: Request, form_request: Request, xhr_request: Request) -> None:
+    assert json_request.is_json
+    assert not form_request.is_json
+
+
 def test_is_post(json_request: Request) -> None:
     assert json_request.is_post
 

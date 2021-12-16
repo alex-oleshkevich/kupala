@@ -193,6 +193,10 @@ class Request(requests.Request):
         return "application/json" in self.headers.get("accept", "")
 
     @property
+    def is_json(self) -> bool:
+        return "application/json" in self.headers.get("content-type", "")
+
+    @property
     def is_xhr(self) -> bool:
         """
         Is true when the request is a XMLHttpRequest.
@@ -283,6 +287,13 @@ class Request(requests.Request):
     async def files(self) -> FilesData:
         data = await self.form()
         return FilesData(FormData([(k, v) for k, v in data.multi_items() if isinstance(v, UploadFile)]))
+
+    async def data(self) -> t.Mapping:
+        """Returns a request data.
+        Automatically decodes JSON if Content-Type is application/json."""
+        if self.is_json:
+            return await self.json()
+        return await self.form()
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}: {self.method} {self.url}>'
