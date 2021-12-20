@@ -1,4 +1,5 @@
 import os
+import pathlib
 import typing as t
 from deesk.drivers.fs import LocalFsDriver
 from deesk.storage import Storage as BaseStorage
@@ -8,13 +9,20 @@ class Storage(BaseStorage):
     async def url(self, path: t.Union[str, os.PathLike]) -> str:
         raise NotImplementedError()
 
+    def abspath(self, path: t.Union[str, os.PathLike]) -> str:
+        raise NotImplementedError()
+
 
 class LocalStorage(Storage):
     def __init__(self, base_dir: t.Union[str, os.PathLike]) -> None:
+        self.base_dir = base_dir
         super().__init__(driver=LocalFsDriver(base_dir=base_dir))
 
     async def url(self, path: t.Union[str, os.PathLike]) -> str:
         return str(path)
+
+    def abspath(self, path: t.Union[str, os.PathLike]) -> str:
+        return str(pathlib.Path(self.base_dir) / path)
 
 
 class S3Storage(Storage):
@@ -32,6 +40,9 @@ class S3Storage(Storage):
                 Params={'Bucket': self.driver.bucket, 'Key': path},
                 ExpiresIn=self.link_ttl,
             )
+
+    def abspath(self, path: t.Union[str, os.PathLike]) -> str:
+        return ''
 
 
 class Storages:

@@ -60,7 +60,7 @@ class FormErrors(t.Mapping):
             'field_errors': self.field_errors,
         }
 
-    def keys(self) -> t.AbstractSet[str]:
+    def keys(self) -> t.KeysView[str]:
         return self.field_errors.keys()
 
     def __bool__(self) -> bool:
@@ -160,7 +160,7 @@ class Request(requests.Request):
     def __new__(cls, scope: Scope, receive: Receive = empty_receive, send: Send = empty_send) -> Request:
         if 'request' not in scope:
             instance = super().__new__(cls)
-            instance.__init__(scope, receive, send)
+            instance.__init__(scope, receive, send)  # type: ignore
             scope['request'] = instance
         elif scope['request'].__class__ != cls:
             # view function uses custom request class

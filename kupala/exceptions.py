@@ -18,7 +18,7 @@ class HTTPException(BaseHTTPException, KupalaError):
 
     def __init__(self, status_code: int, message: str = None) -> None:  # pragma: nocover
         self.message = message or self.message
-        super().__init__(status_code=status_code, detail=message)
+        super().__init__(status_code=status_code, detail=message)  # type: ignore
 
 
 class _BasePredefinedHTTPException(HTTPException):

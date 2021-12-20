@@ -6,8 +6,9 @@ from kupala.responses import FileResponse, PlainTextResponse, RedirectResponse, 
 
 
 class FileServer:
-    def __init__(self, disk: str = None) -> None:
+    def __init__(self, disk: str = None, as_attachment: bool = True) -> None:
         self.disk = disk
+        self.as_attachment = as_attachment
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         assert scope["type"] == "http"
@@ -22,7 +23,8 @@ class FileServer:
         url = await self.get_disk(scope).url(path)
         if url.startswith('http'):
             return RedirectResponse(url, 307)
-        return FileResponse(path)
+        path = self.get_disk(scope).abspath(path)
+        return FileResponse(path, inline=not self.as_attachment)
 
     def get_path(self, scope: Scope) -> str:
         return os.path.normpath(os.path.join(*scope["path"].split("/")))

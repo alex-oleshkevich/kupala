@@ -230,12 +230,12 @@ class ResourceRoute(routing.BaseRoute):
         self.middleware = middleware
         self.include_in_schema = include_in_schema
 
-        self.collection_method_map: dict[str, t.Callable] = {
+        self.collection_method_map: dict[str, t.Optional[t.Callable]] = {
             'head': getattr(self.resource, 'index', None),
             'get': getattr(self.resource, 'index', None),
             'post': getattr(self.resource, 'create', None),
         }
-        self.object_method_map: dict[str, t.Callable] = {
+        self.object_method_map: dict[str, t.Optional[t.Callable]] = {
             'head': getattr(self.resource, 'show', None),
             'get': getattr(self.resource, 'show', None),
             'put': getattr(self.resource, 'update', None),
@@ -256,7 +256,7 @@ class ResourceRoute(routing.BaseRoute):
 
     @property
     def routes(self) -> list[routing.BaseRoute]:
-        return getattr(self.app, "routes", None)
+        return getattr(self.app, "routes", [])
 
     def matches(self, scope: Scope) -> t.Tuple[routing.Match, Scope]:
         for route in self.routes:

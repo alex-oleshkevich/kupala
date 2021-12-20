@@ -12,12 +12,20 @@ from kupala import json
 from kupala.json import JSONEncoder
 from kupala.requests import Request
 
-Response = responses.Response
-PlainTextResponse = responses.PlainTextResponse
-HTMLResponse = responses.HTMLResponse
+
+class Response(responses.Response):
+    pass
 
 
-class JSONResponse(responses.JSONResponse):
+class PlainTextResponse(Response, responses.PlainTextResponse):
+    pass
+
+
+class HTMLResponse(Response, responses.HTMLResponse):
+    pass
+
+
+class JSONResponse(Response, responses.JSONResponse):
     def __init__(
         self,
         content: t.Any,
@@ -46,7 +54,7 @@ class JSONResponse(responses.JSONResponse):
         ).encode("utf-8")
 
 
-class FileResponse(responses.FileResponse):
+class FileResponse(Response, responses.FileResponse):
     def __init__(
         self,
         path: t.Union[str, os.PathLike[str]],
@@ -69,7 +77,7 @@ class FileResponse(responses.FileResponse):
         )
 
 
-class StreamingResponse(responses.StreamingResponse):
+class StreamingResponse(Response, responses.StreamingResponse):
     def __init__(
         self,
         content: t.Any,
@@ -94,7 +102,7 @@ class StreamingResponse(responses.StreamingResponse):
 RT = t.TypeVar('RT', bound='RedirectResponse')
 
 
-class RedirectResponse(responses.RedirectResponse):
+class RedirectResponse(Response, responses.RedirectResponse):
     def __init__(
         self,
         url: str = None,
@@ -159,7 +167,7 @@ class RedirectResponse(responses.RedirectResponse):
         return await super().__call__(scope, receive, send)
 
 
-class EmptyResponse(responses.Response):
+class EmptyResponse(Response):
     def __init__(self, headers: dict = None) -> None:
         super().__init__(b'', status_code=204, headers=headers)
 
