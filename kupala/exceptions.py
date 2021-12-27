@@ -6,7 +6,7 @@ from starlette.exceptions import HTTPException as BaseHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from kupala.requests import Request
-from kupala.responses import GoBackResponse, HTMLResponse, JSONResponse, Response
+from kupala.responses import GoBackResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
 
 
 class KupalaError(Exception):
@@ -139,7 +139,9 @@ async def default_http_error_handler(request: Request, exc: HTTPException) -> Re
             data['exception'] = repr(exc)
         return JSONResponse(data, status_code=exc.status_code)
     elif request.app.debug:
-        raise exc from None
+        if exc.status_code in {204, 304}:
+            return Response(b"", status_code=exc.status_code)
+        return PlainTextResponse(exc.detail, status_code=exc.status_code)
     else:
         content = _renderer.get_template('errors/http_error.html').render({'request': request, 'exc': exc})
         return HTMLResponse(content, status_code=exc.status_code)

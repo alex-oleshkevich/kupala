@@ -7,7 +7,7 @@ import logging
 import traceback
 import typing as t
 from contextlib import AsyncExitStack
-from starlette.middleware.errors import ServerErrorMiddleware
+from starlette.datastructures import State
 from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -16,6 +16,7 @@ from kupala.console.application import ConsoleApplication
 from kupala.container import Container, Resolver
 from kupala.contracts import ContextProcessor, Invoker
 from kupala.dotenv import DotEnv
+from kupala.errors import ServerErrorMiddleware
 from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import Middleware, MiddlewareStack
 from kupala.requests import Request
@@ -54,6 +55,7 @@ class Kupala:
         self.services = Container()
         self.template_dirs = template_dirs or []
         self.commands = commands or []
+        self.state = State()
 
         self._asgi_app: t.Optional[ASGIApp] = None
         self._router: t.Optional[Router] = None
