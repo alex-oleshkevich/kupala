@@ -12,6 +12,13 @@ class LockedError(ConfigError):
     """Raised when the configuration object is locked."""
 
 
+class UndefinedError(ConfigError):
+    """Raised if requested config option is undefined."""
+
+
+undefined = object()
+
+
 class Config:
     """Keeps application configuration three."""
 
@@ -19,13 +26,15 @@ class Config:
         self._data = dict(initial or {})
         self._is_locked = False
 
-    def get(self, key: str, default: t.Any = None) -> t.Any:
+    def get(self, key: str, default: t.Any = undefined) -> t.Any:
         """Get a value from the configuration object using dot-notation.
         This method returns a deep copy of the found value."""
         value = self._data
         for segment in key.split("."):
             if segment in value:
                 value = value[segment]
+            elif default == undefined:
+                raise UndefinedError(f'Configuration key "{key}" is undefined and no default value specified.')
             else:
                 return default
         return copy.deepcopy(value)

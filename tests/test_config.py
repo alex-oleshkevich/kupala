@@ -1,6 +1,6 @@
 import pytest
 
-from kupala.config import Config, LockedError
+from kupala.config import Config, LockedError, UndefinedError
 
 
 @pytest.fixture()
@@ -37,12 +37,14 @@ def test_returns_default_when_node_missing(config: Config) -> None:
 
 
 def test_raises_when_node_missing_and_no_default(config: Config) -> None:
-    assert config.get("application.nonexisting") is None
+    with pytest.raises(UndefinedError):
+        assert config.get("application.nonexisting") is None
 
 
-def test_raises_when_node_missing_and_no_default2(config: Config) -> None:
-    config = Config({"application": {"leaf": []}})
-    assert config.get("application.leaf.second") is None
+def test_raises_when_node_missing_and_no_default_nested(config: Config) -> None:
+    with pytest.raises(UndefinedError):
+        config = Config({"application": {"leaf": []}})
+        assert config.get("application.leaf.second") is None
 
 
 def test_missing_nested_with_default(config: Config) -> None:
