@@ -33,6 +33,8 @@ python-dotenv = "^0.19"
 deesk = "^0.1"
 aioboto3 = { version = "^9.2", optional = true }
 click = "^8.0"
+mailers = "^2.0.0"
+toronado = "^0.1.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"

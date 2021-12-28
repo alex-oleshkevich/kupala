@@ -1,4 +1,5 @@
 import importlib
+import os.path
 import re
 import typing as t
 
@@ -20,3 +21,11 @@ def import_string(path: str, package: str = None) -> t.Any:
     if attr:
         return getattr(module_instance, attr)
     return module_instance
+
+
+def resolve_path(path: str) -> str:
+    if ':' not in path:
+        return os.path.abspath(path)
+    package_name, package_path = path.split(':')
+    package_spec = importlib.import_module(package_name)
+    return os.path.join(os.path.dirname(package_spec.__file__), package_path)
