@@ -60,8 +60,8 @@ class Resolver(t.Protocol):  # pragma: nocover
         ...
 
 
-Factory = t.Union[t.Callable[[Resolver], t.Any], type]
-Initializer = t.Callable[[Resolver, t.Any], None]
+Factory = t.Union[t.Callable, type]
+Initializer = t.Callable[['Container', t.Any], None]
 
 
 class AbstractFactory(t.Protocol):  # pragma: nocover
@@ -102,19 +102,19 @@ class InstanceResolver(ServiceResolver):
 class FactoryResolver(ServiceResolver):
     def __init__(
         self,
-        resolver: Resolver,
+        container: Container,
         factory: Factory,
         initializer: Initializer = None,
     ) -> None:
-        self.resolver = resolver
+        self.container = container
         self.factory = factory
         self.initializer = initializer
 
     def resolve(self, context: t.Optional[dict] = None) -> t.Any:
-        instance = self.factory(self.resolver)
+        instance = self.container.invoke(self.factory)
 
         if self.initializer:
-            self.initializer(self.resolver, instance)
+            self.initializer(self.container, instance)
         return instance
 
 

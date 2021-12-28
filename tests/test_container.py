@@ -29,7 +29,7 @@ def test_factory(container: Container, scope: Scope) -> None:
     the same object on any subsequent call.
     """
 
-    def factory(resolver: Resolver) -> ExampleService:
+    def factory() -> ExampleService:
         return ExampleService()
 
     container.factory(ExampleService, factory, scope=scope)
@@ -54,10 +54,10 @@ def test_factory_with_initializer(container: Container, scope: Scope) -> None:
             self.a = a
             self.b = b
 
-    def initializer(resolver: Resolver, instance: StubWithArgs) -> None:
+    def initializer(container: Container, instance: StubWithArgs) -> None:
         instance.b = "b"
 
-    def factory(resolver: Resolver) -> StubWithArgs:
+    def factory() -> StubWithArgs:
         return StubWithArgs('a')
 
     container.factory(StubWithArgs, factory, initializer=initializer, scope=scope)
@@ -101,6 +101,25 @@ def test_safe_resolve() -> None:
     assert container.safe_resolve(int) == 1
 
 
+def test_factory_injections(container: Container) -> None:
+    class Injection:
+        pass
+
+    class Service:
+        def __init__(self, injection: Injection) -> None:
+            self.injection = injection
+
+    injection = Injection()
+    container.bind(Injection, injection)
+
+    def factory(injection: Injection) -> Service:
+        return Service(injection)
+
+    container.factory(Service, factory)
+    instance = container.resolve(Service)
+    assert instance.injection == injection
+
+
 class StubAbsFactory(BaseAbstractFactory):
     def can_create(self, key: Key) -> bool:
         return key == ExampleService
@@ -136,7 +155,7 @@ def test_scoped_services(container: Container) -> None:
     class LonelyClass:
         ...
 
-    container.factory(LonelyClass, lambda r: LonelyClass(), scope=Scope.SCOPED)
+    container.factory(LonelyClass, lambda: LonelyClass(), scope=Scope.SCOPED)
     with container.change_context({}):
         instance1 = container.resolve(LonelyClass)
         instance2 = container.resolve(LonelyClass)
@@ -150,7 +169,7 @@ def test_container_should_temporary_lease_context_to_parent() -> None:
     """When a child container resolves a scoped service bound in parent,
     the resolved service must be stored in the child container context, not in the parent."""
     parent_container = Container()
-    parent_container.factory('someservice', lambda resolver: ExampleService(), scope=Scope.SCOPED)
+    parent_container.factory('someservice', lambda: ExampleService(), scope=Scope.SCOPED)
 
     container = Container(parent_container)
     with container.change_context({}):
