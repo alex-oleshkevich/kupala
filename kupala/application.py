@@ -65,6 +65,7 @@ class Kupala:
         self.services.bind(Container, self.services)
         self.services.bind(Resolver, self.services)
         self.services.bind(Invoker, self.services)
+        self.services.bind(Config, self.config)
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI lifespan events handler."""
