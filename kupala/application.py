@@ -25,6 +25,8 @@ from kupala.routing import Router, Routes
 if t.TYPE_CHECKING:
     from kupala.providers import Provider
 
+_T = t.TypeVar('_T')
+
 
 class Kupala:
     def __init__(
@@ -138,12 +140,28 @@ class Kupala:
             app = mw.wrap(app)
         return app
 
+    @t.overload
+    def invoke(self, fn_or_class: t.Type[_T], extra_kwargs: t.Dict[str, t.Any] = None) -> _T:
+        ...
+
+    @t.overload
+    def invoke(self, fn_or_class: t.Callable, extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
+        ...
+
     def invoke(self, fn_or_class: t.Union[t.Callable, t.Type], extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
         """Resolve callable dependencies and call it passing dependencies to callable arguments.
         If `fn_or_class` is a type then it will be instantiated.
 
         Use `extra_kwargs` to provide dependency hints to the injector."""
         return self._request_container.get().invoke(fn_or_class, extra_kwargs=extra_kwargs)
+
+    @t.overload
+    def resolve(self, key: t.Type[_T]) -> _T:
+        ...
+
+    @t.overload
+    def resolve(self, key: t.Any) -> t.Any:
+        ...
 
     def resolve(self, key: t.Any) -> t.Any:
         """Resolve a service from the current container."""
