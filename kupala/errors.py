@@ -79,6 +79,7 @@ section.trace {
 .snippet-wrapper {
     display: none;
 }
+
 .snippet-wrapper.current {
     display: block;
 }
@@ -217,6 +218,12 @@ dd {
     background-color: var(--gray-lightest);
 }
 
+.open-uri {
+    font-weight: bold;
+    color: var(--gray);
+    text-decoration: none;
+}
+
 @media(max-width: 1200px) {
     section {
         padding: 12px 16px;
@@ -328,7 +335,7 @@ CODE_TEMPLATE = """
 <div id="snippet-{id}" class="snippet-wrapper{extra_css_class}">
     <div class="snippet">
         <header>
-            <b><span class="package-dir">{package_dir}</span>{relative_path}</b>
+            <a class="open-uri" href="{open_path}"><span class="package-dir">{package_dir}</span>{relative_path}</b></a>
         </header>
         <div>
             {lines}
@@ -404,7 +411,7 @@ def is_vendor(frame: inspect.FrameInfo) -> bool:
 
 
 def get_package_name(frame: inspect.FrameInfo) -> str:
-    return frame.frame.f_globals["__package__"].split(".")[0]
+    return frame.frame.f_globals.get("__package__", '').split(".")[0]
 
 
 def get_symbol(frame: inspect.FrameInfo) -> str:
@@ -436,6 +443,16 @@ def mask_secrets(key: str, value: str) -> str:
     return value
 
 
+EDITORS = {'pycharm': 'pycharm://open?file={path}&line={line}'}
+
+
+def generate_file_uri(path: str, line: int, editor: str) -> str:
+    uri = EDITORS.get(editor, '').format(path=path, line=line)
+    if not uri:
+        uri = 'file://' + path
+    return uri
+
+
 class ServerErrorMiddleware:
     """
     Handles returning 500 responses when a server error occurs.
@@ -448,10 +465,17 @@ class ServerErrorMiddleware:
     always result in an appropriate 500 response.
     """
 
-    def __init__(self, app: ASGIApp, handler: typing.Callable = None, debug: bool = False) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        handler: typing.Callable = None,
+        debug: bool = False,
+        editor: typing.Optional[str] = os.environ.get('EDITOR', ''),
+    ) -> None:
         self.app = app
         self.handler = handler
         self.debug = debug
+        self.editor = editor
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -540,6 +564,7 @@ class ServerErrorMiddleware:
             locals=self.generate_locals_for_frame(frame),
             symbol=get_symbol(frame),
             package=get_package_name(frame),
+            open_path=generate_file_uri(frame.filename, frame.lineno, self.editor or ''),
         )
 
     def render_details_row(self, data: typing.Mapping) -> str:
