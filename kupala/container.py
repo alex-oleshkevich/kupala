@@ -156,7 +156,7 @@ class Container:
         """Add an instance to the container."""
         self._registry[key] = InstanceResolver(instance)
 
-    def factory(
+    def add_factory(
         self,
         key: Key,
         factory: Factory,
@@ -175,6 +175,8 @@ class Container:
 
     def add_scoped(self, key: Key, factory: Factory, initializer: Initializer = None) -> None:
         return self.factory(key, factory, scope=Scope.SCOPED, initializer=initializer)
+
+    factory = add_factory
 
     def resolve(self, key: t.Any) -> t.Any:
         """Get a service instance from the container.
