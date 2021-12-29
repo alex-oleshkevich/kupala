@@ -19,6 +19,8 @@ def default_app_context(request: Request) -> t.Mapping:
         'old_input': request.old_input,
         'csrf_token': get_csrf_token(request),
         'csrf_input': get_csrf_input(request),
+        'auth': request.auth,
+        'user': request.user,
         'messages': flash(request) if 'flash_messages' in request.scope else FlashBag(),
     }
 
