@@ -178,6 +178,14 @@ class Container:
 
     factory = add_factory
 
+    @t.overload
+    def resolve(self, key: t.Type[S]) -> S:
+        ...
+
+    @t.overload
+    def resolve(self, key: t.Any) -> t.Any:
+        ...
+
     def resolve(self, key: t.Any) -> t.Any:
         """Get a service instance from the container.
 
@@ -197,12 +205,28 @@ class Container:
 
         return service_resolver.resolve(self._context.get())
 
+    @t.overload
+    def safe_resolve(self, key: t.Type[S]) -> S:
+        ...
+
+    @t.overload
+    def safe_resolve(self, key: t.Any) -> t.Any:
+        ...
+
     def safe_resolve(self, key: t.Any) -> t.Optional[t.Any]:
         """Return None if service does not exist instead of raising ServiceNotFoundError."""
         try:
             return self.resolve(key)
         except ServiceNotFoundError:
             return None
+
+    @t.overload
+    def invoke(self, fn_or_class: t.Type[S], extra_kwargs: t.Dict[str, t.Any] = None) -> S:
+        ...
+
+    @t.overload
+    def invoke(self, fn_or_class: t.Callable, extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
+        ...
 
     def invoke(self, fn_or_class: t.Union[t.Callable, t.Type], extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
         """Invoke a callable resolving and injecting dependencies."""
