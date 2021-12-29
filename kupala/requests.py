@@ -7,6 +7,7 @@ import re
 import typing
 import typing as t
 import uuid
+from babel.core import Locale
 from deesk.storage import Storage
 from imia import UserLike, UserToken
 from starlette import datastructures as ds, requests
@@ -226,6 +227,15 @@ class Request(requests.Request):
     def session(self) -> Session:
         assert "session" in self.scope, "SessionMiddleware must be installed to access request.session"
         return self.scope['session']
+
+    @property
+    def locale(self) -> Locale:
+        assert "locale" in self.scope, "LocaleMiddleware must be installed to access request.locale"
+        return self.scope['locale']
+
+    @property
+    def language(self) -> str:
+        return self.locale.language
 
     @property
     def old_input(self) -> OldFormInput:
