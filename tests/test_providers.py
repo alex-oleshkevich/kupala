@@ -1,5 +1,4 @@
 from kupala.application import Kupala
-from kupala.container import Container
 from kupala.providers import Provider
 
 
@@ -7,8 +6,8 @@ class ExampleProvider(Provider):
     def register(self, app: Kupala) -> None:
         app.services['key'] = 'value'
 
-    def bootstrap(self, container: Container) -> None:
-        container['key2'] = 'value'
+    def bootstrap(self, app: Kupala) -> None:
+        app.services['key2'] = 'value'
 
 
 def test_applies_providers() -> None:

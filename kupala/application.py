@@ -129,7 +129,7 @@ class Kupala:
         for provider in self.providers:
             provider.register(self)
         for provider in self.providers:
-            provider.bootstrap(self.services)
+            provider.bootstrap(self)
 
     def _create_app(self) -> ASGIApp:
         app: ASGIApp = Router(routes=self.routes)
