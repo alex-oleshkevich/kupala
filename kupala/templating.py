@@ -11,8 +11,6 @@ from kupala.requests import Request
 def default_app_context(request: Request) -> t.Mapping:
     return {
         'debug': request.app.debug,
-        'environment': request.app.env,
-        'envvar': request.app.dotenv,
         'url': request.url_for,
         'config': request.app.config,
         'form_errors': request.form_errors,

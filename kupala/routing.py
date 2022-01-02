@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import functools
 import inspect
 import typing as t
 from os import PathLike
 from starlette import routing
 from starlette.concurrency import run_in_threadpool
+from starlette.responses import Response
 from starlette.routing import WebSocketRoute, compile_path, get_name, iscoroutinefunction_or_partial
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -15,7 +18,8 @@ from kupala.exceptions import MethodNotAllowed
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.resources import get_resource_action
-from kupala.responses import RedirectResponse
+from kupala.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from kupala.templating import TemplateResponse
 from kupala.utils import camel_to_snake, import_string
 
 
@@ -43,9 +47,77 @@ def request_response(func: t.Callable) -> ASGIApp:
             response = await request.app.invoke(func, extra_kwargs=extra_kwargs)
         else:
             response = await run_in_threadpool(request.app.invoke, func, extra_kwargs=extra_kwargs)
+
+        status = 200
+        headers = {}
+
+        if isinstance(response, Response):
+            return await response(scope, receive, send)
+
+        if inspect.isfunction(response):
+            return await response(scope, receive, send)
+
+        if isinstance(response, tuple):
+            if len(response) == 3:
+                content, status, headers = response
+            elif len(response) == 2:
+                content, status = response
+            else:
+                content = response
+        else:
+            content = response
+
+        if request.wants_json:
+            response = JSONResponse(content, status, headers)
+        elif 'text/html' in request.headers['accept']:
+            action_config = get_action_config(func)
+            if action_config and action_config.template:
+                response = TemplateResponse(
+                    request,
+                    template_name=action_config.template,
+                    context=content,
+                    status_code=status,
+                    headers=headers,
+                )
+            else:
+                response = HTMLResponse(content, status_code=status, headers=headers)
+        else:
+            if not isinstance(content, (bytes, str)):
+                raise ValueError(
+                    'A view callable must return string or bytes when responds to text/plain requests '
+                    f'but {func.__name__} returned {type(content)}.'
+                )
+            response = PlainTextResponse(content, status_code=status, headers=headers)
         await response(scope, receive, send)
 
     return app
+
+
+@dataclass
+class ActionConfig:
+    methods: t.List[str] = field(default_factory=list)
+    template: t.Optional[str] = None
+    middleware: t.Optional[t.Sequence[Middleware]] = None
+
+
+def action_config(
+    methods: t.List[str] = None,
+    template: str = '',
+    middleware: t.Sequence[Middleware] = None,
+) -> t.Callable:
+    allowed_methods = methods or ['GET', 'HEAD']
+
+    def wrapper(fn: t.Callable) -> t.Callable:
+        setattr(
+            fn, '__action_config__', ActionConfig(methods=allowed_methods, template=template, middleware=middleware)
+        )
+        return fn
+
+    return wrapper
+
+
+def get_action_config(fn: t.Callable) -> t.Optional[ActionConfig]:
+    return getattr(fn, '__action_config__', None)
 
 
 class Mount(routing.Mount):
@@ -116,9 +188,15 @@ class Route(routing.Route):
         self.name = get_name(endpoint) if name is None else name
         self.include_in_schema = include_in_schema
 
+        action_config = get_action_config(endpoint)
+        if action_config:
+            methods = action_config.methods
+            middleware = middleware or action_config.middleware
+
         endpoint_handler = endpoint
         while isinstance(endpoint_handler, functools.partial):
             endpoint_handler = endpoint_handler.func
+
         if inspect.isfunction(endpoint_handler) or inspect.ismethod(endpoint_handler):
             # Endpoint is function or method. Treat it as `func(request) -> response`.
             self.app = request_response(endpoint)
@@ -509,7 +587,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         path: str,
         endpoint: t.Callable,
         *,
-        methods: t.List[str],
+        methods: t.List[str] = None,
         name: str = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
