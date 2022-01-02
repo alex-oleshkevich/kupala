@@ -24,8 +24,8 @@ def import_string(path: str, package: str = None) -> t.Any:
 
 
 def resolve_path(path: str) -> str:
-    if ':' not in path:
+    if not path.startswith('@'):
         return os.path.abspath(path)
-    package_name, package_path = path.split(':')
+    package_name, _, package_path = path.replace('@', '').partition(os.sep)
     package_spec = importlib.import_module(package_name)
     return os.path.join(os.path.dirname(package_spec.__file__), package_path)
