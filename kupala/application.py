@@ -3,6 +3,7 @@ from __future__ import annotations
 import anyio
 import click
 import contextvars as cv
+import inspect
 import logging
 import traceback
 import typing as t
@@ -15,7 +16,6 @@ from kupala.config import Config
 from kupala.console.application import ConsoleApplication
 from kupala.container import Container, Resolver
 from kupala.contracts import ContextProcessor, Invoker
-from kupala.dotenv import DotEnv
 from kupala.errors import ServerErrorMiddleware
 from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import Middleware, MiddlewareStack
@@ -31,25 +31,22 @@ _T = t.TypeVar('_T')
 class Kupala:
     def __init__(
         self,
+        *,
         debug: bool = None,
-        env_prefix: str = '',
-        environment: str = None,
         config: t.Mapping = None,
-        dotenv: list[str] = None,
         template_dirs: list[str] = None,
-        providers: t.Iterable['Provider'] = None,
+        providers: t.Iterable[t.Union['Provider', t.Type['Provider']]] = None,
         routes: t.Union[Routes, list[BaseRoute]] = None,
         context_processors: list[ContextProcessor] = None,
         commands: list[click.Command] = None,
         error_handlers: dict[t.Union[t.Type[Exception], int], t.Optional[ErrorHandler]] = None,
         middleware: t.Union[list[Middleware], MiddlewareStack] = None,
+        lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = None,
     ) -> None:
-        self.lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = []
+        self.lifespan = lifespan or []
         self.routes = Routes(list(routes) if routes else [])
         self.config = Config(config)
-        self.dotenv = DotEnv(dotenv or ['.env.defaults', '.env'], env_prefix)
-        self.env = self.dotenv.str('APP_ENV', 'production') if environment is None else environment
-        self.debug = self.dotenv.bool('APP_DEBUG', False) if debug is None else debug
+        self.debug = debug
         self.middleware = MiddlewareStack(list(middleware or []))
         self.providers = providers or []
         self.context_processors: t.List[ContextProcessor] = context_processors or []
@@ -64,6 +61,7 @@ class Kupala:
         self._request_container: cv.ContextVar[Container] = cv.ContextVar('_request_container', default=self.services)
         self._request: cv.ContextVar[t.Optional[Request]] = cv.ContextVar('_current_request')
 
+        self.services.bind(Kupala, self)
         self.services.bind(Container, self.services)
         self.services.bind(Resolver, self.services)
         self.services.bind(Invoker, self.services)
@@ -71,9 +69,9 @@ class Kupala:
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI lifespan events handler."""
-        self.bootstrap()
-        await receive()
         try:
+            self.bootstrap()
+            await receive()
             async with AsyncExitStack() as stack:
                 for hook in self.lifespan:
                     await stack.enter_async_context(hook(self))
@@ -126,16 +124,19 @@ class Kupala:
             return app.run()
 
     def bootstrap(self) -> None:
-        for provider in self.providers:
+        providers = [provider() if inspect.isclass(provider) else provider for provider in self.providers]
+        for provider in providers:
+            provider.configure(self)
+        for provider in providers:
             provider.register(self)
-        for provider in self.providers:
+        for provider in providers:
             provider.bootstrap(self)
 
     def _create_app(self) -> ASGIApp:
         app: ASGIApp = Router(routes=self.routes)
         self._router = t.cast(Router, app)
         self.middleware.use(ExceptionMiddleware, handlers=self.error_handlers)
-        self.middleware.top(ServerErrorMiddleware, debug=True)
+        self.middleware.top(ServerErrorMiddleware, debug=self.debug)
         for mw in reversed(self.middleware):
             app = mw.wrap(app)
         return app
