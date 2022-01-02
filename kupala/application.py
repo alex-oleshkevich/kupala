@@ -20,6 +20,7 @@ from kupala.errors import ServerErrorMiddleware
 from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import Middleware, MiddlewareStack
 from kupala.requests import Request
+from kupala.responses import Response
 from kupala.routing import Router, Routes
 
 if t.TYPE_CHECKING:
@@ -42,6 +43,7 @@ class Kupala:
         error_handlers: dict[t.Union[t.Type[Exception], int], t.Optional[ErrorHandler]] = None,
         middleware: t.Union[list[Middleware], MiddlewareStack] = None,
         lifespan: t.List[t.Callable[[Kupala], t.AsyncContextManager]] = None,
+        exception_handler: t.Callable[[Request, Exception], Response] = None,
     ) -> None:
         self.lifespan = lifespan or []
         self.routes = Routes(list(routes) if routes else [])
@@ -54,6 +56,7 @@ class Kupala:
         self.services = Container()
         self.template_dirs = template_dirs or []
         self.commands = commands or []
+        self.exception_handler = exception_handler
         self.state = State()
 
         self._asgi_app: t.Optional[ASGIApp] = None
@@ -136,7 +139,7 @@ class Kupala:
         app: ASGIApp = Router(routes=self.routes)
         self._router = t.cast(Router, app)
         self.middleware.use(ExceptionMiddleware, handlers=self.error_handlers)
-        self.middleware.top(ServerErrorMiddleware, debug=self.debug)
+        self.middleware.top(ServerErrorMiddleware, debug=self.debug, handler=self.exception_handler)
         for mw in reversed(self.middleware):
             app = mw.wrap(app)
         return app
