@@ -143,14 +143,18 @@ class ScopedResolver(FactoryResolver):
         return context[self._resolver_id]
 
 
+FallbackResolver = t.Callable[[t.Any, 'Container'], t.Any]
+
+
 class Container:
-    def __init__(self, parent: Container = None) -> None:
+    def __init__(self, parent: Container = None, fallback_resolver: FallbackResolver = None) -> None:
         self._parent = parent
         self._instances: dict[Key, t.Any] = {}
         self._registry: dict[Key, ServiceResolver] = {}
         self._abs_factories: list[AbstractFactory] = []
         self._abs_factory_cache: dict[Key, AbstractFactory] = {}
         self._aliases: dict[Key, Key] = {}
+        self._fallback_resolver = fallback_resolver
         self._context: contextvars.ContextVar[t.Optional[dict]] = contextvars.ContextVar('_context', default=None)
 
     def bind(self, key: Key, instance: t.Any, *, alias: Key = None) -> None:
@@ -189,6 +193,9 @@ class Container:
     def alias(self, service: Key, new_name: Key) -> None:
         self._aliases[new_name] = service
 
+    def fallback(self, resolver: FallbackResolver) -> None:
+        self._fallback_resolver = resolver
+
     @t.overload
     def resolve(self, key: t.Type[S]) -> S:
         ...
@@ -212,7 +219,10 @@ class Container:
 
             abs_factory = self._get_abstract_factory_for(key)
             if abs_factory is None:
-                raise ServiceNotFoundError('Service "%s" is not registered.' % key)
+                if not self._fallback_resolver:
+                    raise ServiceNotFoundError('Service "%s" is not registered.' % key)
+
+                return self._fallback_resolver(key, self)
             return abs_factory.resolve(key, self)
 
         return service_resolver.resolve(self._context.get())

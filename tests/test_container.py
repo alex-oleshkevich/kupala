@@ -1,4 +1,5 @@
 import pytest
+import typing as t
 
 from kupala.container import BaseAbstractFactory, Container, ContainerError, Key, Resolver, Scope, ServiceNotFoundError
 
@@ -209,7 +210,7 @@ def test_aliased_service_scoped(container: Container) -> None:
         assert container.resolve('aliased') == 'value'
 
 
-def test_aliased_service_from_parent_container(container: Container) -> None:
+def test_aliased_service_from_parent_container() -> None:
     parent_container = Container()
     parent_container.bind('someservice', 'value')
 
@@ -218,3 +219,20 @@ def test_aliased_service_from_parent_container(container: Container) -> None:
 
     assert container.resolve('someservice') == 'value'
     assert container.resolve('aliased') == 'value'
+
+
+def test_fallback_resolver() -> None:
+    def fallback(key: str, container: Container) -> t.Any:
+        return 'fallback'
+
+    container = Container(fallback_resolver=fallback)
+    assert container.resolve('someservice') == 'fallback'
+
+
+def test_fallback_resolver_setter() -> None:
+    def fallback(key: str, container: Container) -> str:
+        return 'fallback'
+
+    container = Container()
+    container.fallback(fallback)
+    assert container.resolve('someservice') == 'fallback'
