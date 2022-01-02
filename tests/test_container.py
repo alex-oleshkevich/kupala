@@ -182,3 +182,39 @@ def test_container_should_temporary_lease_context_to_parent() -> None:
 
     assert container._context.get() is None
     assert parent_container._context.get() is None
+
+
+def test_aliased_service_bind(container: Container) -> None:
+    container.bind('someservice', 'value', alias='aliased')
+    assert container.resolve('someservice') == 'value'
+    assert container.resolve('aliased') == 'value'
+
+
+def test_aliased_service_factory(container: Container) -> None:
+    container.add_factory('someservice', lambda: 'value', alias='aliased')
+    assert container.resolve('someservice') == 'value'
+    assert container.resolve('aliased') == 'value'
+
+
+def test_aliased_service_singleton(container: Container) -> None:
+    container.add_singleton('someservice', lambda: 'value', alias='aliased')
+    assert container.resolve('someservice') == 'value'
+    assert container.resolve('aliased') == 'value'
+
+
+def test_aliased_service_scoped(container: Container) -> None:
+    container.add_scoped('someservice', lambda: 'value', alias='aliased')
+    with container.change_context({}):
+        assert container.resolve('someservice') == 'value'
+        assert container.resolve('aliased') == 'value'
+
+
+def test_aliased_service_from_parent_container(container: Container) -> None:
+    parent_container = Container()
+    parent_container.bind('someservice', 'value')
+
+    container = Container(parent=parent_container)
+    container.alias('someservice', 'aliased')
+
+    assert container.resolve('someservice') == 'value'
+    assert container.resolve('aliased') == 'value'

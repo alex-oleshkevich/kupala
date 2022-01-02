@@ -150,18 +150,23 @@ class Container:
         self._registry: dict[Key, ServiceResolver] = {}
         self._abs_factories: list[AbstractFactory] = []
         self._abs_factory_cache: dict[Key, AbstractFactory] = {}
+        self._aliases: dict[Key, Key] = {}
         self._context: contextvars.ContextVar[t.Optional[dict]] = contextvars.ContextVar('_context', default=None)
 
-    def bind(self, key: Key, instance: t.Any) -> None:
+    def bind(self, key: Key, instance: t.Any, *, alias: Key = None) -> None:
         """Add an instance to the container."""
         self._registry[key] = InstanceResolver(instance)
+        if alias:
+            self.alias(key, alias)
 
     def add_factory(
         self,
         key: Key,
         factory: Factory,
+        *,
         scope: Scope = Scope.TRANSIENT,
         initializer: Initializer = None,
+        alias: Key = None,
     ) -> None:
         if scope == Scope.SINGLETON:
             self._registry[key] = SingletonResolver(self, factory, initializer)
@@ -170,13 +175,19 @@ class Container:
         else:
             self._registry[key] = FactoryResolver(self, factory, initializer)
 
-    def add_singleton(self, key: Key, factory: Factory, initializer: Initializer = None) -> None:
-        return self.factory(key, factory, scope=Scope.SINGLETON, initializer=initializer)
+        if alias:
+            self.alias(key, alias)
 
-    def add_scoped(self, key: Key, factory: Factory, initializer: Initializer = None) -> None:
-        return self.factory(key, factory, scope=Scope.SCOPED, initializer=initializer)
+    def add_singleton(self, key: Key, factory: Factory, *, initializer: Initializer = None, alias: Key = None) -> None:
+        return self.factory(key, factory, scope=Scope.SINGLETON, initializer=initializer, alias=alias)
+
+    def add_scoped(self, key: Key, factory: Factory, initializer: Initializer = None, alias: Key = None) -> None:
+        return self.factory(key, factory, scope=Scope.SCOPED, initializer=initializer, alias=alias)
 
     factory = add_factory
+
+    def alias(self, service: Key, new_name: Key) -> None:
+        self._aliases[new_name] = service
 
     @t.overload
     def resolve(self, key: t.Type[S]) -> S:
@@ -191,6 +202,7 @@ class Container:
 
         fixme: https://github.com/python/mypy/issues/4717
         """
+        key = self._get_real_name(key)
         service_resolver = self._registry.get(key)
 
         if service_resolver is None:
@@ -285,6 +297,13 @@ class Container:
                     self._abs_factory_cache[key] = factory
                     break
         return self._abs_factory_cache.get(key)
+
+    def _get_real_name(self, key: Key) -> Key:
+        if key in self._aliases:
+            key = self._aliases[key]
+        if self._parent:
+            key = self._parent._get_real_name(key)
+        return key
 
     __setitem__ = bind
     __getitem__ = resolve
