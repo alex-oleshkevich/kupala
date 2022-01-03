@@ -23,7 +23,8 @@ def import_string(path: str, package: str = None) -> t.Any:
     return module_instance
 
 
-def resolve_path(path: str) -> str:
+def resolve_path(path: t.Union[str, os.PathLike]) -> str:
+    path = str(path)
     if not path.startswith('@'):
         return os.path.abspath(path)
     package_name, _, package_path = path.replace('@', '').partition(os.sep)
