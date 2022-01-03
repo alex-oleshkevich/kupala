@@ -76,6 +76,13 @@ class FileResponse(Response, responses.FileResponse):
             media_type=media_type,
         )
 
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        except (FileNotFoundError, RuntimeError):
+            response = Response('Not Found', status_code=404)
+            await response(scope, receive, send)
+
 
 class StreamingResponse(Response, responses.StreamingResponse):
     def __init__(
