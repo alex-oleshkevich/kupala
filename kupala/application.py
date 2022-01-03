@@ -73,7 +73,6 @@ class Kupala:
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI lifespan events handler."""
         try:
-            self.bootstrap()
             await receive()
             async with AsyncExitStack() as stack:
                 for hook in self.lifespan:
@@ -120,7 +119,6 @@ class Kupala:
 
     def cli(self) -> int:
         set_current_application(self)
-        self.bootstrap()
         app = ConsoleApplication(self.services, self.commands)
 
         with self.services.change_context({}):
@@ -128,6 +126,9 @@ class Kupala:
 
     def bootstrap(self) -> None:
         providers = [provider() if inspect.isclass(provider) else provider for provider in self.providers]
+        self.apply_providers(*providers)
+
+    def apply_providers(self, *providers: Provider) -> None:
         for provider in providers:
             provider.configure(self)
         for provider in providers:
