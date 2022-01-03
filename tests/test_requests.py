@@ -2,13 +2,11 @@ import io
 import os.path
 import pytest
 import typing as t
-from deesk.drivers.fs import LocalFsDriver
-from deesk.storage import Storage
 from imia import AnonymousUser, LoginState, UserToken
 from pathlib import Path
 
 from kupala.application import Kupala
-from kupala.ext.disks import StoragesProvider
+from kupala.disks.storages import LocalStorage, Storage
 from kupala.requests import Request
 from kupala.responses import JSONResponse
 from kupala.routing import Route
@@ -241,9 +239,8 @@ def test_file_upload_store(tmp_path: Path) -> None:
 
     app = Kupala(
         routes=[Route('/', upload_view, methods=['POST'])],
-        providers=[StoragesProvider(disks={'default': Storage(LocalFsDriver(tmp_path))}, default='default')],
     )
-    app.bootstrap()
+    app.services.bind(Storage, LocalStorage(tmp_path))
     client = TestClient(app)
 
     file1 = io.BytesIO(b'content')
@@ -270,9 +267,8 @@ def test_file_upload_store_with_filename(tmp_path: Path) -> None:
 
     app = Kupala(
         routes=[Route('/', upload_view, methods=['POST'])],
-        providers=[StoragesProvider(disks={'default': Storage(LocalFsDriver(tmp_path))}, default='default')],
     )
-    app.bootstrap()
+    app.services.bind(Storage, LocalStorage(tmp_path))
     client = TestClient(app)
 
     file1 = io.BytesIO(b'content')
@@ -298,9 +294,8 @@ def test_file_upload_store_without_filename(tmp_path: Path) -> None:
 
     app = Kupala(
         routes=[Route('/', upload_view, methods=['POST'])],
-        providers=[StoragesProvider(disks={'default': Storage(LocalFsDriver(tmp_path))}, default='default')],
     )
-    app.bootstrap()
+    app.services.bind(Storage, LocalStorage(base_dir=tmp_path))
     client = TestClient(app)
 
     file1 = io.BytesIO(b'content')

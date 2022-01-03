@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import pytest
 import typing as t
 
@@ -205,3 +206,15 @@ def test_invokes_class() -> None:
     instance = container.invoke(ClassToInvoke)
     assert isinstance(instance, ClassToInvoke)
     assert instance.a == service_instance
+
+
+def test_invokes_partial() -> None:
+    def fn(a: ClassToInject, b: str) -> t.Tuple[ClassToInject, str]:
+        return a, b
+
+    container = Container()
+    service_instance = ClassToInject()
+    container.bind(ClassToInject, service_instance)
+
+    partial = functools.partial(fn, b='b')
+    assert container.invoke(partial) == (service_instance, 'b')

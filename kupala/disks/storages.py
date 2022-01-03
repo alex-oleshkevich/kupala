@@ -46,18 +46,17 @@ class S3Storage(Storage):
 
 
 class Storages:
-    def __init__(self, disks: dict[str, Storage], default: str) -> None:
-        self._disks = disks
+    def __init__(self, storages: dict[str, t.Union[Storage, t.Callable]], default: str) -> None:
+        self._storages = storages
         self._default = default
 
     def get(self, name: str) -> Storage:
         """Get disk by name."""
-        return self._disks[name]
+        storage = self._storages[name]
+        if isinstance(storage, Storage):
+            return storage
+        return storage()
 
-    def get_default_disk(self) -> Storage:
+    def get_default_storage(self) -> Storage:
         """Get default configured disk."""
-        return self._disks[self._default]
-
-    def get_or_default(self, name: t.Optional[str]) -> Storage:
-        """Retrieve disk by name or return default if missing."""
-        return self._disks[name] if name is not None and name in self._disks else self.get_default_disk()
+        return self.get(self._default)

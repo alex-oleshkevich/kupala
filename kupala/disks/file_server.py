@@ -6,8 +6,8 @@ from kupala.responses import FileResponse, PlainTextResponse, RedirectResponse, 
 
 
 class FileServer:
-    def __init__(self, disk: str = None, as_attachment: bool = True) -> None:
-        self.disk = disk
+    def __init__(self, storage: str, as_attachment: bool = True) -> None:
+        self.storage = storage
         self.as_attachment = as_attachment
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -31,4 +31,4 @@ class FileServer:
 
     def get_disk(self, scope: Scope) -> Storage:
         storages = scope['app'].resolve(Storages)
-        return storages.get_or_default(self.disk)
+        return storages.get(self.storage)

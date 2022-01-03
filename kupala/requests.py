@@ -8,14 +8,13 @@ import typing
 import typing as t
 import uuid
 from babel.core import Locale
-from deesk.storage import Storage
 from imia import UserLike, UserToken
 from starlette import datastructures as ds, requests
 from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 from starsessions import Session
 
-from kupala.disks.storages import Storages
+from kupala.disks.storages import Storage, Storages
 
 if t.TYPE_CHECKING:
     from .application import Kupala
@@ -135,7 +134,7 @@ class UploadFile(ds.UploadFile):
         if disk:
             storage = self.request.app.resolve(Storages).get(disk)
         else:
-            storage = self.request.app.resolve(Storages).get_default_disk()
+            storage = self.request.app.resolve(Storage)
         await storage.put(file_path, await self.read())
         return file_path
 

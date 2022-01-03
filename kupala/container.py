@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import abc
 import contextvars
 import enum
+import functools
 import inspect
 import typing as t
 import uuid
@@ -33,8 +34,12 @@ class InjectionError(ContainerError):
     def __init__(
         self, message: str, error_type: InjectionErrorType, invokation_target: t.Union[t.Callable, t.Type]
     ) -> None:
-        class_name = invokation_target.__name__ if inspect.isclass(invokation_target) else invokation_target.__name__
-        module_name = invokation_target.__module__
+        class_name = (
+            invokation_target.__name__
+            if inspect.isclass(invokation_target)
+            else getattr(invokation_target, '__name__', repr(invokation_target))
+        )
+        module_name = getattr(invokation_target, '__module__', '')
         addon = f'Tried to invoke: {module_name}.{class_name}{inspect.signature(invokation_target)}.'
         super().__init__(message + f'\n{addon}')
         self.error_type = error_type
@@ -256,6 +261,9 @@ class Container:
         extra_kwargs = extra_kwargs or {}
 
         for argument in get_callable_types(fn_or_class):
+            if argument.is_partial:
+                continue
+
             if argument.name in extra_kwargs:
                 injections[argument.name] = extra_kwargs[argument.name]
                 continue
@@ -333,6 +341,7 @@ class _Argument:
     kind: int
     annotation: t.Type
     default: t.Any = undefined
+    is_partial: bool = False
 
     @property
     def has_default(self) -> bool:
@@ -393,7 +402,12 @@ def get_callable_types(fn: t.Union[t.Callable, t.Type]) -> FunctionTypes:
         return type_hints[param.name]
 
     return_annotation: t.Any = undefined
+    partial_args = []
     for fn_to_check in reversed(for_checking):
+        while isinstance(fn_to_check, functools.partial):
+            partial_args.extend(list(fn_to_check.keywords))
+            fn_to_check = fn_to_check.func
+
         signature = inspect.signature(fn_to_check)
         return_annotation = t.get_type_hints(fn_to_check).get('return', undefined)
 
@@ -404,6 +418,7 @@ def get_callable_types(fn: t.Union[t.Callable, t.Type]) -> FunctionTypes:
             arguments[name] = _Argument(
                 name=name,
                 kind=param.kind,
+                is_partial=name in partial_args,
                 annotation=_get_annotation(param, fn_to_check),
                 default=undefined if param.default == signature.empty else param.default,
             )
