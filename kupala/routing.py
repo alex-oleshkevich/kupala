@@ -13,12 +13,12 @@ from starlette.routing import WebSocketRoute, compile_path, get_name, iscoroutin
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.disks.file_server import FileServer
 from kupala.exceptions import MethodNotAllowed
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.resources import get_resource_action
 from kupala.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from kupala.storages.file_server import FileServer
 from kupala.templating import TemplateResponse
 from kupala.utils import camel_to_snake, import_string
 

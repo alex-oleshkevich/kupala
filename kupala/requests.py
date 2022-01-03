@@ -14,7 +14,7 @@ from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 from starsessions import Session
 
-from kupala.disks.storages import Storage, Storages
+from kupala.storages.storages import Storage, Storages
 
 if t.TYPE_CHECKING:
     from .application import Kupala

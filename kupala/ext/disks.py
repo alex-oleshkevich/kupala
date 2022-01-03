@@ -4,8 +4,8 @@ import functools
 import typing
 
 from kupala.application import Kupala
-from kupala.disks.storages import LocalStorage, S3Storage, Storage, Storages
 from kupala.providers import Provider
+from kupala.storages.storages import LocalStorage, S3Storage, Storage, Storages
 
 DRIVER_MAP = {
     'local': LocalStorage,

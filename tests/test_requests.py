@@ -6,10 +6,10 @@ from imia import AnonymousUser, LoginState, UserToken
 from pathlib import Path
 
 from kupala.application import Kupala
-from kupala.disks.storages import LocalStorage, Storage
 from kupala.requests import Request
 from kupala.responses import JSONResponse
 from kupala.routing import Route
+from kupala.storages.storages import LocalStorage, Storage
 from kupala.testclient import TestClient
 
 

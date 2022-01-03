@@ -1,8 +1,8 @@
 import os
 from starlette.types import Receive, Scope, Send
 
-from kupala.disks.storages import Storage, Storages
 from kupala.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
+from kupala.storages.storages import Storage, Storages
 
 
 class FileServer:
