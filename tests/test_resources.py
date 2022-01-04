@@ -23,6 +23,18 @@ class ExampleMiddleware:
         return await self.app(scope, receive, send)
 
 
+class _RequestInjection:
+    @classmethod
+    def from_request(cls, request: Request) -> '_RequestInjection':
+        return cls()
+
+
+class _AppInjection:
+    @classmethod
+    def from_request(cls, request: Request) -> '_AppInjection':
+        return cls()
+
+
 class ExampleResource:
     async def index(self, request: Request) -> Response:
         return Response('index')
@@ -56,6 +68,10 @@ class ExampleResource:
     @action('/middleware', ['GET', 'POST'], path_name='middleware', middleware=[Middleware(ExampleMiddleware)])
     async def middleware(self, request: Request) -> Response:
         return Response('yes' if 'example_middleware' in request.scope else 'no')
+
+    @action('/injections', path_name='injections')
+    async def injections(self, from_request: _RequestInjection, from_app: _AppInjection) -> Response:
+        return JSONResponse([from_request.__class__.__name__, from_app.__class__.__name__])
 
 
 def test_resource_views() -> None:
@@ -206,3 +222,13 @@ def test_resource_route_injects_path_params() -> None:
     response = client.get('/test/2')
     assert response.status_code == 200
     assert response.json() == {'id': 2, 'service': 'SomeService'}
+
+
+def test_inject_from_request_and_app_view() -> None:
+    app = Kupala()
+    app.routes.resource('/users', ExampleResource())
+
+    client = TestClient(app)
+    response = client.get("/users/injections")
+    assert response.status_code == 200
+    assert response.json() == ['_RequestInjection', '_AppInjection']

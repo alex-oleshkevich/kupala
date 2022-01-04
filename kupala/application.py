@@ -119,7 +119,7 @@ class Kupala:
 
     def cli(self) -> int:
         set_current_application(self)
-        app = ConsoleApplication(self.services, self.commands)
+        app = ConsoleApplication(self, self.commands)
 
         with self.services.change_context({}):
             return app.run()

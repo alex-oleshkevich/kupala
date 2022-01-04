@@ -99,9 +99,15 @@ class QueryParams(requests.QueryParams):
         value: str = self.get(key, None)
         return int(value) if value is not None and value.isnumeric() else default
 
+    @classmethod
+    def from_request(cls, request: Request) -> QueryParams:
+        return request.query_params
+
 
 class FormData(requests.FormData):
-    pass
+    @classmethod
+    async def from_request(cls, request: Request) -> FormData:
+        return await request.form()
 
 
 class UploadFile(ds.UploadFile):
@@ -154,6 +160,22 @@ class FilesData:
 
     def getlist(self, key: str) -> list[UploadFile]:
         return t.cast(list[UploadFile], self._files.getlist(key))
+
+    @classmethod
+    async def from_request(cls, request: Request) -> FilesData:
+        return await request.files()
+
+
+class Cookies(dict):
+    @classmethod
+    def from_request(cls, request: Request) -> dict[str, str]:
+        return request.cookies
+
+
+class Headers(requests.Headers):
+    @classmethod
+    def from_request(cls, request: Request) -> requests.Headers:
+        return request.headers
 
 
 class Request(requests.Request):

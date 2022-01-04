@@ -5,11 +5,12 @@ from dataclasses import dataclass, field
 import functools
 import inspect
 import typing as t
+from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextmanager
 from os import PathLike
 from starlette import routing
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
-from starlette.routing import WebSocketRoute, compile_path, get_name, iscoroutinefunction_or_partial
+from starlette.routing import WebSocketRoute, compile_path, get_name
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -20,7 +21,7 @@ from kupala.resources import get_resource_action
 from kupala.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from kupala.storages.file_server import FileServer
 from kupala.templating import TemplateResponse
-from kupala.utils import camel_to_snake, import_string
+from kupala.utils import camel_to_snake, import_string, run_async
 
 
 def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASGIApp:
@@ -30,23 +31,32 @@ def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASG
 
 
 def request_response(func: t.Callable) -> ASGIApp:
-    """
-    Takes a function or coroutine `func(request) -> response`,
-    and returns an ASGI application.
-    """
-    is_coroutine = iscoroutinefunction_or_partial(func)
+    """Takes a function or coroutine `func(request) -> response` and returns an ASGI application."""
+    fn_kwargs = t.get_type_hints(func)
 
     # determine request class
-    request_class = t.get_type_hints(func).get('request', Request)
+    request_class = fn_kwargs.get('request', Request)
 
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
         request: Request = request_class(scope, receive, send)
         extra_kwargs = {'request': request, **request.path_params}
+        with ExitStack() as sync_stack:
+            async with AsyncExitStack() as async_stack:
+                for name, class_name in fn_kwargs.items():
+                    if callback := getattr(class_name, 'from_request', None):
+                        if inspect.isgeneratorfunction(callback):
+                            extra_kwargs[name] = sync_stack.enter_context(contextmanager(callback)(request))
+                        elif inspect.isasyncgenfunction(callback):
+                            extra_kwargs[name] = await async_stack.enter_async_context(
+                                asynccontextmanager(callback)(request)
+                            )
+                        else:
+                            extra_kwargs[name] = await run_async(class_name.from_request, request=request)
 
-        if is_coroutine:
-            response = await request.app.invoke(func, extra_kwargs=extra_kwargs)
-        else:
-            response = await run_in_threadpool(request.app.invoke, func, extra_kwargs=extra_kwargs)
+                if inspect.iscoroutinefunction(func):
+                    response = await request.app.invoke(func, extra_kwargs=extra_kwargs)
+                else:
+                    response = await run_in_threadpool(request.app.invoke, func, extra_kwargs=extra_kwargs)
 
         status = 200
         headers = {}
