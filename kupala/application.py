@@ -16,9 +16,9 @@ from kupala.config import Config
 from kupala.console.application import ConsoleApplication
 from kupala.container import Container, Resolver
 from kupala.contracts import ContextProcessor, Invoker
-from kupala.errors import ServerErrorMiddleware
-from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import Middleware, MiddlewareStack
+from kupala.middleware.errors import ServerErrorMiddleware
+from kupala.middleware.exception import ErrorHandler, ExceptionMiddleware
 from kupala.middleware.template_context import TemplateContextMiddleware
 from kupala.requests import Request
 from kupala.responses import Response

@@ -2,7 +2,7 @@ import pytest
 from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
-from kupala.messages import FlashMessagesMiddleware, flash
+from kupala.middleware.flash_messages import FlashMessagesMiddleware, flash
 from kupala.middleware.template_context import TemplateContextMiddleware
 from kupala.requests import Request
 from kupala.responses import JSONResponse, RedirectResponse

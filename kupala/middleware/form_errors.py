@@ -1,6 +1,7 @@
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.exceptions import ValidationError, default_validation_error_handler
+from kupala.exceptions import ValidationError
+from kupala.middleware.exception import default_validation_error_handler
 from kupala.requests import Request
 
 
