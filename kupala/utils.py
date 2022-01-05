@@ -5,6 +5,8 @@ import re
 import typing as t
 from starlette.concurrency import run_in_threadpool
 
+from kupala.requests import Request
+
 CAMEL_TO_SNAKE_PATTERN = re.compile(r'(?<!^)(?=[A-Z])')
 
 
@@ -38,3 +40,10 @@ async def run_async(fn: t.Callable, *args: t.Any, **kwargs: t.Any) -> t.Any:
     if inspect.iscoroutinefunction(fn):
         return await fn(*args, **kwargs)
     return await run_in_threadpool(fn, *args, **kwargs)
+
+
+_RC = t.TypeVar('_RC')
+
+
+def request_component_for(class_name: t.Type[_RC], factory: t.Callable[[Request], _RC]) -> None:
+    class_name.__dict__['from_request'] = classmethod(factory)

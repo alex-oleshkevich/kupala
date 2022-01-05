@@ -23,6 +23,10 @@ def form_request() -> Request:
         "headers": [
             [b"accept", b"text/html"],
             [b"content-type", b"application/x-www-form-urlencoded"],
+            [b'cookie', b'key=value'],
+            [b'x-key', b'1'],
+            [b'x-multi', b'1'],
+            [b'x-multi', b'2'],
         ],
     }
 
@@ -312,6 +316,15 @@ def test_file_upload_store_without_filename(tmp_path: Path) -> None:
 def test_request_auth(form_request: Request) -> None:
     form_request.scope['auth'] = UserToken(AnonymousUser(), LoginState.ANONYMOUS)
     assert isinstance(form_request.user, AnonymousUser)
+
+
+def test_request_cookies(form_request: Request) -> None:
+    assert form_request.cookies.get('key') == 'value'
+
+
+def test_request_headers(form_request: Request) -> None:
+    assert form_request.headers.get('x-key') == '1'
+    assert form_request.headers.getlist('x-multi') == ['1', '2']
 
 
 @pytest.mark.asyncio
