@@ -15,7 +15,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from kupala.config import Config
 from kupala.console.application import ConsoleApplication
 from kupala.container import Container, Resolver
-from kupala.contracts import ContextProcessor, Invoker
+from kupala.contracts import Invoker
 from kupala.middleware import Middleware, MiddlewareStack
 from kupala.middleware.errors import ServerErrorMiddleware
 from kupala.middleware.exception import ErrorHandler, ExceptionMiddleware
@@ -39,7 +39,6 @@ class Kupala:
         template_dirs: list[str] = None,
         providers: t.Iterable[t.Union['Provider', t.Type['Provider']]] = None,
         routes: t.Union[Routes, list[BaseRoute]] = None,
-        context_processors: list[ContextProcessor] = None,
         commands: list[click.Command] = None,
         error_handlers: dict[t.Union[t.Type[Exception], int], t.Optional[ErrorHandler]] = None,
         middleware: t.Union[list[Middleware], MiddlewareStack] = None,
@@ -52,7 +51,6 @@ class Kupala:
         self.debug = debug
         self.middleware = MiddlewareStack(list(middleware or []))
         self.providers = providers or []
-        self.context_processors: t.List[ContextProcessor] = context_processors or []
         self.error_handlers = error_handlers or {}
         self.services = Container()
         self.template_dirs = template_dirs or []

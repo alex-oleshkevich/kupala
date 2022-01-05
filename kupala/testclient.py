@@ -1,3 +1,5 @@
-from starlette.testclient import TestClient
+from starlette.testclient import TestClient as BaseTestClient
 
-__all__ = ['TestClient']
+
+class TestClient(BaseTestClient):
+    pass
