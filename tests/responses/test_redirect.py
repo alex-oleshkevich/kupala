@@ -2,11 +2,12 @@ import pytest
 from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
-from kupala.constants import REDIRECT_INPUT_DATA_SESSION_KEY
 from kupala.messages import FlashMessagesMiddleware, flash
 from kupala.requests import Request
 from kupala.responses import JSONResponse, RedirectResponse
 from kupala.testclient import TestClient
+
+REDIRECT_INPUT_DATA_SESSION_KEY = "_form_old_input"
 
 
 def test_redirect() -> None:
