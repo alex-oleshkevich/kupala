@@ -4,7 +4,9 @@ from starlette.testclient import TestClient
 from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
-from kupala.csrf import (
+from kupala.exceptions import PermissionDenied
+from kupala.middleware import Middleware
+from kupala.middleware.csrf import (
     CSRFError,
     CSRFMiddleware,
     TokenDecodeError,
@@ -14,7 +16,7 @@ from kupala.csrf import (
     generate_token,
     validate_csrf_token,
 )
-from kupala.exceptions import PermissionDenied
+from kupala.middleware.template_context import TemplateContextMiddleware
 from kupala.requests import Request
 from kupala.responses import PlainTextResponse
 
@@ -123,14 +125,11 @@ def test_middleware_allow_from_whitelist() -> None:
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
 
-    app = Kupala()
-    app.middleware.use(SessionMiddleware, secret_key='secret')
-    app.middleware.use(
-        CSRFMiddleware,
-        secret_key='secret',
-        exclude_urls=[
-            r'/login',
-        ],
+    app = Kupala(
+        middleware=[
+            Middleware(SessionMiddleware, secret_key='secret'),
+            Middleware(CSRFMiddleware, secret_key='secret', exclude_urls=[r'/login']),
+        ]
     )
 
     app.routes.any('/', view)
@@ -149,16 +148,29 @@ def test_middleware_allow_from_whitelist_using_full_url() -> None:
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
 
-    app = Kupala()
-    app.middleware.use(SessionMiddleware, secret_key='secret')
-    app.middleware.use(
-        CSRFMiddleware,
-        secret_key='secret',
-        exclude_urls=[
-            'http://testserver/',
-        ],
+    app = Kupala(
+        middleware=[
+            Middleware(SessionMiddleware, secret_key='secret'),
+            Middleware(CSRFMiddleware, secret_key='secret', exclude_urls=['http://testserver/']),
+        ]
     )
+    app.routes.any('/', view)
 
+    client = TestClient(app)
+    assert client.post('/').status_code == 200
+
+
+def test_middleware_injects_template_context() -> None:
+    def view(request: Request) -> PlainTextResponse:
+        return PlainTextResponse(request.state.csrf_timed_token)
+
+    app = Kupala(
+        middleware=[
+            Middleware(SessionMiddleware, secret_key='secret'),
+            Middleware(TemplateContextMiddleware),
+            Middleware(CSRFMiddleware, secret_key='secret', exclude_urls=['http://testserver/']),
+        ]
+    )
     app.routes.any('/', view)
 
     client = TestClient(app)

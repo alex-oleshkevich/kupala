@@ -3,6 +3,7 @@ from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
 from kupala.messages import FlashMessagesMiddleware, flash
+from kupala.middleware.template_context import TemplateContextMiddleware
 from kupala.requests import Request
 from kupala.responses import JSONResponse, RedirectResponse
 from kupala.testclient import TestClient
@@ -180,7 +181,7 @@ def test_redirect_with_error() -> None:
 
 
 def test_redirect_with_error_and_input() -> None:
-    def view(request: Request) -> RedirectResponse:
+    def view() -> RedirectResponse:
         return RedirectResponse('/about').with_error('Error.')
 
     def data_view(request: Request) -> JSONResponse:
@@ -196,6 +197,7 @@ def test_redirect_with_error_and_input() -> None:
     app.routes.post('/', view)
     app.routes.get('/about', data_view, name='about')
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
+    app.middleware.use(TemplateContextMiddleware)
     app.middleware.use(FlashMessagesMiddleware, storage='session')
 
     client = TestClient(app)

@@ -4,6 +4,7 @@ from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
 from kupala.messages import FlashBag, FlashMessage, FlashMessagesMiddleware, MessageCategory, flash
+from kupala.middleware.template_context import TemplateContextMiddleware
 from kupala.requests import Request
 from kupala.responses import JSONResponse
 from kupala.testclient import TestClient
@@ -25,7 +26,7 @@ def test_flash_messages(storage: t.Literal['session']) -> None:
 
     client = TestClient(
         SessionMiddleware(
-            FlashMessagesMiddleware(app, storage=storage),
+            TemplateContextMiddleware(FlashMessagesMiddleware(app, storage=storage)),
             secret_key='key!',
             autoload=True,
         )

@@ -1,4 +1,3 @@
-import contextvars
 import hashlib
 import hmac
 import os
@@ -13,10 +12,6 @@ CSRF_SESSION_KEY = '_csrf_token'
 CSRF_HEADER = 'x-csrf-token'
 CSRF_QUERY_PARAM = 'csrf-token'
 CSRF_POST_FIELD = '_token'
-
-_this_request_token: contextvars.ContextVar[str] = contextvars.ContextVar(
-    '_this_request_token',
-)
 
 
 class CSRFError(Exception):
@@ -103,7 +98,17 @@ class CSRFMiddleware:
         timed_token = str(serializer.dumps(request.session[CSRF_SESSION_KEY], self._salt))
         request.state.csrf_token = request.session[CSRF_SESSION_KEY]
         request.state.csrf_timed_token = timed_token
-        _this_request_token.set(timed_token)
+
+        try:
+            request.state.template_context.update(
+                {
+                    'csrf_token': get_csrf_token(request),
+                    'csrf_input': get_csrf_input(request),
+                }
+            )
+        except AttributeError:
+            # TemplateContextMiddleware is not installed
+            pass
 
         if self.should_check_token(request):
             try:

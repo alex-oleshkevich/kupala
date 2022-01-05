@@ -134,6 +134,7 @@ class FlashMessagesMiddleware:
             await send(message)
 
         scope[SCOPE_KEY] = bag
+        scope['state'].get('template_context', {}).update({'messages': bag})
 
         await self.app(scope, receive, send_wrapper)
 

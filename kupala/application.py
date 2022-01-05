@@ -19,6 +19,7 @@ from kupala.contracts import ContextProcessor, Invoker
 from kupala.errors import ServerErrorMiddleware
 from kupala.exceptions import ErrorHandler, ExceptionMiddleware
 from kupala.middleware import Middleware, MiddlewareStack
+from kupala.middleware.template_context import TemplateContextMiddleware
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Router, Routes
@@ -99,6 +100,10 @@ class Kupala:
 
         request_container = Container(parent=self.services)
         scope["app"] = self
+        scope['state'] = {
+            'app': self,
+        }
+
         scope['resolver'] = request_container
         scope["router"] = self._router
 
@@ -140,6 +145,7 @@ class Kupala:
         app: ASGIApp = Router(routes=self.routes)
         self._router = t.cast(Router, app)
         self.middleware.use(ExceptionMiddleware, handlers=self.error_handlers)
+        self.middleware.use(TemplateContextMiddleware)
         self.middleware.top(ServerErrorMiddleware, debug=self.debug, handler=self.exception_handler)
         for mw in reversed(self.middleware):
             app = mw.wrap(app)
