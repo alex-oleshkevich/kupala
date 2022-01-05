@@ -1,27 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import functools
 import inspect
 import typing as t
-from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextmanager
 from os import PathLike
 from starlette import routing
-from starlette.concurrency import run_in_threadpool
-from starlette.responses import Response
 from starlette.routing import WebSocketRoute, compile_path, get_name
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.dispatching import dispatch_endpoint, get_action_config
 from kupala.exceptions import MethodNotAllowed
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.resources import get_resource_action
-from kupala.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from kupala.responses import RedirectResponse
 from kupala.storages.file_server import FileServer
-from kupala.templating import TemplateResponse
-from kupala.utils import camel_to_snake, import_string, run_async
+from kupala.utils import camel_to_snake, import_string
 
 
 def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASGIApp:
@@ -32,102 +27,12 @@ def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASG
 
 def request_response(func: t.Callable) -> ASGIApp:
     """Takes a function or coroutine `func(request) -> response` and returns an ASGI application."""
-    fn_kwargs = t.get_type_hints(func)
-
-    # determine request class
-    request_class = fn_kwargs.get('request', Request)
 
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        request: Request = request_class(scope, receive, send)
-        extra_kwargs = {'request': request, **request.path_params}
-        with ExitStack() as sync_stack:
-            async with AsyncExitStack() as async_stack:
-                for name, class_name in fn_kwargs.items():
-                    if callback := getattr(class_name, 'from_request', None):
-                        if inspect.isgeneratorfunction(callback):
-                            extra_kwargs[name] = sync_stack.enter_context(contextmanager(callback)(request))
-                        elif inspect.isasyncgenfunction(callback):
-                            extra_kwargs[name] = await async_stack.enter_async_context(
-                                asynccontextmanager(callback)(request)
-                            )
-                        else:
-                            extra_kwargs[name] = await run_async(class_name.from_request, request=request)
-
-                if inspect.iscoroutinefunction(func):
-                    response = await request.app.invoke(func, extra_kwargs=extra_kwargs)
-                else:
-                    response = await run_in_threadpool(request.app.invoke, func, extra_kwargs=extra_kwargs)
-
-        status = 200
-        headers = {}
-
-        if isinstance(response, Response):
-            return await response(scope, receive, send)
-
-        if inspect.isfunction(response):
-            return await response(scope, receive, send)
-
-        if isinstance(response, tuple):
-            if len(response) == 3:
-                content, status, headers = response
-            elif len(response) == 2:
-                content, status = response
-            else:
-                content = response
-        else:
-            content = response
-
-        if request.wants_json:
-            response = JSONResponse(content, status, headers)
-        elif 'text/html' in request.headers['accept']:
-            action_config = get_action_config(func)
-            if action_config and action_config.template:
-                response = TemplateResponse(
-                    request,
-                    template_name=action_config.template,
-                    context=content,
-                    status_code=status,
-                    headers=headers,
-                )
-            else:
-                response = HTMLResponse(content, status_code=status, headers=headers)
-        else:
-            if not isinstance(content, (bytes, str)):
-                raise ValueError(
-                    'A view callable must return string or bytes when responds to text/plain requests '
-                    f'but {func.__name__} returned {type(content)}.'
-                )
-            response = PlainTextResponse(content, status_code=status, headers=headers)
+        response = await dispatch_endpoint(scope, receive, send, func)
         await response(scope, receive, send)
 
     return app
-
-
-@dataclass
-class ActionConfig:
-    methods: t.List[str] = field(default_factory=list)
-    template: t.Optional[str] = None
-    middleware: t.Optional[t.Sequence[Middleware]] = None
-
-
-def action_config(
-    methods: t.List[str] = None,
-    template: str = '',
-    middleware: t.Sequence[Middleware] = None,
-) -> t.Callable:
-    allowed_methods = methods or ['GET', 'HEAD']
-
-    def wrapper(fn: t.Callable) -> t.Callable:
-        setattr(
-            fn, '__action_config__', ActionConfig(methods=allowed_methods, template=template, middleware=middleware)
-        )
-        return fn
-
-    return wrapper
-
-
-def get_action_config(fn: t.Callable) -> t.Optional[ActionConfig]:
-    return getattr(fn, '__action_config__', None)
 
 
 class Mount(routing.Mount):

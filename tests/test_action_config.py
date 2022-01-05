@@ -3,10 +3,11 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.application import Kupala
 from kupala.contracts import TemplateRenderer
+from kupala.dispatching import action_config
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.responses import JSONResponse
-from kupala.routing import Route, action_config
+from kupala.routing import Route
 from tests.utils import FormatRenderer
 
 

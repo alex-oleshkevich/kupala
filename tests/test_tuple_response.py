@@ -1,4 +1,3 @@
-import pytest
 import typing as t
 from starlette.testclient import TestClient
 
@@ -41,15 +40,6 @@ app = Kupala(
     ]
 )
 client = TestClient(app)
-
-
-def test_tuple_return_raises_for_non_scalar_plain_text_contents() -> None:
-    with pytest.raises(
-        ValueError, match='A view callable must return string or bytes when responds to text/plain requests'
-    ):
-        client.get(
-            "/three-tuple",
-        )
 
 
 def test_three_tuple() -> None:
