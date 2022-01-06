@@ -39,13 +39,13 @@ passlib = "^1.7.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"
-pytest-asyncio = "^0.15.1"
-requests = "^2.25.1"
+pytest-asyncio = "^0.16.0"
+requests = "^2.27.1"
 pytest-coverage = "^0.0"
 black = "^21.12b0"
-mypy = "^0.920"
+mypy = "^0.930"
 flake8 = "^4.0.1"
-uvicorn = "^0.15.0"
+uvicorn = "^0.16.0"
 
 [tool.poetry.extras]
 s3 = ["aioboto3"]
