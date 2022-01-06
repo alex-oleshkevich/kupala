@@ -7,6 +7,7 @@ import re
 import typing
 import typing as t
 import uuid
+
 from babel.core import Locale
 from imia import UserLike, UserToken
 from starlette import datastructures as ds, requests
@@ -14,10 +15,10 @@ from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 from starsessions import Session
 
-from kupala.storages.storages import Storage, Storages
+from kupala.storages.storages import Storage
 
 if t.TYPE_CHECKING:
-    from .application import Kupala
+    from .app.base import BaseApp
 
 
 class OldFormInput(t.Mapping):
@@ -132,9 +133,9 @@ class UploadFile(ds.UploadFile):
 
         storage: Storage
         if disk:
-            storage = self.request.app.resolve(Storages).get(disk)
+            storage = self.request.app.storages.get(disk)
         else:
-            storage = self.request.app.resolve(Storage)
+            storage = self.request.app.storages.get_default()
         await storage.put(file_path, await self.read())
         return file_path
 
@@ -182,7 +183,7 @@ class Request(requests.Request):
         return QueryParams(super().query_params)
 
     @property
-    def app(self) -> 'Kupala':
+    def app(self) -> 'BaseApp':
         return self.scope['app']
 
     @property

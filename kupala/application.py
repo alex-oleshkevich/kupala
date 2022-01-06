@@ -98,9 +98,7 @@ class Kupala:
 
         request_container = Container(parent=self.services)
         scope["app"] = self
-        scope['state'] = {
-            'app': self,
-        }
+        scope['state'] = {}
 
         scope['resolver'] = request_container
         scope["router"] = self._router

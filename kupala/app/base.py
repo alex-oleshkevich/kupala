@@ -10,7 +10,7 @@ from starlette.routing import BaseRoute
 from starlette.types import ASGIApp
 
 from kupala.app.asgi import ASGIHandler
-from kupala.app.components import Passwords, Renderer
+from kupala.app.components import Authentication, Mail, Passwords, Renderer, Storages
 from kupala.config import Config
 from kupala.dotenv import DotEnv
 from kupala.ext.jinja import JinjaRenderer
@@ -69,6 +69,9 @@ class BaseApp:
         self.config = Config()
         self.state = State()
         self.passwords = Passwords()
+        self.mail = Mail()
+        self.auth = Authentication(self)
+        self.storages = Storages()
 
         self.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(

@@ -19,11 +19,18 @@ class TemplateContextMiddleware:
             await self.app(scope, receive, send)
             return
 
-        context: dict[str, typing.Any] = {}
+        request = Request(scope, receive, send)
+        context: dict[str, typing.Any] = {
+            'request': request,
+            'config': request.app.config,
+            'url': request.url,
+            'app': request.app,
+            'form_errors': request.form_errors,
+            'old_input': request.old_input,
+        }
         request = Request(scope, receive, send)
         for processor in self.context_processors:
             context.update(processor(request))
-        scope.setdefault('state', {})
         scope['state'].setdefault('template_context', {})
         scope['state']['template_context'].update(context)
         await self.app(scope, receive, send)

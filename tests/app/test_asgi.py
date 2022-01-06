@@ -2,6 +2,7 @@ import typing
 from contextlib import asynccontextmanager
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.app.base import BaseApp
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.responses import Response
@@ -89,3 +90,31 @@ def test_lifespan(test_app_factory: TestAppFactory) -> None:
         assert not exit_called
     assert enter_called
     assert exit_called
+
+
+class CustomRequest(Request): ...
+
+
+def test_custom_request_class(test_app_factory: TestAppFactory) -> None:
+    def view(request: CustomRequest) -> Response:
+        return Response(request.__class__.__name__)
+
+    app = test_app_factory(request_class=CustomRequest)
+    app.routes.add('/', view)
+
+    client = TestClient(app.create_asgi_app())
+    assert client.get('/').text == 'CustomRequest'
+
+
+def test_custom_request_class_via_class_attribute(test_app_factory: TestAppFactory) -> None:
+    class ExampleApp(BaseApp):
+        request_class = CustomRequest
+
+    def view(request: CustomRequest) -> Response:
+        return Response(request.__class__.__name__)
+
+    app = test_app_factory(app_class=ExampleApp)
+    app.routes.add('/', view)
+
+    client = TestClient(app.create_asgi_app())
+    assert client.get('/').text == 'CustomRequest'
