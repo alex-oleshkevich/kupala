@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "kupala"
 description = "A modern web framework for Python."
-version = "0.11.2"
+version = "0.12.0"
 authors = ["Alex Oleshkevich <alex.oleshkevich@gmail.com>"]
 license = "MIT"
 readme = "README.md"
@@ -35,6 +35,7 @@ click = "^8.0"
 mailers = "^2.0.0"
 toronado = "^0.1.0"
 Babel = "^2.9.1"
+passlib = "^1.7.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"

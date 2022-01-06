@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 import inspect
+import typing
 import typing as t
 from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextmanager
 from starlette.concurrency import run_in_threadpool
@@ -11,6 +12,12 @@ from kupala.requests import Request
 from kupala.responses import EmptyResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
 from kupala.templating import TemplateResponse
 from kupala.utils import run_async
+
+
+def _callable_name(injection: typing.Any) -> str:
+    class_name = injection.__name__ if inspect.isclass(injection) else getattr(injection, '__name__', repr(injection))
+    module_name = getattr(injection, '__module__', '')
+    return f'{module_name}.{class_name}{inspect.signature(injection)}'
 
 
 @dataclass
@@ -92,7 +99,7 @@ async def resolve_injections(
             injections[arg_name] = await run_async(callback, request=request)
             continue
 
-        injections[arg_name] = request.app.resolve(arg_type)
+        raise TypeError(f'Injection "{arg_name}" cannot be processed in {_callable_name(endpoint)}.')
     return injections
 
 
@@ -157,7 +164,7 @@ async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint
         async with AsyncExitStack() as async_stack:
             args = await resolve_injections(request, endpoint, sync_stack, async_stack)
             if inspect.iscoroutinefunction(endpoint):
-                response = await request.app.invoke(endpoint, extra_kwargs=args)
+                response = await endpoint(**args)
             else:
-                response = await run_in_threadpool(request.app.invoke, endpoint, extra_kwargs=args)
+                response = await run_in_threadpool(endpoint, **args)
     return handle_endpoint_result(request, response, action_config)
