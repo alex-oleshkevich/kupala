@@ -18,7 +18,7 @@ from starsessions import Session
 from kupala.storages.storages import Storage
 
 if t.TYPE_CHECKING:
-    from .app.base import BaseApp
+    from .application import Kupala
 
 
 class OldFormInput(t.Mapping):
@@ -165,7 +165,7 @@ class Headers(requests.Headers):
     pass
 
 
-_A = t.TypeVar('_A', bound='BaseApp')
+_A = t.TypeVar('_A', bound='Kupala')
 _S = t.TypeVar('_S', bound=State)
 
 
