@@ -10,6 +10,7 @@ import uuid
 from babel.core import Locale
 from imia import UserLike, UserToken
 from starlette import datastructures as ds, requests
+from starlette.datastructures import State
 from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 from starsessions import Session
@@ -17,7 +18,7 @@ from starsessions import Session
 from kupala.storages.storages import Storage
 
 if t.TYPE_CHECKING:
-    from .application import Kupala
+    from .app.base import BaseApp
 
 
 class OldFormInput(t.Mapping):
@@ -164,7 +165,11 @@ class Headers(requests.Headers):
     pass
 
 
-class Request(requests.Request):
+_A = t.TypeVar('_A', bound='BaseApp')
+_S = t.TypeVar('_S', bound=State)
+
+
+class Request(requests.Request, t.Generic[_A, _S]):
     def __new__(cls, scope: Scope, receive: Receive = empty_receive, send: Send = empty_send) -> Request:
         if 'request' not in scope:
             instance = super().__new__(cls)
@@ -182,7 +187,7 @@ class Request(requests.Request):
         return QueryParams(super().query_params)
 
     @property
-    def app(self) -> 'Kupala':
+    def app(self) -> _A:
         return self.scope['app']
 
     @property
@@ -261,6 +266,10 @@ class Request(requests.Request):
                 old_form_input = OldFormInput(self.session.pop('_form_old_input', {}))
             self.scope['_form_old_input'] = old_form_input
         return self.scope['_form_old_input']
+
+    @property
+    def state(self) -> _S:
+        return t.cast(_S, super().state)
 
     async def remember_form_data(self) -> None:
         """Flush current form data into session so it can be used on the next page to render form errors."""
