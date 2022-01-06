@@ -13,7 +13,7 @@ if typing.TYPE_CHECKING:
     from kupala.app.base import BaseApp
 
 
-class Component:
+class Extension:
     def initialize(self, app: BaseApp) -> None:
         pass
 
@@ -21,7 +21,7 @@ class Component:
 _PasswordHasherType = typing.Literal['pbkdf2_sha256', 'pbkdf2_sha512', 'argon2', 'bcrypt', 'des_crypt'] | PasswordHasher
 
 
-class Passwords(Component):
+class Passwords(Extension):
     def __init__(self, backend: _PasswordHasherType = 'pbkdf2_sha256') -> None:
         self._manager = self._create(backend)
 
@@ -47,7 +47,7 @@ class Passwords(Component):
         return backend
 
 
-class Renderer(Component):
+class Renderer(Extension):
     def __init__(self, renderer: TemplateRenderer | None = None) -> None:
         self._template_renderer = renderer
 
@@ -59,7 +59,7 @@ class Renderer(Component):
         return self._template_renderer.render(template_name, context)
 
 
-class Mail(Component):
+class Mail(Extension):
     def __init__(self) -> None:
         self._mailers: dict[str, Mailer] = {}
 
@@ -92,7 +92,7 @@ class Mail(Component):
         self._mailers[name] = mailer
 
 
-class Authentication(Component):
+class Authentication(Extension):
     def __init__(self, app: BaseApp) -> None:
         self.user_provider: UserProvider | None = None
         self.authenticators: list[BaseAuthenticator] = []
@@ -109,7 +109,7 @@ class Authentication(Component):
         )
 
 
-class Storages(Component):
+class Storages(Extension):
     def __init__(self, storages: dict[str, Storage] = None) -> None:
         self.default = 'default'
         self._storages: dict[str, Storage] = storages or {}

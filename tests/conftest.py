@@ -1,10 +1,10 @@
 import pytest
 import typing
 
-from kupala.app.base import BaseApp
+from kupala.application import Kupala
 
 
-class TestApp(BaseApp):
+class TestApp(Kupala):
     pass
 
 

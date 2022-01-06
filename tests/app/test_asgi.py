@@ -2,7 +2,7 @@ import typing
 from contextlib import asynccontextmanager
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.app.base import BaseApp
+from kupala.application import Kupala
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.responses import Response
@@ -92,7 +92,8 @@ def test_lifespan(test_app_factory: TestAppFactory) -> None:
     assert exit_called
 
 
-class CustomRequest(Request): ...
+class CustomRequest(Request):
+    ...
 
 
 def test_custom_request_class(test_app_factory: TestAppFactory) -> None:
@@ -107,7 +108,7 @@ def test_custom_request_class(test_app_factory: TestAppFactory) -> None:
 
 
 def test_custom_request_class_via_class_attribute(test_app_factory: TestAppFactory) -> None:
-    class ExampleApp(BaseApp):
+    class ExampleApp(Kupala):
         request_class = CustomRequest
 
     def view(request: CustomRequest) -> Response:

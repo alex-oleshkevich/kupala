@@ -5,7 +5,7 @@ from deesk.drivers.fs import LocalFsDriver
 from deesk.storage import Storage as BaseStorage
 
 
-class Storage(BaseStorage):
+class Storage(BaseStorage):  # pragma: nocover
     async def url(self, path: t.Union[str, os.PathLike]) -> str:
         raise NotImplementedError()
 

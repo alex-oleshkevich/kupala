@@ -14,19 +14,19 @@ from kupala.responses import Response
 from kupala.routing import Router, Routes
 
 if typing.TYPE_CHECKING:  # pragma: nocover
-    from kupala.app.base import BaseApp
+    from kupala.application import Kupala
 
 
 class ASGIHandler:
     def __init__(
         self,
-        app: BaseApp,
+        app: Kupala,
         *,
         debug: bool,
         routes: Routes,
         middleware: MiddlewareStack,
         error_handlers: dict[typing.Type[Exception] | int, typing.Optional[ErrorHandler]],
-        lifespan_handlers: list[typing.Callable[[BaseApp], typing.AsyncContextManager]],
+        lifespan_handlers: list[typing.Callable[[Kupala], typing.AsyncContextManager]],
         exception_handler: typing.Callable[[Request, Exception], Response] | None,
         request_class: typing.Type[Request] = None,
     ) -> None:
