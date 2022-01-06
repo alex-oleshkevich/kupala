@@ -52,6 +52,7 @@ class ASGIHandler:
             return
 
         scope['app'] = self.app
+        scope['state'] = {}
         if scope['type'] == 'http':
             request = self.request_class(scope, receive, send)
             scope['request'] = request

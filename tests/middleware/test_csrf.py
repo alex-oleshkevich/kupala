@@ -150,7 +150,7 @@ def test_middleware_allow_from_whitelist_using_full_url() -> None:
 
     app = Kupala(
         middleware=[
-            Middleware(SessionMiddleware, secret_key='secret'),
+            Middleware(SessionMiddleware, secret_key='secret', autoload=True),
             Middleware(CSRFMiddleware, secret_key='secret', exclude_urls=['http://testserver/']),
         ]
     )
@@ -166,8 +166,8 @@ def test_middleware_injects_template_context() -> None:
 
     app = Kupala(
         middleware=[
-            Middleware(SessionMiddleware, secret_key='secret'),
             Middleware(TemplateContextMiddleware),
+            Middleware(SessionMiddleware, secret_key='secret', autoload=True),
             Middleware(CSRFMiddleware, secret_key='secret', exclude_urls=['http://testserver/']),
         ]
     )

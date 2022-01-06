@@ -2,7 +2,6 @@ from starlette.testclient import TestClient
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.application import Kupala
-from kupala.contracts import TemplateRenderer
 from kupala.dispatching import action_config
 from kupala.middleware import Middleware
 from kupala.requests import Request
@@ -46,9 +45,9 @@ app = Kupala(
         Route("/action-config-methods", action_config_methods_view),
         Route("/action-config-middleware", action_config_middleware_view),
         Route("/action-config-template", action_config_template_view),
-    ]
+    ],
+    renderer=FormatRenderer(),
 )
-app.services.bind(TemplateRenderer, FormatRenderer())
 client = TestClient(app)
 
 

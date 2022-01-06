@@ -209,19 +209,18 @@ class SomeService:
 
 
 class InjectionResource:
-    async def show(self, id: int, service: SomeService) -> JSONResponse:
-        return JSONResponse({'id': id, 'service': service.__class__.__name__})
+    async def show(self, id: int) -> JSONResponse:
+        return JSONResponse({'id': id})
 
 
 def test_resource_route_injects_path_params() -> None:
     app = Kupala()
-    app.services.bind(SomeService, SomeService())
     app.routes.resource('/test', InjectionResource())
 
     client = TestClient(app)
     response = client.get('/test/2')
     assert response.status_code == 200
-    assert response.json() == {'id': 2, 'service': 'SomeService'}
+    assert response.json() == {'id': 2}
 
 
 def test_inject_from_request_and_app_view() -> None:

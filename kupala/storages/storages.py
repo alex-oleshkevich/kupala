@@ -1,7 +1,6 @@
 import os
 import pathlib
 import typing as t
-
 from deesk.drivers.fs import LocalFsDriver
 from deesk.storage import Storage as BaseStorage
 
@@ -44,20 +43,3 @@ class S3Storage(Storage):
 
     def abspath(self, path: t.Union[str, os.PathLike]) -> str:
         return ''
-
-
-class Storages:
-    def __init__(self, storages: dict[str, t.Union[Storage, t.Callable]], default: str) -> None:
-        self._storages = storages
-        self._default = default
-
-    def get(self, name: str) -> Storage:
-        """Get disk by name."""
-        storage = self._storages[name]
-        if isinstance(storage, Storage):
-            return storage
-        return storage()
-
-    def get_default_storage(self) -> Storage:
-        """Get default configured disk."""
-        return self.get(self._default)

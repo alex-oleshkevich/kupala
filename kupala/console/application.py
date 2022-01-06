@@ -7,14 +7,14 @@ import inspect
 import typing as t
 
 if t.TYPE_CHECKING:
-    from kupala.application import Kupala
+    from kupala.app.base import BaseApp
 
 
-def create_dispatcher(app: Kupala, fn: t.Callable) -> t.Callable:
+def create_dispatcher(app: BaseApp, fn: t.Callable) -> t.Callable:
     fn_kwargs = t.get_type_hints(fn)
 
     @functools.wraps(fn)
-    def dispatcher(*args: t.Any, **kwargs: t.Any) -> t.Any:
+    def dispatcher(**kwargs: t.Any) -> t.Any:
         for name, class_name in fn_kwargs.items():
             if hasattr(class_name, 'from_app'):
                 kwargs[name] = class_name.from_app(app)
@@ -22,16 +22,16 @@ def create_dispatcher(app: Kupala, fn: t.Callable) -> t.Callable:
         if inspect.iscoroutinefunction(fn):
 
             async def async_dispatcher() -> t.Any:
-                return await app.invoke(fn, extra_kwargs=kwargs)
+                return await fn(**kwargs)
 
             return anyio.run(async_dispatcher)
         else:
-            return app.invoke(fn, extra_kwargs=kwargs)
+            return fn(**kwargs)
 
     return dispatcher
 
 
-def wrap_command(app: Kupala, command: t.Union[click.Command, t.Callable]) -> click.Command:
+def wrap_command(app: BaseApp, command: t.Union[click.Command, t.Callable]) -> click.Command:
     if isinstance(command, click.Group):
         if not command.callback:
             return command
@@ -51,7 +51,7 @@ def wrap_command(app: Kupala, command: t.Union[click.Command, t.Callable]) -> cl
 
 
 class ConsoleApplication:
-    def __init__(self, app: Kupala, commands: list[click.Command]) -> None:
+    def __init__(self, app: BaseApp, commands: list[click.Command]) -> None:
         self.app = app
         self.commands = commands
 

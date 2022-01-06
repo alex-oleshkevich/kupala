@@ -2,7 +2,7 @@ import os
 from starlette.types import Receive, Scope, Send
 
 from kupala.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
-from kupala.storages.storages import Storage, Storages
+from kupala.storages.storages import Storage
 
 
 class FileServer:
@@ -30,5 +30,4 @@ class FileServer:
         return os.path.normpath(os.path.join(*scope["path"].split("/")))
 
     def get_disk(self, scope: Scope) -> Storage:
-        storages = scope['app'].resolve(Storages)
-        return storages.get(self.storage)
+        return scope['app'].storages.get(self.storage)

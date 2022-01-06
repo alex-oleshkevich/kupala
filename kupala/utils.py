@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import importlib
 import inspect
 import os.path
@@ -6,6 +8,9 @@ import typing as t
 from starlette.concurrency import run_in_threadpool
 
 from kupala.requests import Request
+
+if t.TYPE_CHECKING:
+    from kupala.application import Kupala
 
 CAMEL_TO_SNAKE_PATTERN = re.compile(r'(?<!^)(?=[A-Z])')
 
@@ -47,3 +52,24 @@ _RC = t.TypeVar('_RC')
 
 def request_component_for(class_name: t.Type[_RC], factory: t.Callable[[Request], _RC]) -> None:
     class_name.__dict__['from_request'] = classmethod(factory)
+
+
+_T = t.TypeVar('_T')
+
+
+def to_request_injectable(klass: t.Type[_T], factory: t.Callable[[Request], _T]) -> None:
+    """Convert regular class into a request injectable."""
+
+    def augmentation(cls: t.Type[_T], request: Request) -> _T:
+        return factory(request)
+
+    setattr(klass, 'from_request', classmethod(augmentation))
+
+
+def to_app_injectable(klass: t.Type[_T], factory: t.Callable[[Kupala], _T]) -> None:
+    """Convert regular class into app injectable."""
+
+    def augmentation(cls: t.Type[_T], app: Kupala) -> _T:
+        return factory(app)
+
+    setattr(klass, 'from_app', classmethod(augmentation))

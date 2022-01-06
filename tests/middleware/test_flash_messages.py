@@ -3,6 +3,7 @@ import typing as t
 from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
+from kupala.middleware import Middleware
 from kupala.middleware.flash_messages import FlashBag, FlashMessage, FlashMessagesMiddleware, MessageCategory, flash
 from kupala.middleware.template_context import TemplateContextMiddleware
 from kupala.requests import Request
@@ -20,17 +21,17 @@ def test_flash_messages(storage: t.Literal['session']) -> None:
         bag = flash(request)
         return JSONResponse({'messages': list(bag)})
 
-    app = Kupala()
+    app = Kupala(
+        middleware=[
+            Middleware(TemplateContextMiddleware),
+            Middleware(SessionMiddleware, secret_key='key!', autoload=True),
+            Middleware(FlashMessagesMiddleware, storage=storage),
+        ]
+    )
     app.routes.post('/set', set_view)
     app.routes.get('/get', get_view)
 
-    client = TestClient(
-        SessionMiddleware(
-            TemplateContextMiddleware(FlashMessagesMiddleware(app, storage=storage)),
-            secret_key='key!',
-            autoload=True,
-        )
-    )
+    client = TestClient(app)
     client.post('/set')
 
     response = client.get('/get')

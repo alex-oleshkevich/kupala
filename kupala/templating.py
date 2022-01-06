@@ -1,3 +1,4 @@
+import jinja2
 import typing
 
 from kupala.requests import Request
@@ -8,12 +9,20 @@ class RenderError(Exception):
     """Base class for all renderer classes."""
 
 
+class JinjaRenderer:
+    def __init__(self, env: jinja2.Environment) -> None:
+        self._env = env
+
+    def render(self, template_name: str, context: typing.Mapping[str, typing.Any] = None) -> str:
+        return self._env.get_template(template_name).render(context)
+
+
 class TemplateResponse(Response):
     def __init__(
         self,
         request: Request,
         template_name: str,
-        context: dict[str, typing.Any] = None,
+        context: typing.Mapping[str, typing.Any] = None,
         status_code: int = 200,
         media_type: str = 'text/html',
         headers: dict = None,

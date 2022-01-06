@@ -7,7 +7,6 @@ import re
 import typing
 import typing as t
 import uuid
-
 from babel.core import Locale
 from imia import UserLike, UserToken
 from starlette import datastructures as ds, requests
@@ -18,7 +17,7 @@ from starsessions import Session
 from kupala.storages.storages import Storage
 
 if t.TYPE_CHECKING:
-    from .app.base import BaseApp
+    from .application import Kupala
 
 
 class OldFormInput(t.Mapping):
@@ -183,7 +182,7 @@ class Request(requests.Request):
         return QueryParams(super().query_params)
 
     @property
-    def app(self) -> 'BaseApp':
+    def app(self) -> 'Kupala':
         return self.scope['app']
 
     @property

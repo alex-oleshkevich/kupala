@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import os
 import typing
-
 from imia import BaseAuthenticator, LoginManager, UserProvider
-from mailers import create_transport_from_url, Encrypter, Mailer, Plugin, Signer
+from mailers import Encrypter, Mailer, Plugin, Signer, create_transport_from_url
 
 from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.storages.storages import LocalStorage, S3Storage, Storage
@@ -65,15 +64,29 @@ class Mail(Component):
         self._mailers: dict[str, Mailer] = {}
 
     def use(
-        self, url: str, *, from_address: str = 'no-reply@example.com', from_name: str = 'Example',
-        signer: Signer = None, encrypter: Encrypter, plugins: list[Plugin] = None, name: str = 'default',
+        self,
+        url: str,
+        *,
+        from_address: str = 'no-reply@example.com',
+        from_name: str = 'Example',
+        signer: Signer = None,
+        encrypter: Encrypter,
+        plugins: list[Plugin] = None,
+        name: str = 'default',
     ) -> None:
         if from_name:
             from_address = f'{from_name} <{from_address}>'
         transport = create_transport_from_url(url)
-        self.add(name, Mailer(
-            transport, from_address=from_address, plugins=plugins, signer=signer, encrypter=encrypter,
-        ))
+        self.add(
+            name,
+            Mailer(
+                transport,
+                from_address=from_address,
+                plugins=plugins,
+                signer=signer,
+                encrypter=encrypter,
+            ),
+        )
 
     def add(self, name: str, mailer: Mailer) -> None:
         self._mailers[name] = mailer
@@ -97,15 +110,19 @@ class Authentication(Component):
 
 
 class Storages(Component):
-    def __init__(self) -> None:
+    def __init__(self, storages: dict[str, Storage] = None) -> None:
         self.default = 'default'
-        self._storages: dict[str, Storage] = {}
+        self._storages: dict[str, Storage] = storages or {}
 
     def get(self, name: str) -> Storage:
         return self._storages[name]
 
     def get_default(self) -> Storage:
-        return self._storages[self.default]
+        if self.default in self._storages:
+            return self._storages[self.default]
+        if len(self._storages) == 1:
+            return list(self._storages.values())[0]
+        raise KeyError('No default storage configured.')
 
     def add(self, name: str, storage: Storage) -> None:
         self._storages[name] = storage
@@ -124,8 +141,15 @@ class Storages(Component):
         endpoint_url: str = None,
         link_ttl: int = 300,
     ) -> None:
-        self.add(name, S3Storage(
-            bucket=bucket, aws_secret_access_key=aws_secret_access_key,
-            aws_access_key_id=aws_access_key_id, region_name=region_name, profile_name=profile_name,
-            endpoint_url=endpoint_url, link_ttl=link_ttl,
-        ))
+        self.add(
+            name,
+            S3Storage(
+                bucket=bucket,
+                aws_secret_access_key=aws_secret_access_key,
+                aws_access_key_id=aws_access_key_id,
+                region_name=region_name,
+                profile_name=profile_name,
+                endpoint_url=endpoint_url,
+                link_ttl=link_ttl,
+            ),
+        )
