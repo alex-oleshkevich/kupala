@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import abc
-import typing
-
 import imia
-from imia.authentication import APIKeyAuthenticator, BaseAuthenticator, BearerAuthenticator, HTTPBasicAuthenticator, \
-    SessionAuthenticator, TokenAuthenticator
+import typing
+from imia.authentication import (
+    APIKeyAuthenticator,
+    BaseAuthenticator,
+    BearerAuthenticator,
+    HTTPBasicAuthenticator,
+    SessionAuthenticator,
+    TokenAuthenticator,
+)
 from imia.impersonation import exit_impersonation, get_original_user, impersonate, impersonation_is_active
 from imia.login import get_session_auth_hash, get_session_auth_id, login_user
 from imia.protocols import Authenticator, UserLike
@@ -15,10 +20,28 @@ from imia.user_token import AnonymousUser, LoginState
 from kupala.requests import Request
 
 __all__ = [
-    'LoginManager', 'UserLike', 'Authenticator', 'UserToken', 'InMemoryProvider', 'UserProvider',
-    'BaseAuthenticator', 'BaseUser', 'BearerAuthenticator', 'TokenAuthenticator', 'SessionAuthenticator',
-    'HTTPBasicAuthenticator', 'APIKeyAuthenticator', 'impersonate', 'impersonation_is_active', 'exit_impersonation',
-    'get_original_user', 'get_session_auth_id', 'get_session_auth_hash', 'login_user', 'AnonymousUser', 'LoginState',
+    'LoginManager',
+    'UserLike',
+    'Authenticator',
+    'UserToken',
+    'InMemoryProvider',
+    'UserProvider',
+    'BaseAuthenticator',
+    'BaseUser',
+    'BearerAuthenticator',
+    'TokenAuthenticator',
+    'SessionAuthenticator',
+    'HTTPBasicAuthenticator',
+    'APIKeyAuthenticator',
+    'impersonate',
+    'impersonation_is_active',
+    'exit_impersonation',
+    'get_original_user',
+    'get_session_auth_id',
+    'get_session_auth_hash',
+    'login_user',
+    'AnonymousUser',
+    'LoginState',
 ]
 
 
