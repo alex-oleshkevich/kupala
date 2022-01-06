@@ -22,6 +22,18 @@ class _AsyncRequestInjectable:
         return cls()
 
 
+class _AppInjectable:
+    @classmethod
+    def from_app(cls, app: Kupala) -> _AppInjectable:
+        return cls()
+
+
+class _AsyncAppInjectable:
+    @classmethod
+    async def from_app(cls, app: Kupala) -> _AsyncAppInjectable:
+        return cls()
+
+
 class _InjectableContextManager:
     def __init__(self) -> None:
         self.enter_spy = mock.MagicMock()
@@ -114,3 +126,25 @@ def test_injectable_async_generators() -> None:
     assert instance
     instance.enter_spy.assert_called_once()
     instance.exit_spy.assert_called_once()
+
+
+def test_injects_from_app() -> None:
+    def view(injectable: _AppInjectable) -> JSONResponse:
+        return JSONResponse(injectable.__class__.__name__)
+
+    app = Kupala(routes=[Route("/", view)])
+    client = TestClient(app)
+
+    response = client.get("/")
+    assert response.json() == '_AppInjectable'
+
+
+def test_injects_from_app_async() -> None:
+    def view(injectable: _AsyncAppInjectable) -> JSONResponse:
+        return JSONResponse(injectable.__class__.__name__)
+
+    app = Kupala(routes=[Route("/", view)])
+    client = TestClient(app)
+
+    response = client.get("/")
+    assert response.json() == '_AsyncAppInjectable'

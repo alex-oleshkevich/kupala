@@ -1,6 +1,5 @@
 import pytest
 import typing
-from starlette.types import ASGIApp
 
 from kupala.app.base import BaseApp
 

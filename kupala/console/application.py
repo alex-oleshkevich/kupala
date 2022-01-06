@@ -4,9 +4,10 @@ import anyio
 import click
 import functools
 import inspect
+import typing
 import typing as t
 
-if t.TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from kupala.app.base import BaseApp
 
 

@@ -6,7 +6,6 @@ from kupala.testclient import TestClient
 
 
 def test_calls_lifespan_callbacks() -> None:
-    app = Kupala()
     startup_complete = False
     cleanup_complete = False
 
@@ -17,7 +16,10 @@ def test_calls_lifespan_callbacks() -> None:
         yield
         cleanup_complete = True
 
-    app.lifespan.append(lifespan)
+    app = Kupala(
+        lifespan_handlers=[lifespan]
+    )
+
     with TestClient(app):
         assert startup_complete
         assert not cleanup_complete

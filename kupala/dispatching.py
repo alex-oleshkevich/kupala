@@ -99,6 +99,10 @@ async def resolve_injections(
             injections[arg_name] = await run_async(callback, request=request)
             continue
 
+        if callback := getattr(arg_type, 'from_app', None):
+            injections[arg_name] = await run_async(callback, app=request.app)
+            continue
+
         raise TypeError(f'Injection "{arg_name}" cannot be processed in {_callable_name(endpoint)}.')
     return injections
 

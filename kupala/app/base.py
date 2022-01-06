@@ -41,7 +41,7 @@ class BaseApp(typing.Generic[_S]):
         routes: list[BaseRoute] | Routes | None = None,
         request_class: typing.Type[Request] | None = None,
         error_handlers: dict[typing.Type[Exception] | int, typing.Optional[ErrorHandler]] = None,
-        lifespan_handlers: list[typing.Callable[[BaseApp], typing.AsyncContextManager]] = None,
+        lifespan_handlers: list[typing.Callable[[BaseApp], typing.AsyncContextManager[None]]] = None,
         exception_handler: typing.Callable[[Request, Exception], Response] | None = None,
         template_dir: str | list[str] = 'templates',
         commands: list[click.Command] = None,
@@ -76,7 +76,7 @@ class BaseApp(typing.Generic[_S]):
 
         # assign core components
         self.config = Config()
-        self.state = typing.cast(_S, State())
+        self._state = State()
         self.passwords = Passwords()
         self.mail = Mail()
         self.auth = Authentication(self)
@@ -96,6 +96,10 @@ class BaseApp(typing.Generic[_S]):
 
         # ASGI app instance
         self._asgi_app: ASGIApp | None = None
+
+    @property
+    def state(self) -> _S:
+        return typing.cast(_S, self._state)
 
     def bootstrap(self) -> None:
         pass
