@@ -25,8 +25,10 @@ from kupala.storages.storages import Storage
 from kupala.templating import JinjaRenderer
 from kupala.utils import resolve_path
 
+_S = typing.TypeVar('_S', bound=State)
 
-class BaseApp:
+
+class BaseApp(typing.Generic[_S]):
     request_class = Request
 
     def __init__(
@@ -74,7 +76,7 @@ class BaseApp:
 
         # assign core components
         self.config = Config()
-        self.state = State()
+        self.state = typing.cast(_S, State())
         self.passwords = Passwords()
         self.mail = Mail()
         self.auth = Authentication(self)
