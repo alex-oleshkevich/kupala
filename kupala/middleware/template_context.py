@@ -24,5 +24,6 @@ class TemplateContextMiddleware:
         for processor in self.context_processors:
             context.update(processor(request))
         scope.setdefault('state', {})
-        scope['state']['template_context'] = context
+        scope['state'].setdefault('template_context', {})
+        scope['state']['template_context'].update(context)
         await self.app(scope, receive, send)

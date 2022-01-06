@@ -5,7 +5,7 @@ import inspect
 import typing as t
 from os import PathLike
 from starlette import routing
-from starlette.routing import WebSocketRoute, compile_path, get_name
+from starlette.routing import compile_path, get_name
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -135,6 +135,10 @@ class Route(routing.Route):
 
     def __repr__(self) -> str:
         return f'<Route: path={self.path}, methods={self.methods}, name={self.name}>'
+
+
+class WebSocketRoute(routing.WebSocketRoute):
+    pass
 
 
 class _RouteAdapter:
