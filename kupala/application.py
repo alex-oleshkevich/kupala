@@ -4,6 +4,7 @@ import click
 import contextvars as cv
 import inspect
 import logging
+import os
 import secrets
 import typing
 from starlette.datastructures import State
@@ -24,6 +25,7 @@ from kupala.extensions import (
     PasswordsExtension,
     RendererExtension,
     SignerExtension,
+    StaticFiles,
     StoragesExtension,
 )
 from kupala.middleware import Middleware, MiddlewareStack
@@ -85,7 +87,7 @@ class Kupala:
         self.routes = Routes(routes or [])
 
         # assign core components
-        template_dirs = [template_dir] if isinstance(template_dir, str) else template_dir or []
+        template_dirs = [template_dir] if isinstance(template_dir, (str, os.PathLike)) else template_dir or []
         self.jinja = JinjaExtension(template_dirs=[resolve_path(directory) for directory in template_dirs])
         self.config = Config()
         self.state = State()
@@ -95,7 +97,8 @@ class Kupala:
         self.storages = StoragesExtension(storages)
         self.commands = ConsoleExtension(commands)
         self.signer = SignerExtension(self.secret_key)
-        self.renderer = RendererExtension(renderer)
+        self.renderer = RendererExtension(renderer or self.jinja.renderer)
+        self.staticfiles = StaticFiles(self)
         self.di = Injector(self)
 
         set_current_application(self)
@@ -110,7 +113,7 @@ class Kupala:
         self.apply_routes(self.routes)
 
         # ASGI app instance
-        self._asgi_app: ASGIApp | None = None
+        self._asgi_app: ASGIHandler | None = None
 
     def _initialize(self) -> None:
         for _, extension in inspect.getmembers(self, lambda x: hasattr(x, 'initialize')):
@@ -129,7 +132,7 @@ class Kupala:
             else:
                 routes.include(self.routes_config)
 
-    def create_asgi_app(self) -> ASGIApp:
+    def create_asgi_app(self) -> ASGIHandler:
         self.apply_middleware(self.middleware)
         return ASGIHandler(
             app=self,
@@ -142,21 +145,26 @@ class Kupala:
             request_class=self.request_class,
         )
 
+    def get_asgi_app(self) -> ASGIHandler:
+        if self._asgi_app is None:
+            try:
+                self._asgi_app = self.create_asgi_app()
+            except Exception as ex:
+                logging.exception(ex)
+                raise
+
+        return self._asgi_app
+
     def cli(self) -> int:
         set_current_application(self)
         app = ConsoleApplication(self, self.commands)
         return app.run()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if self._asgi_app is None:
-            try:
-                self._asgi_app = self.create_asgi_app()
-            except Exception as ex:
-                logging.exception(ex)
-                await send({'type': 'lifespan.startup.failed', 'message': str(ex)})
-
-        assert self._asgi_app, 'ASGI application has not been initialized.'
-        await self._asgi_app(scope, receive, send)
+        try:
+            await self.get_asgi_app()(scope, receive, send)
+        except Exception as ex:
+            await send({'type': 'lifespan.startup.failed', 'message': str(ex)})
 
 
 _current_app: cv.ContextVar[Kupala] = cv.ContextVar('_current_app')

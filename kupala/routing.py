@@ -542,9 +542,17 @@ class Routes(t.Sequence[routing.BaseRoute]):
         app = StaticFiles(directory=directory, packages=packages, html=html, check_dir=check_dir)
         self.mount(path, app, name=name, middleware=middleware)
 
-    def files(self, path: str, *, storage: str, name: str = None, middleware: t.Sequence[Middleware] = None) -> None:
+    def files(
+        self,
+        path: str,
+        *,
+        storage: str,
+        name: str = None,
+        middleware: t.Sequence[Middleware] = None,
+        inline: bool = False,
+    ) -> None:
         """Serve file uploads from disk."""
-        app = FileServer(storage=storage)
+        app = FileServer(storage=storage, as_attachment=inline)
         self._routes.append(Mount(path, app, name=name, middleware=middleware))
 
     def host(

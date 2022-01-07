@@ -13,7 +13,7 @@ REDIRECT_INPUT_DATA_SESSION_KEY = "_form_old_input"
 
 
 def test_redirect() -> None:
-    def view(request: Request) -> RedirectResponse:
+    def view() -> RedirectResponse:
         return RedirectResponse('/about')
 
     app = Kupala()
@@ -25,7 +25,7 @@ def test_redirect() -> None:
 
 
 def test_redirect_requires_url_or_path_name() -> None:
-    def view(request: Request) -> RedirectResponse:
+    def view() -> RedirectResponse:
         return RedirectResponse()
 
     app = Kupala()
@@ -38,7 +38,7 @@ def test_redirect_requires_url_or_path_name() -> None:
 
 
 def test_redirect_to_path_name() -> None:
-    def view(request: Request) -> RedirectResponse:
+    def view() -> RedirectResponse:
         return RedirectResponse(path_name='about')
 
     app = Kupala()
@@ -52,7 +52,7 @@ def test_redirect_to_path_name() -> None:
 
 
 def test_redirect_to_path_name_with_path_params() -> None:
-    def view(request: Request) -> RedirectResponse:
+    def view() -> RedirectResponse:
         return RedirectResponse(path_name='about', path_params={'id': 42})
 
     app = Kupala()
@@ -66,7 +66,7 @@ def test_redirect_to_path_name_with_path_params() -> None:
 
 
 def test_redirect_with_input_capture() -> None:
-    def view(request: Request) -> RedirectResponse:
+    def view() -> RedirectResponse:
         return RedirectResponse('/about', capture_input=True)
 
     def data_view(request: Request) -> JSONResponse:
@@ -84,7 +84,7 @@ def test_redirect_with_input_capture() -> None:
 
 
 def test_redirect_with_input_data_via_method() -> None:
-    def view(request: Request) -> RedirectResponse:
+    def view() -> RedirectResponse:
         return RedirectResponse('/about').with_input()
 
     def data_view(request: Request) -> JSONResponse:
@@ -102,7 +102,7 @@ def test_redirect_with_input_data_via_method() -> None:
 
 
 def test_redirect_with_flash_message() -> None:
-    def view(request: Request) -> RedirectResponse:
+    def view() -> RedirectResponse:
         return RedirectResponse('/about', flash_message='Saved.', flash_category='success')
 
     def data_view(request: Request) -> JSONResponse:
@@ -122,7 +122,7 @@ def test_redirect_with_flash_message() -> None:
 
 
 def test_redirect_with_flash_message_via_method() -> None:
-    def view(request: Request) -> RedirectResponse:
+    def view() -> RedirectResponse:
         return RedirectResponse('/about').flash('Saved.')
 
     def data_view(request: Request) -> JSONResponse:
@@ -142,7 +142,7 @@ def test_redirect_with_flash_message_via_method() -> None:
 
 
 def test_redirect_with_success() -> None:
-    def view(request: Request) -> RedirectResponse:
+    def view() -> RedirectResponse:
         return RedirectResponse('/about').with_success('Saved.')
 
     def data_view(request: Request) -> JSONResponse:
@@ -162,7 +162,7 @@ def test_redirect_with_success() -> None:
 
 
 def test_redirect_with_error() -> None:
-    def view(request: Request) -> RedirectResponse:
+    def view() -> RedirectResponse:
         return RedirectResponse('/about').with_error('Error.')
 
     def data_view(request: Request) -> JSONResponse:

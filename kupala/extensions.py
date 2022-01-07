@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-import click
-import itsdangerous.signer
-import jinja2
-import jinja2.ext
 import logging
 import os
 import typing
 from email.message import Message
 from functools import cached_property
+
+import click
+import itsdangerous.signer
+import jinja2
+import jinja2.ext
 from imia import BaseAuthenticator, LoginManager, UserProvider, UserToken
-from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, create_transport_from_url
+from mailers import create_transport_from_url, Email, Encrypter, Mailer, Plugin, SentMessages, Signer
 
 from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import to_app_injectable, to_request_injectable
@@ -353,3 +354,32 @@ class ConsoleExtension:
 
     def __iter__(self) -> typing.Iterator[click.Command]:
         return iter(self.commands)
+
+
+class StaticFiles(Extension):
+    """Configures static files endpoint."""
+
+    def __init__(self, app: Kupala) -> None:
+        self.app = app
+
+    def serve_from_directory(
+        self,
+        directory: str | os.PathLike = 'statics',
+        url_path: str = '/static',
+        url_prefix: str = '',
+        storage_name: str = 'static',
+        path_name: str = 'static',
+    ) -> None:
+        assert self.app, 'Unbound StaticFiles instance.'
+        self.url_prefix = url_prefix
+        self.path_name = path_name
+        self.app.storages.add_local(storage_name, directory)
+        self.app.routes.files(url_path, storage=storage_name, name=path_name, inline=False)
+        self.app.jinja.add_globals({"static": self.static_url})
+
+    def static_url(self, path: str | os.PathLike) -> str:
+        router = self.app.get_asgi_app().router
+        url = router.url_path_for(self.path_name, path=str(path))
+        if not url.startswith('http') and self.url_prefix:
+            return self.url_prefix.lstrip('/') + url
+        return url

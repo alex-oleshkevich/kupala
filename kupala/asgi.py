@@ -41,7 +41,8 @@ class ASGIHandler:
 
         middleware.use(ExceptionMiddleware, handlers=error_handlers)
         middleware.top(ServerErrorMiddleware, debug=debug, handler=self.exception_handler)
-        self.asgi_app: ASGIApp = Router(routes=routes)
+        self.router = Router(routes=routes)
+        self.asgi_app: ASGIApp = self.router
         for mw in reversed(middleware):
             self.asgi_app = mw.wrap(self.asgi_app)
 

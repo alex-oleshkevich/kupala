@@ -14,7 +14,7 @@ class JinjaRenderer:
         self._env = env
 
     def render(self, template_name: str, context: typing.Mapping[str, typing.Any] = None) -> str:
-        return self._env.get_template(template_name).render(context)
+        return self._env.get_template(template_name).render(context or {})
 
 
 class TemplateResponse(Response):
