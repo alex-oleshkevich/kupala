@@ -1,27 +1,31 @@
 from __future__ import annotations
 
+import jinja2
+import jinja2.ext
 import os
 import typing
+from functools import cached_property
 from imia import BaseAuthenticator, LoginManager, UserProvider
 from mailers import Encrypter, Mailer, Plugin, Signer, create_transport_from_url
 
 from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.storages.storages import LocalStorage, S3Storage, Storage
-from kupala.utils import import_string
+from kupala.templating import JinjaRenderer
+from kupala.utils import import_string, resolve_path
 
 if typing.TYPE_CHECKING:
-    from kupala.app.base import BaseApp
+    from kupala.application import Kupala
 
 
 class Extension:
-    def initialize(self, app: BaseApp) -> None:
+    def initialize(self, app: Kupala) -> None:
         pass
 
 
 _PasswordHasherType = typing.Literal['pbkdf2_sha256', 'pbkdf2_sha512', 'argon2', 'bcrypt', 'des_crypt'] | PasswordHasher
 
 
-class Passwords(Extension):
+class PasswordsExtension(Extension):
     def __init__(self, backend: _PasswordHasherType = 'pbkdf2_sha256') -> None:
         self._manager = self._create(backend)
 
@@ -47,7 +51,7 @@ class Passwords(Extension):
         return backend
 
 
-class Renderer(Extension):
+class RendererExtension(Extension):
     def __init__(self, renderer: TemplateRenderer | None = None) -> None:
         self._template_renderer = renderer
 
@@ -59,9 +63,14 @@ class Renderer(Extension):
         return self._template_renderer.render(template_name, context)
 
 
-class Mail(Extension):
+class MailExtension(Extension):
     def __init__(self) -> None:
         self._mailers: dict[str, Mailer] = {}
+
+    def get(self, name: str) -> Mailer:
+        if name not in self._mailers:
+            raise KeyError(f'No mailer named "{name}" defined.')
+        return self._mailers[name]
 
     def use(
         self,
@@ -92,8 +101,8 @@ class Mail(Extension):
         self._mailers[name] = mailer
 
 
-class Authentication(Extension):
-    def __init__(self, app: BaseApp) -> None:
+class AuthenticationExtension(Extension):
+    def __init__(self, app: Kupala) -> None:
         self.user_provider: UserProvider | None = None
         self.authenticators: list[BaseAuthenticator] = []
         self.password_verifier = app.passwords
@@ -109,12 +118,14 @@ class Authentication(Extension):
         )
 
 
-class Storages(Extension):
+class StoragesExtension(Extension):
     def __init__(self, storages: dict[str, Storage] = None) -> None:
         self.default = 'default'
         self._storages: dict[str, Storage] = storages or {}
 
     def get(self, name: str) -> Storage:
+        if name not in self._storages:
+            raise KeyError(f'No storage named "{name}" defined.')
         return self._storages[name]
 
     def get_default(self) -> Storage:
@@ -153,3 +164,50 @@ class Storages(Extension):
                 link_ttl=link_ttl,
             ),
         )
+
+
+class JinjaExtension(Extension):
+    def __init__(
+        self,
+        template_dirs: str | list[str] | None = None,
+        tests: dict[str, typing.Callable] = None,
+        filters: dict[str, typing.Callable] = None,
+        globals: dict[str, typing.Any] = None,
+        policies: dict[str, typing.Any] = None,
+        extensions: list[str | typing.Type[jinja2.ext.Extension]] = None,
+        env: jinja2.Environment = None,
+        loader: jinja2.BaseLoader = None,
+    ) -> None:
+        self.template_dirs = [template_dirs] if isinstance(template_dirs, str) else template_dirs or []
+        self.tests = tests or {}
+        self.filters = filters or {}
+        self.globals = globals or {}
+        self.policies = policies or {}
+        self.extensions = extensions or []
+        self._env = env
+        self._loader = loader
+
+    @cached_property
+    def loader(self) -> jinja2.BaseLoader:
+        if self._loader:
+            return self._loader
+        return jinja2.FileSystemLoader(searchpath=[resolve_path(directory) for directory in self.template_dirs])
+
+    @cached_property
+    def env(self) -> jinja2.Environment:
+        if self._env:
+            return self._env
+        env = jinja2.Environment(loader=self.loader, extensions=self.extensions)
+        env.globals.update(self.globals)
+        env.filters.update(self.filters)
+        env.policies.update(self.policies)
+        env.tests.update(self.tests)
+
+        if "json.dumps_kwargs" not in env.policies:
+            env.policies["json.dumps_kwargs"] = {"ensure_ascii": False, "sort_keys": True}
+
+        return env
+
+    @property
+    def renderer(self) -> JinjaRenderer:
+        return JinjaRenderer(self.env)

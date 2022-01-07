@@ -23,7 +23,7 @@ class TemplateContextMiddleware:
         context: dict[str, typing.Any] = {
             'request': request,
             'config': request.app.config,
-            'url': request.url,
+            'url': request.url_for,
             'app': request.app,
             'form_errors': request.form_errors,
             'old_input': request.old_input,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import click
 import contextvars as cv
-import jinja2
+import inspect
 import logging
 import secrets
 import typing
@@ -15,14 +15,20 @@ from kupala.config import Config
 from kupala.console.application import ConsoleApplication
 from kupala.contracts import TemplateRenderer
 from kupala.dotenv import DotEnv
-from kupala.extensions import Authentication, Mail, Passwords, Renderer, Storages
+from kupala.extensions import (
+    AuthenticationExtension,
+    JinjaExtension,
+    MailExtension,
+    PasswordsExtension,
+    RendererExtension,
+    StoragesExtension,
+)
 from kupala.middleware import Middleware, MiddlewareStack
 from kupala.middleware.exception import ErrorHandler
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
 from kupala.storages.storages import Storage
-from kupala.templating import JinjaRenderer
 from kupala.utils import resolve_path
 
 
@@ -70,32 +76,30 @@ class Kupala:
         self.middleware = MiddlewareStack(middleware)
         self.routes = Routes(routes or [])
 
-        self.template_dirs = [template_dir] if isinstance(template_dir, str) else template_dir or []
-
         # assign core components
+        template_dirs = [template_dir] if isinstance(template_dir, str) else template_dir or []
+        self.jinja = JinjaExtension(template_dirs=[resolve_path(directory) for directory in template_dirs])
         self.config = Config()
         self.state = State()
-        self.passwords = Passwords()
-        self.mail = Mail()
-        self.auth = Authentication(self)
-        self.storages = Storages(storages)
+        self.passwords = PasswordsExtension()
+        self.mail = MailExtension()
+        self.auth = AuthenticationExtension(self)
+        self.storages = StoragesExtension(storages)
         self.commands = commands or []
-
-        self.jinja_env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(
-                searchpath=[resolve_path(template_path) for template_path in self.template_dirs]
-            )
-        )
-        self.jinja_env.policies["json.dumps_kwargs"] = {"ensure_ascii": False, "sort_keys": True}
-        self.renderer = Renderer(renderer or JinjaRenderer(self.jinja_env))
+        self.renderer = RendererExtension(renderer)
 
         set_current_application(self)
-        self.bootstrap()
+        self._initialize()
+        self.configure()
 
         # ASGI app instance
         self._asgi_app: ASGIApp | None = None
 
-    def bootstrap(self) -> None:
+    def _initialize(self) -> None:
+        for _, extension in inspect.getmembers(self, lambda x: hasattr(x, 'initialize')):
+            extension.initialize(self)
+
+    def configure(self) -> None:
         pass
 
     def apply_middleware(self) -> None:
@@ -121,7 +125,13 @@ class Kupala:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if self._asgi_app is None:
-            self._asgi_app = self.create_asgi_app()
+            try:
+                self._asgi_app = self.create_asgi_app()
+            except Exception as ex:
+                logging.exception(ex)
+                await send({'type': 'lifespan.startup.failed', 'message': str(ex)})
+
+        assert self._asgi_app, 'ASGI application has not been initialized.'
         await self._asgi_app(scope, receive, send)
 
 
