@@ -7,9 +7,10 @@ import jinja2.ext
 import logging
 import os
 import typing
+from email.message import Message
 from functools import cached_property
 from imia import BaseAuthenticator, LoginManager, UserProvider, UserToken
-from mailers import Encrypter, Mailer, Plugin, Signer, create_transport_from_url
+from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, create_transport_from_url
 
 from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import to_app_injectable, to_request_injectable
@@ -110,6 +111,10 @@ class MailExtension(Extension):
 
     def initialize(self, app: Kupala) -> None:
         to_app_injectable(Mailer, lambda app: self.get_default())
+
+    async def send(self, message: Email | Message, mailer: str = None) -> SentMessages:
+        mailer_name = mailer or self.default
+        return await self.get(mailer_name).send(message)
 
 
 class AuthenticationExtension(Extension):
