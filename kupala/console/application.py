@@ -52,7 +52,7 @@ def wrap_command(app: Kupala, command: t.Union[click.Command, t.Callable]) -> cl
 
 
 class ConsoleApplication:
-    def __init__(self, app: Kupala, commands: list[click.Command]) -> None:
+    def __init__(self, app: Kupala, commands: typing.Iterable[click.Command]) -> None:
         self.app = app
         self.commands = commands
 

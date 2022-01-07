@@ -17,6 +17,7 @@ from kupala.contracts import TemplateRenderer
 from kupala.dotenv import DotEnv
 from kupala.extensions import (
     AuthenticationExtension,
+    ConsoleExtension,
     JinjaExtension,
     MailExtension,
     PasswordsExtension,
@@ -30,11 +31,12 @@ from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
 from kupala.storages.storages import Storage
-from kupala.utils import resolve_path
+from kupala.utils import import_string, resolve_path
 
 
 class Kupala:
     request_class = Request
+    routes_config: typing.Callable[[Routes], None] | str | None = None
 
     def __init__(
         self,
@@ -49,6 +51,7 @@ class Kupala:
         lifespan_handlers: list[typing.Callable[[Kupala], typing.AsyncContextManager[None]]] = None,
         exception_handler: typing.Callable[[Request, Exception], Response] | None = None,
         template_dir: str | list[str] = 'templates',
+        routes_config: typing.Callable[[Routes], None] | str | None = None,
         commands: list[click.Command] = None,
         storages: dict[str, Storage] = None,
         renderer: TemplateRenderer = None,
@@ -56,6 +59,11 @@ class Kupala:
         # base configuration
         self.secret_key = secret_key
         self.request_class = request_class or self.request_class or Request
+
+        # routes config preflight
+        configure_routes = routes_config or self.routes_config or self.apply_routes
+        if isinstance(routes_config, str):
+            configure_routes = import_string(routes_config)
 
         # read environment and set default variables
         self.environ = DotEnv([env_file])
@@ -86,13 +94,21 @@ class Kupala:
         self.mail = MailExtension()
         self.auth = AuthenticationExtension(self)
         self.storages = StoragesExtension(storages)
-        self.commands = commands or []
+        self.commands = ConsoleExtension(commands)
         self.signer = SignerExtension(self.secret_key)
         self.renderer = RendererExtension(renderer)
 
         set_current_application(self)
+
+        # bind extensions to this app
         self._initialize()
+
+        # configure extensions
         self.configure()
+
+        # load routes
+        assert callable(configure_routes)
+        configure_routes(self.routes)
 
         # ASGI app instance
         self._asgi_app: ASGIApp | None = None
@@ -104,11 +120,14 @@ class Kupala:
     def configure(self) -> None:
         pass
 
-    def apply_middleware(self) -> None:
+    def apply_middleware(self, stack: MiddlewareStack) -> None:
+        pass
+
+    def apply_routes(self, routes: Routes) -> None:
         pass
 
     def create_asgi_app(self) -> ASGIApp:
-        self.apply_middleware()
+        self.apply_middleware(self.middleware)
         return ASGIHandler(
             app=self,
             debug=self.debug,

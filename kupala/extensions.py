@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import click
 import itsdangerous.signer
 import jinja2
 import jinja2.ext
@@ -240,6 +241,50 @@ class JinjaExtension(Extension):
         else:
             logging.warning('Hot directory update supported only for jinja2.FileSystemLoader loader.')
 
+    def add_globals(self, globals: dict[str, typing.Any]) -> None:
+        """Add global variables to jinja environment."""
+        self.env.globals.update(globals)
+
+    def add_filters(self, filters: dict[str, typing.Callable]) -> None:
+        """Add filters to jinja environment."""
+        self.env.filters.update(filters)
+
+    def add_policies(self, policies: dict[str, typing.Any]) -> None:
+        """Add policies to jinja environment."""
+        self.env.policies.update(policies)
+
+    def add_tests(self, tests: dict[str, typing.Any]) -> None:
+        """Add tests to jinja environment."""
+        self.env.tests.update(tests)
+
+    def add_extensions(self, *extension: str | typing.Type[jinja2.ext.Extension]) -> None:
+        """Add extension to jinja environment."""
+        for _extension in extension:
+            self.env.add_extension(_extension)
+
+    def configure(
+        self,
+        template_dirs: list[str] = None,
+        globals: dict[str, typing.Any] = None,
+        filters: dict[str, typing.Callable] = None,
+        policies: dict[str, typing.Any] = None,
+        tests: dict[str, typing.Any] = None,
+        extensions: list[str | typing.Type[jinja2.ext.Extension]] = None,
+    ) -> None:
+        """Configure multiple options at once."""
+        if template_dirs:
+            self.add_template_dirs(template_dirs)
+        if globals:
+            self.add_globals(globals)
+        if filters:
+            self.add_filters(filters)
+        if policies:
+            self.add_policies(policies)
+        if tests:
+            self.add_tests(tests)
+        if extensions:
+            self.add_extensions(*extensions)
+
 
 class SignerExtension(Extension):
     def __init__(self, secret_key: str) -> None:
@@ -289,3 +334,14 @@ class SignerExtension(Extension):
             return True, self.timed_unsign(signed_value, max_age)
         except itsdangerous.BadSignature:
             return False, None
+
+
+class ConsoleExtension:
+    def __init__(self, commands: list[click.Command] = None) -> None:
+        self.commands = commands or []
+
+    def add(self, *command: click.Command) -> None:
+        self.commands.extend(command)
+
+    def __iter__(self) -> typing.Iterator[click.Command]:
+        return iter(self.commands)
