@@ -514,7 +514,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         route = Route(
             path,
             endpoint,
-            methods=methods,
+            methods=methods or ['GET', 'HEAD'],
             name=name,
             include_in_schema=include_in_schema,
             middleware=middleware,

@@ -7,6 +7,7 @@ from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextma
 from starlette.concurrency import run_in_threadpool
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.di import InjectionError
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.responses import EmptyResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
@@ -99,11 +100,16 @@ async def resolve_injections(
             injections[arg_name] = await run_async(callback, request=request)
             continue
 
-        if callback := getattr(arg_type, 'from_app', None):
-            injections[arg_name] = await run_async(callback, app=request.app)
+        try:
+            injection = request.app.di.make(arg_type)
+            if inspect.iscoroutine(injection):
+                injection = await injection
+            injections[arg_name] = injection
+        except InjectionError as ex:
+            raise InjectionError(f'Injection "{arg_name}" cannot be processed in {_callable_name(endpoint)}.') from ex
+        else:
             continue
 
-        raise TypeError(f'Injection "{arg_name}" cannot be processed in {_callable_name(endpoint)}.')
     return injections
 
 

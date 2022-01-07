@@ -55,6 +55,9 @@ class PasswordsExtension(Extension):
             return import_string(imports[backend])
         return backend
 
+    def initialize(self, app: Kupala) -> None:
+        app.di.prefer_for(PasswordHasher, self._manager)
+
 
 class RendererExtension(Extension):
     def __init__(self, renderer: TemplateRenderer | None = None) -> None:

@@ -14,6 +14,7 @@ from kupala.asgi import ASGIHandler
 from kupala.config import Config
 from kupala.console.application import ConsoleApplication
 from kupala.contracts import TemplateRenderer
+from kupala.di import Injector
 from kupala.dotenv import DotEnv
 from kupala.extensions import (
     AuthenticationExtension,
@@ -95,6 +96,7 @@ class Kupala:
         self.commands = ConsoleExtension(commands)
         self.signer = SignerExtension(self.secret_key)
         self.renderer = RendererExtension(renderer)
+        self.di = Injector(self)
 
         set_current_application(self)
 
