@@ -3,6 +3,7 @@ from __future__ import annotations
 import itsdangerous.signer
 import jinja2
 import jinja2.ext
+import logging
 import os
 import typing
 from functools import cached_property
@@ -205,12 +206,15 @@ class JinjaExtension(Extension):
 
     @cached_property
     def loader(self) -> jinja2.BaseLoader:
+        """Create and return instance of jinja2.BaseLoader.
+        If no `loader` constructor argument passed then jinja2.FileSystemLoader will be used."""
         if self._loader:
             return self._loader
         return jinja2.FileSystemLoader(searchpath=[resolve_path(directory) for directory in self.template_dirs])
 
     @cached_property
     def env(self) -> jinja2.Environment:
+        """Create and return jinja2.Environment instance."""
         if self._env:
             return self._env
         env = jinja2.Environment(loader=self.loader, extensions=self.extensions)
@@ -224,9 +228,17 @@ class JinjaExtension(Extension):
 
         return env
 
-    @property
+    @cached_property
     def renderer(self) -> JinjaRenderer:
+        """Create and return Jinja template renderer."""
         return JinjaRenderer(self.env)
+
+    def add_template_dirs(self, directories: list[str]) -> None:
+        """Add additional directories for template search."""
+        if isinstance(self.env.loader, jinja2.FileSystemLoader):
+            self.env.loader.searchpath = [resolve_path(directory) for directory in directories]
+        else:
+            logging.warning('Hot directory update supported only for jinja2.FileSystemLoader loader.')
 
 
 class SignerExtension(Extension):
