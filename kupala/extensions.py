@@ -56,7 +56,7 @@ class PasswordsExtension(Extension):
         return backend
 
     def initialize(self, app: Kupala) -> None:
-        app.di.prefer_for(PasswordHasher, self._manager)
+        app.di.prefer_for(PasswordHasher, lambda app: self._manager)
 
 
 class RendererExtension(Extension):
