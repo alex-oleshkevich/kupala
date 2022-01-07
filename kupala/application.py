@@ -21,6 +21,7 @@ from kupala.extensions import (
     MailExtension,
     PasswordsExtension,
     RendererExtension,
+    SignerExtension,
     StoragesExtension,
 )
 from kupala.middleware import Middleware, MiddlewareStack
@@ -86,6 +87,7 @@ class Kupala:
         self.auth = AuthenticationExtension(self)
         self.storages = StoragesExtension(storages)
         self.commands = commands or []
+        self.signer = SignerExtension(self.secret_key)
         self.renderer = RendererExtension(renderer)
 
         set_current_application(self)

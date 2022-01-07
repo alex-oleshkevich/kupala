@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itsdangerous.signer
 import jinja2
 import jinja2.ext
 import os
@@ -9,6 +10,7 @@ from imia import BaseAuthenticator, LoginManager, UserProvider
 from mailers import Encrypter, Mailer, Plugin, Signer, create_transport_from_url
 
 from kupala.contracts import PasswordHasher, TemplateRenderer
+from kupala.di import to_app_injectable
 from kupala.storages.storages import LocalStorage, S3Storage, Storage
 from kupala.templating import JinjaRenderer
 from kupala.utils import import_string, resolve_path
@@ -211,3 +213,59 @@ class JinjaExtension(Extension):
     @property
     def renderer(self) -> JinjaRenderer:
         return JinjaRenderer(self.env)
+
+
+class SignerExtension(Extension):
+    def __init__(self, secret_key: str) -> None:
+        self.secret_key = secret_key
+
+    def initialize(self, app: Kupala) -> None:
+        to_app_injectable(itsdangerous.signer.Signer, self._create_signer)
+        to_app_injectable(itsdangerous.timed.TimestampSigner, self._create_timed_signer)
+
+    @cached_property
+    def signer(self) -> itsdangerous.signer.Signer:
+        return itsdangerous.signer.Signer(self.secret_key)
+
+    @cached_property
+    def timestamp_signer(self) -> itsdangerous.timed.TimestampSigner:
+        return itsdangerous.timed.TimestampSigner(self.secret_key)
+
+    def sign(self, value: str | bytes) -> bytes:
+        """Sign value."""
+        return self.signer.sign(value)
+
+    def unsign(self, signed_value: str | bytes) -> bytes:
+        """Unsign value. Raises itsdangerous.BadSignature exception."""
+        return self.signer.unsign(signed_value)
+
+    def safe_unsign(self, signed_value: str | bytes) -> tuple[bool, typing.Optional[bytes]]:
+        """Unsign value. Will not raise itsdangerous.BadSignature.
+        Returns two-tuple: operation status and unsigned value."""
+        try:
+            return True, self.unsign(signed_value)
+        except itsdangerous.BadSignature:
+            return False, None
+
+    def timed_sign(self, value: str | bytes) -> bytes:
+        """Sign value. The signature will be valid for a specific time period."""
+        return self.timestamp_signer.sign(value)
+
+    def timed_unsign(self, signed_value: str | bytes, max_age: int) -> bytes:
+        """Unsign value. Will raise itsdangerous.BadSignature or itsdangerous.BadTimeSignature exception
+        if signed value cannot be decoded or expired.."""
+        return self.timestamp_signer.unsign(signed_value, max_age)
+
+    def safe_timed_unsign(self, signed_value: str | bytes, max_age: int) -> tuple[bool, typing.Optional[bytes]]:
+        """Unsign value. Will not raise itsdangerous.BadTimeSignature.
+        Returns two-tuple: operation status and unsigned value."""
+        try:
+            return True, self.timed_unsign(signed_value, max_age)
+        except itsdangerous.BadSignature:
+            return False, None
+
+    def _create_signer(self, app: Kupala) -> itsdangerous.signer.Signer:
+        return self.signer
+
+    def _create_timed_signer(self, app: Kupala) -> itsdangerous.timed.TimestampSigner:
+        return self.timestamp_signer

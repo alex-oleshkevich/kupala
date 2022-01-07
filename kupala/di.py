@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import typing as t
 
-from kupala.application import Kupala
 from kupala.requests import Request
+
+if t.TYPE_CHECKING:
+    from kupala.application import Kupala
 
 _T = t.TypeVar('_T')
 
