@@ -6,11 +6,11 @@ import jinja2.ext
 import os
 import typing
 from functools import cached_property
-from imia import BaseAuthenticator, LoginManager, UserProvider
+from imia import BaseAuthenticator, LoginManager, UserProvider, UserToken
 from mailers import Encrypter, Mailer, Plugin, Signer, create_transport_from_url
 
 from kupala.contracts import PasswordHasher, TemplateRenderer
-from kupala.di import to_app_injectable
+from kupala.di import to_app_injectable, to_request_injectable
 from kupala.storages.storages import LocalStorage, S3Storage, Storage
 from kupala.templating import JinjaRenderer
 from kupala.utils import import_string, resolve_path
@@ -66,8 +66,9 @@ class RendererExtension(Extension):
 
 
 class MailExtension(Extension):
-    def __init__(self) -> None:
-        self._mailers: dict[str, Mailer] = {}
+    def __init__(self, mailers: dict[str, Mailer] = None, default: str = 'default') -> None:
+        self.default = default
+        self._mailers: dict[str, Mailer] = mailers or {}
 
     def get(self, name: str) -> Mailer:
         if name not in self._mailers:
@@ -81,7 +82,7 @@ class MailExtension(Extension):
         from_address: str = 'no-reply@example.com',
         from_name: str = 'Example',
         signer: Signer = None,
-        encrypter: Encrypter,
+        encrypter: Encrypter = None,
         plugins: list[Plugin] = None,
         name: str = 'default',
     ) -> None:
@@ -102,6 +103,12 @@ class MailExtension(Extension):
     def add(self, name: str, mailer: Mailer) -> None:
         self._mailers[name] = mailer
 
+    def get_default(self) -> Mailer:
+        return self.get(self.default)
+
+    def initialize(self, app: Kupala) -> None:
+        to_app_injectable(Mailer, lambda app: self.get_default())
+
 
 class AuthenticationExtension(Extension):
     def __init__(self, app: Kupala) -> None:
@@ -119,10 +126,14 @@ class AuthenticationExtension(Extension):
             secret_key=self.secret_key,
         )
 
+    def initialize(self, app: Kupala) -> None:
+        to_app_injectable(LoginManager, lambda app: self.login_manager)
+        to_request_injectable(UserToken, lambda request: request.auth)
+
 
 class StoragesExtension(Extension):
-    def __init__(self, storages: dict[str, Storage] = None) -> None:
-        self.default = 'default'
+    def __init__(self, storages: dict[str, Storage] = None, default: str = 'default') -> None:
+        self.default = default
         self._storages: dict[str, Storage] = storages or {}
 
     def get(self, name: str) -> Storage:
@@ -166,6 +177,9 @@ class StoragesExtension(Extension):
                 link_ttl=link_ttl,
             ),
         )
+
+    def initialize(self, app: Kupala) -> None:
+        to_app_injectable(Storage, lambda app: self.get_default())
 
 
 class JinjaExtension(Extension):
@@ -220,8 +234,8 @@ class SignerExtension(Extension):
         self.secret_key = secret_key
 
     def initialize(self, app: Kupala) -> None:
-        to_app_injectable(itsdangerous.signer.Signer, self._create_signer)
-        to_app_injectable(itsdangerous.timed.TimestampSigner, self._create_timed_signer)
+        to_app_injectable(itsdangerous.signer.Signer, lambda app: self.signer)
+        to_app_injectable(itsdangerous.timed.TimestampSigner, lambda app: self.timestamp_signer)
 
     @cached_property
     def signer(self) -> itsdangerous.signer.Signer:
@@ -263,9 +277,3 @@ class SignerExtension(Extension):
             return True, self.timed_unsign(signed_value, max_age)
         except itsdangerous.BadSignature:
             return False, None
-
-    def _create_signer(self, app: Kupala) -> itsdangerous.signer.Signer:
-        return self.signer
-
-    def _create_timed_signer(self, app: Kupala) -> itsdangerous.timed.TimestampSigner:
-        return self.timestamp_signer
