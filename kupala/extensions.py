@@ -1,17 +1,16 @@
 from __future__ import annotations
 
+import click
+import itsdangerous.signer
+import jinja2
+import jinja2.ext
 import logging
 import os
 import typing
 from email.message import Message
 from functools import cached_property
-
-import click
-import itsdangerous.signer
-import jinja2
-import jinja2.ext
 from imia import BaseAuthenticator, LoginManager, UserProvider, UserToken
-from mailers import create_transport_from_url, Email, Encrypter, Mailer, Plugin, SentMessages, Signer
+from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, create_transport_from_url
 
 from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import to_app_injectable, to_request_injectable

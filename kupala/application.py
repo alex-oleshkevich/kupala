@@ -9,7 +9,7 @@ import secrets
 import typing
 from starlette.datastructures import State
 from starlette.routing import BaseRoute
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import Receive, Scope, Send
 
 from kupala.asgi import ASGIHandler
 from kupala.config import Config
@@ -147,12 +147,7 @@ class Kupala:
 
     def get_asgi_app(self) -> ASGIHandler:
         if self._asgi_app is None:
-            try:
-                self._asgi_app = self.create_asgi_app()
-            except Exception as ex:
-                logging.exception(ex)
-                raise
-
+            self._asgi_app = self.create_asgi_app()
         return self._asgi_app
 
     def cli(self) -> int:
@@ -161,10 +156,16 @@ class Kupala:
         return app.run()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        try:
-            await self.get_asgi_app()(scope, receive, send)
-        except Exception as ex:
-            await send({'type': 'lifespan.startup.failed', 'message': str(ex)})
+        if self._asgi_app is None:
+            try:
+                self._asgi_app = self.get_asgi_app()
+            except Exception as ex:
+                logging.exception(ex)
+                await send({'type': 'lifespan.startup.failed', 'message': str(ex)})
+                raise ex
+
+        assert self._asgi_app, 'ASGI application has not been initialized.'
+        await self._asgi_app(scope, receive, send)
 
 
 _current_app: cv.ContextVar[Kupala] = cv.ContextVar('_current_app')
