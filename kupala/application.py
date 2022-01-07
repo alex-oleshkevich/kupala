@@ -31,7 +31,7 @@ from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
 from kupala.storages.storages import Storage
-from kupala.utils import import_string, resolve_path
+from kupala.utils import resolve_path
 
 
 class Kupala:
@@ -61,9 +61,7 @@ class Kupala:
         self.request_class = request_class or self.request_class or Request
 
         # routes config preflight
-        configure_routes = routes_config or self.routes_config or self.apply_routes
-        if isinstance(routes_config, str):
-            configure_routes = import_string(routes_config)
+        self.routes_config = routes_config or self.routes_config
 
         # read environment and set default variables
         self.environ = DotEnv([env_file])
@@ -107,8 +105,7 @@ class Kupala:
         self.configure()
 
         # load routes
-        assert callable(configure_routes)
-        configure_routes(self.routes)
+        self.apply_routes(self.routes)
 
         # ASGI app instance
         self._asgi_app: ASGIApp | None = None
@@ -124,7 +121,11 @@ class Kupala:
         pass
 
     def apply_routes(self, routes: Routes) -> None:
-        pass
+        if self.routes_config:
+            if callable(self.routes_config):
+                self.routes_config(routes)
+            else:
+                routes.include(self.routes_config)
 
     def create_asgi_app(self) -> ASGIApp:
         self.apply_middleware(self.middleware)
