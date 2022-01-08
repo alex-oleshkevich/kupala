@@ -27,6 +27,7 @@ from kupala.extensions import (
     SignerExtension,
     StaticFiles,
     StoragesExtension,
+    URLExtension,
 )
 from kupala.middleware import Middleware, MiddlewareStack
 from kupala.middleware.exception import ErrorHandler
@@ -99,6 +100,7 @@ class Kupala:
         self.signer = SignerExtension(self.secret_key)
         self.renderer = RendererExtension(renderer or self.jinja.renderer)
         self.staticfiles = StaticFiles(self)
+        self.urls = URLExtension(self)
         self.di = Injector(self)
 
         set_current_application(self)
@@ -146,14 +148,22 @@ class Kupala:
         )
 
     def get_asgi_app(self) -> ASGIHandler:
+        """Creates ASGI handler. Subsequent calls will return cached instance."""
         if self._asgi_app is None:
             self._asgi_app = self.create_asgi_app()
         return self._asgi_app
 
     def render(self, template_name: str, context: dict[str, typing.Any] = None) -> str:
+        """Render template."""
         return self.renderer.render(template_name, context or {})
 
+    def url_for(self, name: str, **path_params: str) -> str:
+        """Generate URL by name. This method is useful when you want to reverse the URL in non-ASGI mode like CLI.
+        Otherwise, prefer using Request.url_for as it generates full URL incl. host and scheme."""
+        return self.urls.url_for(name, **path_params)
+
     def cli(self) -> int:
+        """Run console application."""
         set_current_application(self)
         app = ConsoleApplication(self, self.commands)
         return app.run()

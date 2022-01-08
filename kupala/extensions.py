@@ -389,3 +389,11 @@ class StaticFiles(Extension):
         if self.random_suffix:
             url += '?' + str(self.start_time)
         return url
+
+
+class URLExtension(Extension):
+    def __init__(self, app: Kupala) -> None:
+        self._app = app
+
+    def url_for(self, path_name: str, **params: str) -> str:
+        return self._app.get_asgi_app().router.url_path_for(path_name, **params)
