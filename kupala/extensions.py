@@ -382,7 +382,7 @@ class StaticFiles(Extension):
 
     def static_url(self, path: str | os.PathLike) -> str:
         router = self.app.get_asgi_app().router
-        url = router.url_path_for(self.path_name, path=str(path))
+        url = str(router.url_path_for(self.path_name, path=str(path)))
         if not url.startswith('http') and self.url_prefix:
             url = self.url_prefix.rstrip('/') + url
 

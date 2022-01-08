@@ -150,6 +150,9 @@ class Kupala:
             self._asgi_app = self.create_asgi_app()
         return self._asgi_app
 
+    def render(self, template_name: str, context: dict[str, typing.Any] = None) -> str:
+        return self.renderer.render(template_name, context or {})
+
     def cli(self) -> int:
         set_current_application(self)
         app = ConsoleApplication(self, self.commands)
