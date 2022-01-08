@@ -169,6 +169,14 @@ class Kupala:
         return app.run()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope['type'] == 'lifespan':
+            # reset inner ASGI app because underlying routes stack may have been changed between
+            # app instantiation and invocation of this method.
+            # This may happen when you call app.url_for() or similar methods which instantiate ASGI application
+            # to complete
+            # TODO: may be this is a bad idea
+            self._asgi_app = None
+
         if self._asgi_app is None:
             try:
                 self._asgi_app = self.get_asgi_app()
