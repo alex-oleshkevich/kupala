@@ -41,7 +41,7 @@ def test_staticfiles_with_url_prefix(test_app_factory: TestAppFactory, tmpdir: P
     )
 
     # test asset url generation
-    assert app.staticfiles.static_url('main.css') == 'http://example.com//statics/main.css'
+    assert app.staticfiles.static_url('main.css') == 'http://example.com/statics/main.css'
 
 
 def test_staticfiles_installs_jinja_callback(test_app_factory: TestAppFactory, tmpdir: Path) -> None:
@@ -67,3 +67,9 @@ def test_request_generates_static_url(test_app_factory: TestAppFactory, tmpdir: 
     app.staticfiles.serve_from_directory(directory=tmpdir)
     client = TestClient(app)
     assert client.get('/').text == '/static/main.css'
+
+
+def test_request_appends_random_suffix(test_app_factory: TestAppFactory, tmpdir: Path) -> None:
+    app = test_app_factory(template_dir=tmpdir)
+    app.staticfiles.serve_from_directory(directory=tmpdir, random_suffix=True)
+    assert app.staticfiles.static_url('main.css') == f'/static/main.css?{app.staticfiles.start_time}'

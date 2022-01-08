@@ -6,6 +6,7 @@ import jinja2
 import jinja2.ext
 import logging
 import os
+import time
 import typing
 from email.message import Message
 from functools import cached_property
@@ -360,6 +361,7 @@ class StaticFiles(Extension):
 
     def __init__(self, app: Kupala) -> None:
         self.app = app
+        self.start_time = time.time()
 
     def serve_from_directory(
         self,
@@ -368,10 +370,12 @@ class StaticFiles(Extension):
         url_prefix: str = '',
         storage_name: str = 'static',
         path_name: str = 'static',
+        random_suffix: bool = False,
     ) -> None:
         assert self.app, 'Unbound StaticFiles instance.'
         self.url_prefix = url_prefix
         self.path_name = path_name
+        self.random_suffix = random_suffix
         self.app.storages.add_local(storage_name, directory)
         self.app.routes.files(url_path, storage=storage_name, name=path_name, inline=False)
         self.app.jinja.add_globals({"static": self.static_url})
@@ -380,5 +384,8 @@ class StaticFiles(Extension):
         router = self.app.get_asgi_app().router
         url = router.url_path_for(self.path_name, path=str(path))
         if not url.startswith('http') and self.url_prefix:
-            return self.url_prefix.lstrip('/') + url
+            url = self.url_prefix.rstrip('/') + url
+
+        if self.random_suffix:
+            url += '?' + str(self.start_time)
         return url
