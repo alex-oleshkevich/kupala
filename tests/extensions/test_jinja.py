@@ -1,3 +1,4 @@
+import jinja2
 import pytest
 import typing
 from pathlib import Path
@@ -12,6 +13,19 @@ def create_templates(tmpdir: Path) -> typing.Generator[str, None, None]:
         f.flush()
 
     yield str(tmpdir)
+
+
+def test_jinja_custom_loader() -> None:
+    app = Kupala()
+    app.jinja.use_loader(jinja2.DictLoader({}))
+    assert isinstance(app.jinja.loader, jinja2.DictLoader)
+
+
+def test_jinja_custom_environment() -> None:
+    env = jinja2.Environment()
+    app = Kupala()
+    app.jinja.use_env(env)
+    assert app.jinja.env == env
 
 
 def test_jinja_add_template_dir(create_templates: str) -> None:

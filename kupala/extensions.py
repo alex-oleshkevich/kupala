@@ -19,7 +19,7 @@ from kupala.storages.storages import LocalStorage, S3Storage, Storage
 from kupala.templating import JinjaRenderer
 from kupala.utils import import_string, resolve_path
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # type: ignore
     from kupala.application import Kupala
 
 
@@ -215,34 +215,43 @@ class JinjaExtension(Extension):
         self._env = env
         self._loader = loader
 
-    @cached_property
+    @property
     def loader(self) -> jinja2.BaseLoader:
         """Create and return instance of jinja2.BaseLoader.
         If no `loader` constructor argument passed then jinja2.FileSystemLoader will be used."""
-        if self._loader:
-            return self._loader
-        return jinja2.FileSystemLoader(searchpath=[resolve_path(directory) for directory in self.template_dirs])
+        if self._loader is None:
+            self._loader = jinja2.FileSystemLoader(
+                searchpath=[resolve_path(directory) for directory in self.template_dirs]
+            )
+        return self._loader
 
-    @cached_property
+    @property
     def env(self) -> jinja2.Environment:
         """Create and return jinja2.Environment instance."""
-        if self._env:
-            return self._env
-        env = jinja2.Environment(loader=self.loader, extensions=self.extensions)
-        env.globals.update(self.globals)
-        env.filters.update(self.filters)
-        env.policies.update(self.policies)
-        env.tests.update(self.tests)
+        if self._env is None:
+            env = jinja2.Environment(loader=self.loader, extensions=self.extensions)
+            env.globals.update(self.globals)
+            env.filters.update(self.filters)
+            env.policies.update(self.policies)
+            env.tests.update(self.tests)
 
-        if "json.dumps_kwargs" not in env.policies:
-            env.policies["json.dumps_kwargs"] = {"ensure_ascii": False, "sort_keys": True}
-
-        return env
+            if "json.dumps_kwargs" not in env.policies:
+                env.policies["json.dumps_kwargs"] = {"ensure_ascii": False, "sort_keys": True}
+            self._env = env
+        return self._env
 
     @cached_property
     def renderer(self) -> JinjaRenderer:
         """Create and return Jinja template renderer."""
         return JinjaRenderer(self.env)
+
+    def use_loader(self, loader: jinja2.BaseLoader) -> None:
+        """Use custom template loader."""
+        self._loader = loader
+
+    def use_env(self, env: jinja2.Environment) -> None:
+        """Use preconfigured loader."""
+        self._env = env
 
     def add_template_dirs(self, directories: list[str]) -> None:
         """Add additional directories for template search."""
