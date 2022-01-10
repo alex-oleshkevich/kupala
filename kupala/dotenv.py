@@ -11,7 +11,7 @@ import os
 import pathlib
 import typing as t
 import uuid as uuidlib
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 from urllib.parse import ParseResult, urlparse
 
 CastFn = t.Callable[[str], t.Any]
@@ -60,6 +60,8 @@ class DotEnv:
 
     def load(self, file_path: t.Union[str, os.PathLike[str]] = None, stream: t.IO[str] = None) -> DotEnv:
         assert file_path or stream, 'Either "file_path" or "stream" must be passed to "DotEnv.load" method.'
+        if file_path and not os.path.isabs(file_path):
+            file_path = find_dotenv(file_path)
         load_dotenv(file_path, stream)
         return self
 
