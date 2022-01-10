@@ -1,5 +1,5 @@
 import imia
 
 
-class AuthenticationMiddleware(imia.AuthenticationMiddleware):
+class AuthenticationMiddleware(imia.AuthenticationMiddleware):  # pragma: nocover
     pass

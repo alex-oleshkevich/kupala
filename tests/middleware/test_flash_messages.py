@@ -71,9 +71,11 @@ def test_flash_bag() -> None:
     bag.info('info')
     bag.debug('debug')
     assert len(bag) == 6
+    assert bool(bag) is True
 
     bag.clear()
     assert len(bag) == 0
+    assert bool(bag) is False
 
 
 def test_flash_messages_by_category() -> None:
@@ -86,3 +88,8 @@ def test_flash_messages_by_category() -> None:
 
     assert bag.get_by_category(MessageCategory.ERROR) == [FlashMessage('error', 'two')]
     assert len(bag.get_by_category(MessageCategory.ERROR)) == 0
+
+
+def test_flash_message() -> None:
+    message = FlashMessage('info', 'hello')
+    assert str(message) == 'hello'
