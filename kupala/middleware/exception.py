@@ -28,7 +28,8 @@ async def default_validation_error_handler(request: Request, exc: ValidationErro
 
 async def default_http_error_handler(request: Request, exc: HTTPException) -> Response:
     if request.wants_json:
-        data = {'message': exc.message, 'errors': getattr(exc, 'errors', {})}
+        message = getattr(exc, 'message', getattr(exc, 'detail'))
+        data = {'message': message, 'errors': getattr(exc, 'errors', {})}
         if request.app.debug:
             exception_type = f'{exc.__class__.__module__}.{exc.__class__.__qualname__}'
             data['exception_type'] = exception_type

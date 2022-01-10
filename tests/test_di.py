@@ -30,12 +30,6 @@ def test_prefer_for_factory() -> None:
     assert isinstance(app.di.make(SomeProtocol), Implementation)
 
 
-class Injectable:
-    @classmethod
-    def from_app(cls, app: Kupala) -> Injectable:
-        return cls()
-
-
 def test_to_injectable() -> None:
     class WannaBeInjectable:
         pass
@@ -61,7 +55,8 @@ class WannaBeInjectable:
 
 
 def test_to_request_injectable() -> None:
-    if getattr(WannaBeInjectable, 'from_request', None):
+    if getattr(WannaBeInjectable, 'from_request', None):  # pragma: nocover
+        # fixme: a hack to remove "from_request" attribute from module-level class WannaBeInjectable if present
         WannaBeInjectable.from_request = None  # type: ignore
 
     def view(injection: WannaBeInjectable) -> PlainTextResponse:

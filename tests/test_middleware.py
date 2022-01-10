@@ -36,3 +36,10 @@ def test_middleware_wraps_app() -> None:
     mw = Middleware(StubMiddleware)
     wrapped = mw.wrap(app)
     assert isinstance(wrapped, StubMiddleware)
+
+
+def test_middleware_is_iterable() -> None:
+    mw = Middleware(StubMiddleware)
+    cls, kwargs = mw
+    assert cls == StubMiddleware
+    assert kwargs == {}

@@ -1,7 +1,7 @@
 import os
 import pathlib
 
-from kupala.utils import resolve_path
+from kupala.utils import camel_to_snake, import_string, resolve_path
 
 
 def test_resolve_path(tmp_path: pathlib.Path) -> None:
@@ -11,3 +11,15 @@ def test_resolve_path(tmp_path: pathlib.Path) -> None:
     assert __file__ in resolve_path(__file__)
 
     assert str(tmp_path) in resolve_path(tmp_path)
+
+
+def test_import_string() -> None:
+    module = import_string('os:path')
+    assert module == os.path
+
+    module = import_string('os.path')
+    assert module == os.path
+
+
+def test_camel_to_snake() -> None:
+    assert camel_to_snake('CamelToSnake') == 'camel_to_snake'

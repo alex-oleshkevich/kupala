@@ -133,3 +133,76 @@ def test_default_http_error_handler() -> None:
     client = TestClient(app)
     response = client.get('/')
     assert response.status_code == 409
+
+
+def test_default_error_handler_for_json() -> None:
+    async def view() -> None:
+        raise HTTPException(detail='Ooops', status_code=405)
+
+    app = Kupala(debug=False)
+    app.routes.add('/', view)
+
+    client = TestClient(app)
+    response = client.get('/', headers={'accept': 'application/json'})
+    assert response.status_code == 405
+    assert response.headers['content-type'] == 'application/json'
+    assert response.json() == {
+        'message': 'Ooops',
+        'errors': {},
+    }
+
+
+def test_default_error_handler_for_json_in_debug() -> None:
+    async def view() -> None:
+        raise HTTPException(detail='Ooops', status_code=405)
+
+    app = Kupala(debug=True)
+    app.routes.add('/', view)
+
+    client = TestClient(app)
+    response = client.get('/', headers={'accept': 'application/json'})
+    assert response.status_code == 405
+    assert response.headers['content-type'] == 'application/json'
+    assert response.json() == {
+        'message': 'Ooops',
+        'errors': {},
+        'exception_type': 'starlette.exceptions.HTTPException',
+        'exception': "HTTPException(status_code=405, detail='Ooops')",
+    }
+
+
+def test_default_error_handler_not_modified_in_debug() -> None:
+    async def view() -> None:
+        raise HTTPException(detail='Ooops', status_code=304)
+
+    app = Kupala(debug=True)
+    app.routes.add('/', view)
+
+    client = TestClient(app)
+    response = client.get('/')
+    assert response.status_code == 304
+
+
+def test_default_error_handler_empty_response_in_debug() -> None:
+    async def view() -> None:
+        raise HTTPException(detail='Ooops', status_code=204)
+
+    app = Kupala(debug=True)
+    app.routes.add('/', view)
+
+    client = TestClient(app)
+    response = client.get('/')
+    assert response.status_code == 204
+
+
+def test_default_error_handler_in_debug() -> None:
+    async def view() -> None:
+        raise HTTPException(detail='Ooops', status_code=500)
+
+    app = Kupala(debug=True)
+    app.routes.add('/', view)
+
+    client = TestClient(app)
+    response = client.get('/')
+    assert response.status_code == 500
+    assert response.text == 'Ooops'

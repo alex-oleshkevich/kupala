@@ -14,7 +14,6 @@ class CustomObject:
 def _default(o: t.Any) -> t.Any:
     if isinstance(o, CustomObject):
         return '<custom>'
-    return o
 
 
 class _JsonEncoder(JSONEncoder):

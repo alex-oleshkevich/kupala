@@ -12,7 +12,7 @@ from kupala.testclient import TestClient
 async def test_timeout_middleware() -> None:
     async def view() -> PlainTextResponse:
         await anyio.sleep(0.2)
-        return PlainTextResponse('')
+        return PlainTextResponse('')  # pragma: nocover
 
     app = Kupala(
         middleware=[

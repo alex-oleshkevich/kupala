@@ -19,7 +19,8 @@ class Middleware:
         return "<Middleware: %s, kwargs=%r>" % (self.obj, self.args)
 
     def __iter__(self) -> t.Iterator:
-        return iter(tuple([self.obj, self.args]))
+        yield self.obj
+        yield self.args
 
 
 class MiddlewareStack:
