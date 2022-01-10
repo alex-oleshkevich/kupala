@@ -67,6 +67,16 @@ def test_decimal() -> None:
     assert json.dumps(value) == '"3.14"'
 
 
+def test_dictkeys() -> None:
+    value = {'key': 'value'}
+    assert json.dumps(value.keys()) == '["key"]'
+
+
+def test_dictvalues() -> None:
+    value = {'key': 'value'}
+    assert json.dumps(value.values()) == '["value"]'
+
+
 def test_enum() -> None:
     class Example(enum.Enum):
         VALUE = 'value'
@@ -91,11 +101,23 @@ def test_jsonify() -> None:
 
     date_value = datetime.date(year=2020, month=1, day=1)
     time_value = datetime.time(hour=1, minute=0, second=0)
-    obj = {'key': 'value', 'meta': SomeDataclass(), 'when': {'date': date_value, 'time': [time_value]}}
+    obj = {
+        'key': 'value',
+        'meta': SomeDataclass(),
+        'inner': {
+            'dict_keys': {'key': 'value'}.keys(),
+            'dict_values': {'key': 'value'}.values(),
+        },
+        'when': {'date': date_value, 'time': [time_value]},
+    }
     assert jsonify(obj) == {
         'key': 'value',
         'meta': {
             'id': 1,
+        },
+        'inner': {
+            'dict_keys': ['key'],
+            'dict_values': ['value'],
         },
         'when': {'date': f'{date_value.isoformat()}', 'time': [f'{time_value}']},
     }

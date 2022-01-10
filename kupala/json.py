@@ -1,14 +1,29 @@
 import dataclasses
 
+import collections.abc
 import datetime
 import decimal
+import enum
 import functools
 import json
 import typing
 import uuid
-from enum import Enum
 
 JSONEncoder = json.JSONEncoder
+
+_type_to_encoder: dict[type, typing.Callable] = {
+    uuid.UUID: str,
+    datetime.timedelta: str,
+    datetime.datetime: lambda x: x.isoformat(),
+    datetime.date: lambda x: x.isoformat(),
+    datetime.time: lambda x: x.isoformat(),
+    set: list,
+    frozenset: list,
+    collections.abc.KeysView: list,
+    collections.abc.ValuesView: list,
+    decimal.Decimal: str,
+    enum.Enum: lambda x: x.value,
+}
 
 
 def json_default(o: typing.Any) -> typing.Any:
@@ -19,26 +34,9 @@ def json_default(o: typing.Any) -> typing.Any:
     if hasattr(o, "__json__"):
         return o.__json__()
 
-    if isinstance(o, (uuid.UUID, datetime.timedelta)):
-        return str(o)
-
-    if isinstance(o, datetime.datetime):
-        return o.isoformat()
-
-    if isinstance(o, datetime.date):
-        return o.isoformat()
-
-    if isinstance(o, datetime.time):
-        return o.isoformat()
-
-    if isinstance(o, (set, frozenset)):
-        return list(o)
-
-    if isinstance(o, decimal.Decimal):
-        return str(o)
-
-    if isinstance(o, Enum):
-        return o.value
+    for type_class, encoder in _type_to_encoder.items():
+        if isinstance(o, type_class):
+            return encoder(o)
 
     if dataclasses.is_dataclass(o):
         return dataclasses.asdict(o)
