@@ -17,7 +17,7 @@ def test_handler_by_status_code() -> None:
         raise HTTPException(status_code=403)
 
     app = Kupala(error_handlers={403: on_403})
-    app.routes.get('/', index_view)
+    app.routes.add('/', index_view)
 
     client = TestClient(app)
     response = client.get('/')
@@ -35,7 +35,7 @@ def test_handler_by_type() -> None:
         raise CustomError()
 
     app = Kupala(error_handlers={CustomError: on_error})
-    app.routes.get('/', index_view)
+    app.routes.add('/', index_view)
 
     client = TestClient(app)
     response = client.get('/')
@@ -53,7 +53,7 @@ def test_sync_handler() -> None:
         raise CustomError()
 
     app = Kupala(error_handlers={CustomError: on_error})
-    app.routes.get('/', index_view)
+    app.routes.add('/', index_view)
 
     client = TestClient(app)
     response = client.get('/')
@@ -71,7 +71,7 @@ def test_composite_exception() -> None:
         raise CustomError()
 
     app = Kupala(error_handlers={TypeError: on_error})
-    app.routes.get('/', index_view)
+    app.routes.add('/', index_view)
 
     client = TestClient(app)
     response = client.get('/')
@@ -86,7 +86,7 @@ def test_should_reraise_unhandled_exception() -> None:
         raise CustomError()
 
     app = Kupala()
-    app.routes.get('/', index_view)
+    app.routes.add('/', index_view)
 
     with pytest.raises(CustomError):
         client = TestClient(app)
@@ -103,7 +103,7 @@ class HandledExcAfterResponse:
 
 def test_handled_exc_after_response() -> None:
     app = Kupala()
-    app.routes.get('/', HandledExcAfterResponse())
+    app.routes.add('/', HandledExcAfterResponse())
 
     with pytest.raises(RuntimeError):
         client = TestClient(app)
@@ -128,7 +128,7 @@ def test_default_http_error_handler() -> None:
         raise HTTPException(status_code=409)
 
     app = Kupala()
-    app.routes.get('/', index_view)
+    app.routes.add('/', index_view)
 
     client = TestClient(app)
     response = client.get('/')

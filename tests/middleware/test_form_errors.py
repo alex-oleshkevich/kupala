@@ -29,8 +29,8 @@ def test_http_form_errors() -> None:
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
     app.middleware.use(FlashMessagesMiddleware)
     app.middleware.use(FormErrorsMiddleware)
-    app.routes.get('/render', render_form_view)
-    app.routes.post('/submit', submit_form_view)
+    app.routes.add('/render', render_form_view)
+    app.routes.add('/submit', submit_form_view, methods=['post'])
 
     client = TestClient(app)
     response = client.post(
@@ -56,7 +56,7 @@ def test_json_form_errors() -> None:
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
     app.middleware.use(FlashMessagesMiddleware)
     app.middleware.use(FormErrorsMiddleware)
-    app.routes.get('/', index_view)
+    app.routes.add('/', index_view)
 
     client = TestClient(app)
     response = client.get('/', headers={'Accept': 'application/json'})
@@ -78,7 +78,7 @@ def test_json_form_errors_debug_mode() -> None:
             Middleware(FormErrorsMiddleware),
         ],
     )
-    app.routes.get('/', index_view)
+    app.routes.add('/', index_view)
 
     client = TestClient(app)
     response = client.get('/', headers={'Accept': 'application/json'})
@@ -102,7 +102,7 @@ def test_form_errors_middleware() -> None:
             ValidationError: None,
         },
     )
-    app.routes.get('/', index_view)
+    app.routes.add('/', index_view)
 
     client = TestClient(app)
     response = client.get('/', headers={'Accept': 'application/json'})

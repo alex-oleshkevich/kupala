@@ -37,53 +37,10 @@ def app() -> Kupala:
     return Kupala()
 
 
-def test_get(app: Kupala) -> None:
-    app.routes.get('/', view)
+def test_add(app: Kupala) -> None:
+    app.routes.add('/', view)
     client = TestClient(app)
     assert client.get('/').status_code == 200
-
-
-def test_post(app: Kupala) -> None:
-    app.routes.post('/', view)
-    client = TestClient(app)
-    assert client.post('/').status_code == 200
-
-
-def test_get_or_post(app: Kupala) -> None:
-    app.routes.get_or_post('/', view)
-    client = TestClient(app)
-    assert client.get('/').status_code == 200
-    assert client.post('/').status_code == 200
-
-
-def test_patch(app: Kupala) -> None:
-    app.routes.patch('/', view)
-    client = TestClient(app)
-    assert client.patch('/').status_code == 200
-
-
-def test_put(app: Kupala) -> None:
-    app.routes.put('/', view)
-    client = TestClient(app)
-    assert client.put('/').status_code == 200
-
-
-def test_delete(app: Kupala) -> None:
-    app.routes.delete('/', view)
-    client = TestClient(app)
-    assert client.delete('/').status_code == 200
-
-
-def test_head(app: Kupala) -> None:
-    app.routes.head('/', view)
-    client = TestClient(app)
-    assert client.head('/').status_code == 200
-
-
-def test_options(app: Kupala) -> None:
-    app.routes.options('/', view)
-    client = TestClient(app)
-    assert client.options('/').status_code == 200
 
 
 def test_websocket(app: Kupala) -> None:
@@ -134,7 +91,7 @@ def test_redirect(app: Kupala) -> None:
 
 def test_host(app: Kupala) -> None:
     with app.routes.host("api.example.com") as api:
-        api.get("/users", view, name='users')
+        api.add("/users", view, name='users')
 
     client = TestClient(app)
     response = client.get("/users/", headers={"host": "api.example.com"})
@@ -153,7 +110,7 @@ def test_host_with_initial_routes(app: Kupala) -> None:
 def test_host_url_generation() -> None:
     routes = Routes()
     with routes.host("api.example.com") as api:
-        api.get("/users", view, name='users')
+        api.add("/users", view, name='users')
     router = Router(routes=routes)
     assert router.url_path_for('users') == '/users'
 
@@ -166,7 +123,7 @@ def test_host_with_middleware(app: Kupala) -> None:
         Middleware(SampleMiddleware, callback=lambda: call_stack.append('two')),
     ]
     with app.routes.host("api.example.com", middleware=middleware) as api:
-        api.get("/users", view, name='users')
+        api.add("/users", view, name='users')
 
     client = TestClient(app)
     assert client.get('/users', headers={"host": "api.example.com"}).status_code == 200
@@ -175,8 +132,8 @@ def test_host_with_middleware(app: Kupala) -> None:
 
 def test_group(app: Kupala) -> None:
     with app.routes.group("/admin") as admin:
-        admin.get("/", view)
-        admin.post("/create", view, name="admin-create")
+        admin.add("/", view)
+        admin.add("/create", view, name="admin-create", methods=['post'])
 
     client = TestClient(app)
     response = client.get("/admin")
@@ -208,9 +165,9 @@ def test_group_with_initial_routes(app: Kupala) -> None:
 def test_group_url_generation() -> None:
     routes = Routes()
     with routes.group("/admin") as admin:
-        admin.get("/users", view, name='admin_users')
+        admin.add("/users", view, name='admin_users')
         with admin.group('/category') as category:
-            category.get('/items', view, name='category_items')
+            category.add('/items', view, name='category_items')
 
     router = Router(routes=routes)
     assert router.url_path_for('admin_users') == '/admin/users'
@@ -225,7 +182,7 @@ def test_group_with_middleware(app: Kupala) -> None:
         Middleware(SampleMiddleware, callback=lambda: call_stack.append('two')),
     ]
     with app.routes.group("/admin", middleware=middleware) as api:
-        api.get("/users", view, name='users')
+        api.add("/users", view, name='users')
 
     client = TestClient(app)
     assert client.get('/admin/users').status_code == 200
@@ -239,16 +196,16 @@ def test_group_url_generation_with_middleware() -> None:
 
     routes = Routes()
     with routes.group("/admin", middleware=middleware) as admin:
-        admin.get("/users", view, name='admin_users')
+        admin.add("/users", view, name='admin_users')
         with admin.group('/category', middleware=middleware2) as category:
-            category.get('/items', view, name='category_items')
+            category.add('/items', view, name='category_items')
 
     router = Router(routes=routes)
     assert router.url_path_for('admin_users') == '/admin/users'
     assert router.url_path_for('category_items') == '/admin/category/items'
 
 
-@pytest.mark.parametrize('method', ['get', 'post', 'get_or_post', 'patch', 'put', 'delete', 'options', 'head', 'add'])
+@pytest.mark.parametrize('method', ['add'])
 def test_route_specific_middleware(app: Kupala, method: str) -> None:
     call_stack: list[str] = []
 
@@ -273,20 +230,20 @@ def test_route_specific_middleware(app: Kupala, method: str) -> None:
 
 
 def test_sizeable(routes: Routes) -> None:
-    routes.get('/', view)
-    routes.get('/two', view)
+    routes.add('/', view)
+    routes.add('/two', view)
     assert len(routes) == 2
 
 
 def test_iterable(routes: Routes) -> None:
-    routes.get('/', view)
-    routes.get('/two', view)
+    routes.add('/', view)
+    routes.add('/two', view)
     assert len(list(routes)) == 2
 
 
 def test_include_routes_instance(app: Kupala) -> None:
     routes = Routes()
-    routes.get('/included', view)
+    routes.add('/included', view)
 
     app.routes.include(routes)
     client = TestClient(app)

@@ -9,7 +9,7 @@ def test_html() -> None:
         return HTMLResponse('<b>html text</b>')
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/')

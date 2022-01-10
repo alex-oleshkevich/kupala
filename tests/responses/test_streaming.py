@@ -17,7 +17,7 @@ def test_streaming_response_with_async_generator() -> None:
         return StreamingResponse(numbers())
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/')
@@ -33,7 +33,7 @@ def test_streaming_response_with_sync_generator() -> None:
         return StreamingResponse(numbers())
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/')
@@ -50,7 +50,7 @@ def test_streaming_response_with_filename() -> None:
         return StreamingResponse(numbers(), media_type='text/plain', file_name='numbers.txt')
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/')
@@ -68,7 +68,7 @@ def test_streaming_response_with_inline_disposition() -> None:
         return StreamingResponse(numbers(), media_type='text/plain', file_name='numbers.txt', inline=True)
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/')

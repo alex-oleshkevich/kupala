@@ -9,7 +9,7 @@ def test_plain_text_response() -> None:
         return PlainTextResponse('plain text response')
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/')

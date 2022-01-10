@@ -9,7 +9,7 @@ def test_empty() -> None:
         return EmptyResponse()
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/')

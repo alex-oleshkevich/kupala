@@ -19,7 +19,7 @@ async def test_timeout_middleware() -> None:
             Middleware(TimeoutMiddleware, timeout=0.1),
         ]
     )
-    app.routes.any('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     assert client.get('/').status_code == 504
@@ -35,7 +35,7 @@ async def test_timeout_middleware_not_fails_withing_timespan() -> None:
             Middleware(TimeoutMiddleware),
         ]
     )
-    app.routes.any('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     assert client.get('/').status_code == 200

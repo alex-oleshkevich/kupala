@@ -27,7 +27,7 @@ def test_json() -> None:
         return JSONResponse({'user': 'root'})
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/')
@@ -40,7 +40,7 @@ def test_custom_encoder_class() -> None:
         return JSONResponse({'object': CustomObject()}, encoder_class=_JsonEncoder)
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/')
@@ -57,7 +57,7 @@ def test_custom_default() -> None:
         )
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/')
@@ -69,7 +69,7 @@ def test_json_indents() -> None:
         return JSONResponse({'user': {'details': {'name': 'root'}}}, indent=4)
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/')

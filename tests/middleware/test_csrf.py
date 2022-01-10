@@ -82,7 +82,7 @@ def test_middleware_checks_access() -> None:
     app = Kupala()
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
     app.middleware.use(CSRFMiddleware, secret_key='key!')
-    app.routes.any('/', view)
+    app.routes.add('/', view, methods=['post', 'get', 'head', 'put', 'delete', 'patch', 'options'])
 
     client = TestClient(app)
     assert client.get('/').status_code == 200
@@ -132,8 +132,8 @@ def test_middleware_allow_from_whitelist() -> None:
         ]
     )
 
-    app.routes.any('/', view)
-    app.routes.any('/login', view)
+    app.routes.add('/', view, methods=['post', 'options'])
+    app.routes.add('/login', view, methods=['post'])
 
     client = TestClient(app)
     response = client.options('/')
@@ -154,7 +154,7 @@ def test_middleware_allow_from_whitelist_using_full_url() -> None:
             Middleware(CSRFMiddleware, secret_key='secret', exclude_urls=['http://testserver/']),
         ]
     )
-    app.routes.any('/', view)
+    app.routes.add('/', view, methods=['post'])
 
     client = TestClient(app)
     assert client.post('/').status_code == 200
@@ -171,7 +171,7 @@ def test_middleware_injects_template_context() -> None:
             Middleware(CSRFMiddleware, secret_key='secret', exclude_urls=['http://testserver/']),
         ]
     )
-    app.routes.any('/', view)
+    app.routes.add('/', view, methods=['post'])
 
     client = TestClient(app)
     assert client.post('/').status_code == 200

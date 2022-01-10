@@ -17,7 +17,7 @@ def test_redirect() -> None:
         return RedirectResponse('/about')
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     response = client.get('/', allow_redirects=False)
@@ -29,7 +29,7 @@ def test_redirect_requires_url_or_path_name() -> None:
         return RedirectResponse()
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     with pytest.raises(AssertionError) as ex:
         client = TestClient(app)
@@ -42,8 +42,8 @@ def test_redirect_to_path_name() -> None:
         return RedirectResponse(path_name='about')
 
     app = Kupala()
-    app.routes.get('/', view)
-    app.routes.get('/about', view, name='about')
+    app.routes.add('/', view)
+    app.routes.add('/about', view, name='about')
 
     client = TestClient(app)
     response = client.get('/', allow_redirects=False)
@@ -56,8 +56,8 @@ def test_redirect_to_path_name_with_path_params() -> None:
         return RedirectResponse(path_name='about', path_params={'id': 42})
 
     app = Kupala()
-    app.routes.get('/', view)
-    app.routes.get('/about/{id}', view, name='about')
+    app.routes.add('/', view)
+    app.routes.add('/about/{id}', view, name='about')
 
     client = TestClient(app)
     response = client.get('/', allow_redirects=False)
@@ -73,8 +73,8 @@ def test_redirect_with_input_capture() -> None:
         return JSONResponse(request.old_input)
 
     app = Kupala()
-    app.routes.post('/', view)
-    app.routes.get('/about', data_view, name='about')
+    app.routes.add('/', view, methods=['post'])
+    app.routes.add('/about', data_view, name='about')
 
     app = SessionMiddleware(app, secret_key='key!', autoload=True)
     client = TestClient(app)
@@ -91,8 +91,8 @@ def test_redirect_with_input_data_via_method() -> None:
         return JSONResponse(request.session[REDIRECT_INPUT_DATA_SESSION_KEY])
 
     app = Kupala()
-    app.routes.post('/', view)
-    app.routes.get('/about', data_view, name='about')
+    app.routes.add('/', view, methods=['post'])
+    app.routes.add('/about', data_view, name='about')
 
     app = SessionMiddleware(app, secret_key='key!', autoload=True)
     client = TestClient(app)
@@ -110,8 +110,8 @@ def test_redirect_with_flash_message() -> None:
         return JSONResponse(messages)
 
     app = Kupala()
-    app.routes.get('/', view)
-    app.routes.get('/about', data_view, name='about')
+    app.routes.add('/', view)
+    app.routes.add('/about', data_view, name='about')
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
     app.middleware.use(FlashMessagesMiddleware, storage='session')
 
@@ -130,8 +130,8 @@ def test_redirect_with_flash_message_via_method() -> None:
         return JSONResponse(messages)
 
     app = Kupala()
-    app.routes.get('/', view)
-    app.routes.get('/about', data_view, name='about')
+    app.routes.add('/', view)
+    app.routes.add('/about', data_view, name='about')
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
     app.middleware.use(FlashMessagesMiddleware, storage='session')
 
@@ -150,8 +150,8 @@ def test_redirect_with_success() -> None:
         return JSONResponse(messages)
 
     app = Kupala()
-    app.routes.get('/', view)
-    app.routes.get('/about', data_view, name='about')
+    app.routes.add('/', view)
+    app.routes.add('/about', data_view, name='about')
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
     app.middleware.use(FlashMessagesMiddleware, storage='session')
 
@@ -170,8 +170,8 @@ def test_redirect_with_error() -> None:
         return JSONResponse(messages)
 
     app = Kupala()
-    app.routes.get('/', view)
-    app.routes.get('/about', data_view, name='about')
+    app.routes.add('/', view)
+    app.routes.add('/about', data_view, name='about')
     app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
     app.middleware.use(FlashMessagesMiddleware, storage='session')
 
@@ -201,8 +201,8 @@ def test_redirect_with_error_and_input() -> None:
             Middleware(FlashMessagesMiddleware, storage='session'),
         ]
     )
-    app.routes.post('/', view)
-    app.routes.get('/about', data_view, name='about')
+    app.routes.add('/', view, methods=['post'])
+    app.routes.add('/about', data_view, name='about')
 
     client = TestClient(app)
     response = client.post('/', allow_redirects=True, data={'name': 'invalid'})

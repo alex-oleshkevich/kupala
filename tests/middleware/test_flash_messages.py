@@ -28,8 +28,8 @@ def test_flash_messages(storage: t.Literal['session']) -> None:
             Middleware(FlashMessagesMiddleware, storage=storage),
         ]
     )
-    app.routes.post('/set', set_view)
-    app.routes.get('/get', get_view)
+    app.routes.add('/set', set_view, methods=['post'])
+    app.routes.add('/get', get_view)
 
     client = TestClient(app)
     client.post('/set')

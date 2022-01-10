@@ -71,7 +71,7 @@ async def test_signer_injection() -> None:
         return PlainTextResponse(signer.sign('value'))
 
     app = Kupala()
-    app.routes.any('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     assert app.signer.unsign(client.get('/').text) == b'value'
@@ -83,7 +83,7 @@ async def test_timed_signer_injection() -> None:
         return PlainTextResponse(signer.sign('value'))
 
     app = Kupala()
-    app.routes.any('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     assert app.signer.timed_unsign(client.get('/').text, 10) == b'value'

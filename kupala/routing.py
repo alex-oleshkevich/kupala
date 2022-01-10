@@ -377,130 +377,6 @@ class Routes(t.Sequence[routing.BaseRoute]):
     def __init__(self, routes: t.Iterable[routing.BaseRoute] = None) -> None:
         self._routes: list[routing.BaseRoute] = list(routes or [])
 
-    def get(
-        self,
-        path: str,
-        endpoint: t.Callable,
-        *,
-        name: str = None,
-        include_in_schema: bool = True,
-        middleware: t.Sequence[Middleware] = None,
-    ) -> None:
-        self.add(
-            path,
-            endpoint,
-            name=name,
-            methods=['HEAD', 'GET'],
-            include_in_schema=include_in_schema,
-            middleware=middleware,
-        )
-
-    def post(
-        self,
-        path: str,
-        endpoint: t.Callable,
-        *,
-        name: str = None,
-        include_in_schema: bool = True,
-        middleware: t.Sequence[Middleware] = None,
-    ) -> None:
-        self.add(
-            path, endpoint, name=name, methods=['POST'], include_in_schema=include_in_schema, middleware=middleware
-        )
-
-    def get_or_post(
-        self,
-        path: str,
-        endpoint: t.Callable,
-        *,
-        name: str = None,
-        include_in_schema: bool = True,
-        middleware: t.Sequence[Middleware] = None,
-    ) -> None:
-        self.add(
-            path,
-            endpoint,
-            name=name,
-            methods=['HEAD', 'GET', 'POST'],
-            include_in_schema=include_in_schema,
-            middleware=middleware,
-        )
-
-    def patch(
-        self,
-        path: str,
-        endpoint: t.Callable,
-        *,
-        name: str = None,
-        include_in_schema: bool = True,
-        middleware: t.Sequence[Middleware] = None,
-    ) -> None:
-        self.add(
-            path, endpoint, name=name, methods=['PATCH'], include_in_schema=include_in_schema, middleware=middleware
-        )
-
-    def put(
-        self,
-        path: str,
-        endpoint: t.Callable,
-        *,
-        name: str = None,
-        include_in_schema: bool = True,
-        middleware: t.Sequence[Middleware] = None,
-    ) -> None:
-        self.add(path, endpoint, name=name, methods=['PUT'], include_in_schema=include_in_schema, middleware=middleware)
-
-    def delete(
-        self,
-        path: str,
-        endpoint: t.Callable,
-        *,
-        name: str = None,
-        include_in_schema: bool = True,
-        middleware: t.Sequence[Middleware] = None,
-    ) -> None:
-        self.add(
-            path, endpoint, name=name, methods=['DELETE'], include_in_schema=include_in_schema, middleware=middleware
-        )
-
-    def head(
-        self,
-        path: str,
-        endpoint: t.Callable,
-        *,
-        name: str = None,
-        include_in_schema: bool = True,
-        middleware: t.Sequence[Middleware] = None,
-    ) -> None:
-        self.add(
-            path, endpoint, name=name, methods=['HEAD'], include_in_schema=include_in_schema, middleware=middleware
-        )
-
-    def options(
-        self,
-        path: str,
-        endpoint: t.Callable,
-        *,
-        name: str = None,
-        include_in_schema: bool = True,
-        middleware: t.Sequence[Middleware] = None,
-    ) -> None:
-        self.add(
-            path, endpoint, name=name, methods=['OPTIONS'], include_in_schema=include_in_schema, middleware=middleware
-        )
-
-    def any(
-        self,
-        path: str,
-        endpoint: t.Callable,
-        *,
-        name: str = None,
-        include_in_schema: bool = True,
-        middleware: t.Sequence[Middleware] = None,
-    ) -> None:
-        _all = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE"]
-        self.add(path, endpoint, name=name, methods=_all, include_in_schema=include_in_schema, middleware=middleware)
-
     def add(
         self,
         path: str,
@@ -511,10 +387,16 @@ class Routes(t.Sequence[routing.BaseRoute]):
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
     ) -> None:
+        if not methods:
+            action_config = get_action_config(endpoint)
+            if action_config and action_config.methods:
+                methods = action_config.methods
+            else:
+                methods = ['GET', 'HEAD']
         route = Route(
             path,
             endpoint,
-            methods=methods or ['GET', 'HEAD'],
+            methods=methods,
             name=name,
             include_in_schema=include_in_schema,
             middleware=middleware,

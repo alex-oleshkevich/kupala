@@ -20,7 +20,7 @@ def test_sends_file(tmpdir: os.PathLike) -> None:
         return response(request).send_file(file_path, file_name='file.bin')
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -37,7 +37,7 @@ def test_sends_inline(tmpdir: os.PathLike) -> None:
         return response(request).send_file(file_path, file_name='file.bin', inline=True)
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -54,7 +54,7 @@ def test_accepts_path_class(tmpdir: os.PathLike) -> None:
         return response(request).send_file(pathlib.Path(file_path), file_name='file.bin', inline=True)
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -68,7 +68,7 @@ def test_html() -> None:
         return response(request).html('<b>html text</b>')
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -101,7 +101,7 @@ def test_custom_encoder_class() -> None:
         )
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -118,7 +118,7 @@ def test_custom_default() -> None:
         )
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -132,7 +132,7 @@ def test_json() -> None:
         )
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -144,7 +144,7 @@ def test_json_indents() -> None:
         return response(request, 201).json({'user': {'details': {'name': 'root'}}}, indent=4)
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -166,7 +166,7 @@ def test_redirect() -> None:
         return response(request).redirect('/about')
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/', allow_redirects=False)
@@ -179,8 +179,8 @@ def test_redirect_to_route_name() -> None:
         return response(request).redirect(path_name='about')
 
     app = Kupala()
-    app.routes.get('/', view)
-    app.routes.get('/about', view, name='about')
+    app.routes.add('/', view)
+    app.routes.add('/about', view, name='about')
     client = TestClient(app)
     res = client.get('/', allow_redirects=False)
     assert res.status_code == 302
@@ -197,7 +197,7 @@ def test_streaming_response_with_async_gen() -> None:
         return response(request).stream(numbers())
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -213,7 +213,7 @@ def test_streaming_response_with_sync_gen() -> None:
         return response(request).stream(numbers())
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -230,7 +230,7 @@ def test_with_filename() -> None:
         return response(request).stream(numbers(), content_type='text/plain', file_name='numbers.txt')
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -248,7 +248,7 @@ def test_disposition_inline() -> None:
         return response(request).stream(numbers(), content_type='text/plain', file_name='numbers.txt', inline=True)
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -261,7 +261,7 @@ def test_plain_text() -> None:
         return response(request).text('plain text response')
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')
@@ -274,7 +274,7 @@ def test_redirect_back() -> None:
         return response(request).back()
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/', headers={'referer': 'http://testserver/somepage'}, allow_redirects=False)
@@ -287,7 +287,7 @@ def test_redirect_back_checks_origin() -> None:
         return response(request).back()
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/', headers={'referer': 'http://example.com/'}, allow_redirects=False)
@@ -300,7 +300,7 @@ def test_empty() -> None:
         return response(request).empty()
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/')

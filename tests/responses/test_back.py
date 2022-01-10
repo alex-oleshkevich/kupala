@@ -9,7 +9,7 @@ def test_go_back_response() -> None:
         return GoBackResponse(request)
 
     app = Kupala()
-    app.routes.get('/', view)
+    app.routes.add('/', view)
 
     client = TestClient(app)
     res = client.get('/', headers={'referer': 'http://testserver/somepage'}, allow_redirects=False)

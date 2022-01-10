@@ -23,7 +23,7 @@ async def test_request_limit_middleware_limits() -> None:
             Middleware(RequestLimitMiddleware, max_body_size=5),
         ]
     )
-    app.routes.any('/', view)
+    app.routes.add('/', view, methods=['post'])
 
     client = TestClient(app)
     assert client.post('/', data={'content': ''}).status_code == 413  # 8 bytes, message + "=" sign
@@ -40,7 +40,7 @@ async def test_request_limit_middleware_allows() -> None:
             Middleware(RequestLimitMiddleware, max_body_size=10),
         ]
     )
-    app.routes.any('/', view)
+    app.routes.add('/', view, methods=['post'])
 
     client = TestClient(app)
     assert client.post('/', data={'content': ''}).status_code == 200  # 8 bytes, message + "=" sign
@@ -57,7 +57,7 @@ async def test_disabled_request_limit_middleware() -> None:
             Middleware(RequestLimitMiddleware, max_body_size=None),
         ]
     )
-    app.routes.any('/', view)
+    app.routes.add('/', view, methods=['post'])
 
     client = TestClient(app)
     assert client.post('/', data={'content': ''}).status_code == 200  # 8 bytes, message + "=" sign
