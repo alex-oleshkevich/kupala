@@ -40,7 +40,6 @@ from kupala.utils import resolve_path
 
 class Kupala:
     request_class = Request
-    routes_config: typing.Callable[[Routes], None] | str | None = None
 
     def __init__(
         self,
@@ -55,7 +54,6 @@ class Kupala:
         lifespan_handlers: list[typing.Callable[[Kupala], typing.AsyncContextManager[None]]] = None,
         exception_handler: typing.Callable[[Request, Exception], Response] | None = None,
         template_dir: str | list[str] = 'templates',
-        routes_config: typing.Callable[[Routes], None] | str | None = None,
         commands: list[click.Command] = None,
         storages: dict[str, Storage] = None,
         renderer: TemplateRenderer = None,
@@ -63,9 +61,6 @@ class Kupala:
         # base configuration
         self.secret_key = secret_key
         self.request_class = request_class or self.request_class or Request
-
-        # routes config preflight
-        self.routes_config = routes_config or self.routes_config
 
         # read environment and set default variables
         self.environ = DotEnv([env_file])
@@ -108,12 +103,6 @@ class Kupala:
         # bind extensions to this app
         self._initialize()
 
-        # configure extensions
-        self.configure()
-
-        # load routes
-        self.apply_routes(self.routes)
-
         # ASGI app instance
         self._asgi_app: ASGIHandler | None = None
 
@@ -121,21 +110,7 @@ class Kupala:
         for _, extension in inspect.getmembers(self, lambda x: hasattr(x, 'initialize')):
             extension.initialize(self)
 
-    def configure(self) -> None:
-        pass
-
-    def apply_middleware(self, stack: MiddlewareStack) -> None:
-        pass
-
-    def apply_routes(self, routes: Routes) -> None:
-        if self.routes_config:
-            if callable(self.routes_config):
-                self.routes_config(routes)
-            else:
-                routes.include(self.routes_config)
-
     def create_asgi_app(self) -> ASGIHandler:
-        self.apply_middleware(self.middleware)
         return ASGIHandler(
             app=self,
             debug=self.debug,
