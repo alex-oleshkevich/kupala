@@ -1,7 +1,8 @@
 import os
 import pathlib
+import pytest
 
-from kupala.utils import camel_to_snake, import_string, resolve_path
+from kupala.utils import camel_to_snake, import_string, resolve_path, run_async
 
 
 def test_resolve_path(tmp_path: pathlib.Path) -> None:
@@ -23,3 +24,15 @@ def test_import_string() -> None:
 
 def test_camel_to_snake() -> None:
     assert camel_to_snake('CamelToSnake') == 'camel_to_snake'
+
+
+@pytest.mark.asyncio
+async def test_run_async() -> None:
+    def plain(arg: str, *, kwarg: str) -> str:
+        return f'called {arg} {kwarg}'
+
+    async def coro(arg: str, *, kwarg: str) -> str:
+        return f'called {arg} {kwarg}'
+
+    assert await run_async(plain, 'one', kwarg='two') == 'called one two'
+    assert await run_async(coro, 'one', kwarg='two') == 'called one two'
