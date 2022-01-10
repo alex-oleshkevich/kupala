@@ -9,7 +9,7 @@ from kupala.application import Kupala
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.shortcuts import response
-from tests.renderer import FormatRenderer
+from tests.utils import FormatRenderer
 
 
 def test_sends_file(tmpdir: os.PathLike) -> None:

@@ -53,7 +53,7 @@ class PasswordsExtension(Extension):
                 'bcrypt': 'passlib.handlers.bcrypt:bcrypt',
                 'des_crypt': 'passlib.handlers.des_crypt:des_crypt',
             }
-            return import_string(imports[backend])
+            backend = typing.cast(PasswordHasher, import_string(imports[backend]))
         return backend
 
     def initialize(self, app: Kupala) -> None:
@@ -108,6 +108,7 @@ class MailExtension(Extension):
         )
 
     def add(self, name: str, mailer: Mailer) -> None:
+        assert name not in self._mailers, f'"{name}" already exists.'
         self._mailers[name] = mailer
 
     def get_default(self) -> Mailer:
@@ -247,7 +248,7 @@ class JinjaExtension(Extension):
         """Add additional directories for template search."""
         if isinstance(self.env.loader, jinja2.FileSystemLoader):
             self.env.loader.searchpath = [resolve_path(directory) for directory in directories]
-        else:
+        else:  # pragma: nocover
             logging.warning('Hot directory update supported only for jinja2.FileSystemLoader loader.')
 
     def add_globals(self, globals: dict[str, typing.Any]) -> None:
