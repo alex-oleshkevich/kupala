@@ -9,6 +9,7 @@ from kupala.application import Kupala
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.shortcuts import response
+from tests.renderer import FormatRenderer
 
 
 def test_sends_file(tmpdir: os.PathLike) -> None:
@@ -305,3 +306,16 @@ def test_empty() -> None:
     client = TestClient(app)
     res = client.get('/')
     assert res.status_code == 204
+
+
+def test_template() -> None:
+    def view(request: Request) -> Response:
+        return response(request).template('hello world')
+
+    app = Kupala()
+    app.renderer.use(FormatRenderer())
+    app.routes.add('/', view)
+
+    client = TestClient(app)
+    res = client.get('/')
+    assert res.text == 'hello world'

@@ -18,7 +18,7 @@ from starsessions import Session
 from kupala.storages.storages import Storage
 
 if t.TYPE_CHECKING:
-    from .application import Kupala
+    from kupala.application import Kupala
 
 
 class OldFormInput(t.Mapping):

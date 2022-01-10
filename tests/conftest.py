@@ -8,7 +8,7 @@ class TestApp(Kupala):
     pass
 
 
-class TestAppFactory(typing.Protocol):
+class TestAppFactory(typing.Protocol):  # pragma: nocover
     def __call__(self, *args: typing.Any, **kwargs: typing.Any) -> TestApp:
         ...
 
