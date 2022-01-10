@@ -19,7 +19,7 @@ from kupala.storages.storages import LocalStorage, S3Storage, Storage
 from kupala.templating import JinjaRenderer
 from kupala.utils import import_string, resolve_path
 
-if typing.TYPE_CHECKING:  # type: ignore
+if typing.TYPE_CHECKING:  # pragma: nocover
     from kupala.application import Kupala
 
 
@@ -124,6 +124,7 @@ class MailExtension(Extension):
 
 class AuthenticationExtension(Extension):
     def __init__(self, app: Kupala) -> None:
+        self.user_model: typing.Type[typing.Any] | None = None
         self.user_provider: UserProvider | None = None
         self.authenticators: list[BaseAuthenticator] = []
         self.password_verifier = app.passwords
@@ -137,6 +138,20 @@ class AuthenticationExtension(Extension):
             password_verifier=self.password_verifier,
             secret_key=self.secret_key,
         )
+
+    def configure(
+        self,
+        user_model: typing.Type[typing.Any] = None,
+        user_provider: UserProvider | None = None,
+        authenticators: list[BaseAuthenticator] | None = None,
+    ) -> None:
+        """Configure multiple options at once."""
+        if user_model:
+            self.user_model = user_model
+        if user_provider:
+            self.user_provider = user_provider
+        if authenticators:
+            self.authenticators = authenticators
 
     def initialize(self, app: Kupala) -> None:
         to_app_injectable(LoginManager, lambda app: self.login_manager)
