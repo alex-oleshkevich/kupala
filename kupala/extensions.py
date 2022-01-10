@@ -268,10 +268,13 @@ class JinjaExtension(Extension):
         """Use preconfigured loader."""
         self._env = env
 
-    def add_template_dirs(self, directories: list[str]) -> None:
+    def add_template_dirs(self, directories: list[str | os.PathLike] | str | os.PathLike) -> None:
         """Add additional directories for template search."""
+        if isinstance(directories, (str, os.PathLike)):
+            directories = [directories]
+
         if isinstance(self.env.loader, jinja2.FileSystemLoader):
-            self.env.loader.searchpath = [resolve_path(directory) for directory in directories]
+            self.env.loader.searchpath = [resolve_path(str(directory)) for directory in directories]
         else:  # pragma: nocover
             logging.warning('Hot directory update supported only for jinja2.FileSystemLoader loader.')
 
@@ -298,7 +301,7 @@ class JinjaExtension(Extension):
 
     def configure(
         self,
-        template_dirs: list[str] = None,
+        template_dirs: list[str | os.PathLike] = None,
         globals: dict[str, typing.Any] = None,
         filters: dict[str, typing.Callable] = None,
         policies: dict[str, typing.Any] = None,
