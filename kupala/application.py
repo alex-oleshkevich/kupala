@@ -16,7 +16,6 @@ from kupala.config import Config
 from kupala.console.application import ConsoleApplication
 from kupala.contracts import TemplateRenderer
 from kupala.di import Injector
-from kupala.dotenv import DotEnv
 from kupala.extensions import (
     AuthenticationExtension,
     ConsoleExtension,
@@ -25,7 +24,7 @@ from kupala.extensions import (
     PasswordsExtension,
     RendererExtension,
     SignerExtension,
-    StaticFiles,
+    StaticFilesExtension,
     StoragesExtension,
     URLExtension,
 )
@@ -39,17 +38,15 @@ from kupala.utils import resolve_path
 
 
 class Kupala:
-    request_class = Request
-
     def __init__(
         self,
         *,
         secret_key: str = None,
-        debug: bool = None,
-        env_file: str = '.env',
+        debug: bool = False,
+        environment: str = 'production',
         middleware: list[Middleware] = None,
         routes: list[BaseRoute] | Routes | None = None,
-        request_class: typing.Type[Request] | None = None,
+        request_class: typing.Type[Request] = Request,
         error_handlers: dict[typing.Type[Exception] | int, typing.Optional[ErrorHandler]] = None,
         lifespan_handlers: list[typing.Callable[[Kupala], typing.AsyncContextManager[None]]] = None,
         exception_handler: typing.Callable[[Request, Exception], Response] | None = None,
@@ -59,21 +56,17 @@ class Kupala:
         renderer: TemplateRenderer = None,
     ) -> None:
         # base configuration
-        self.secret_key = secret_key
-        self.request_class = request_class or self.request_class or Request
+        self.debug = debug
+        self.environment = environment
+        self.request_class = request_class
 
-        # read environment and set default variables
-        self.environ = DotEnv([env_file])
-        self.secret_key = secret_key or self.environ.get('SECRET_KEY', default=None, check_file=True)
+        self.secret_key = secret_key
         if self.secret_key is None:
             self.secret_key = secrets.token_hex(128)
             logging.warning(
                 'Secret key is not defined. Will generate temporary secret. '
                 'This value will be reset after application restart.'
             )
-
-        self.debug = debug if debug is not None else self.environ.bool('APP_DEBUG', False)
-        self.environment = self.environ.get('APP_ENV', 'production')
 
         # ASGI related
         self.error_handlers = error_handlers or {}
@@ -94,7 +87,7 @@ class Kupala:
         self.commands = ConsoleExtension(commands)
         self.signer = SignerExtension(self.secret_key)
         self.renderer = RendererExtension(renderer or self.jinja.renderer)
-        self.staticfiles = StaticFiles(self)
+        self.staticfiles = StaticFilesExtension(self)
         self.urls = URLExtension(self)
         self.di = Injector(self)
 

@@ -384,7 +384,7 @@ class ConsoleExtension:
         return iter(self.commands)
 
 
-class StaticFiles(Extension):
+class StaticFilesExtension(Extension):
     """Configures static files endpoint."""
 
     def __init__(self, app: Kupala) -> None:
