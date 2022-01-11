@@ -53,17 +53,26 @@ def min_max_validator(
 
 
 class DotEnv:
-    def __init__(self, paths: t.Iterable[t.Union[str, os.PathLike[str]]], prefix: bi.str = '') -> None:
+    def __init__(
+        self, paths: t.Iterable[t.Union[str, os.PathLike[str]]] | str | os.PathLike | None = None, prefix: bi.str = ''
+    ) -> None:
         self._prefix = prefix
-        for path in paths:
-            self.load(path)
+        if paths:
+            if isinstance(paths, (str, os.PathLike)):
+                paths = [paths]
+
+            for path in paths:
+                self.load(path)
 
     def load(self, file_path: t.Union[str, os.PathLike[str]] = None, stream: t.IO[str] = None) -> DotEnv:
         assert file_path or stream, 'Either "file_path" or "stream" must be passed to "DotEnv.load" method.'
         if file_path and not os.path.isabs(file_path):
-            file_path = find_dotenv(file_path)
+            file_path = find_dotenv(str(file_path))
         load_dotenv(file_path, stream)
         return self
+
+    def update(self, params: t.Dict[str, t.Any]) -> None:
+        os.environ.update(params)
 
     def get(
         self,
@@ -85,16 +94,14 @@ class DotEnv:
             try:
                 file_path = self.get(f'{key}_FILE')
             except EnvError:
-                raise EnvError(
-                    f'{base_message} ' f'Also, additional "{key}_FILE" has been searched but is also undefined.'
-                )
+                raise EnvError(f'{base_message} Also, additional "{key}_FILE" has been searched but is also undefined.')
 
             try:
                 with open(file_path, 'r') as f:
                     value = f.read()
             except FileNotFoundError:
                 raise EnvError(
-                    f'{base_message} ' f'Also, the file {file_path} specified by "{key}_FILE" variable does not exist.'
+                    f'{base_message} Also, the file {file_path} specified by "{key}_FILE" variable does not exist.'
                 )
 
         if value != default:
