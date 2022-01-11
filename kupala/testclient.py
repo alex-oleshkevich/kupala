@@ -1,5 +1,10 @@
+import typing
 from starlette.testclient import TestClient as BaseTestClient
 
+from kupala.application import Kupala
 
-class TestClient(BaseTestClient):
-    pass
+T = typing.TypeVar("T", bound=Kupala)
+
+
+class TestClient(BaseTestClient, typing.Generic[T]):
+    app: T
