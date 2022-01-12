@@ -6,7 +6,9 @@ import inspect
 import logging
 import os
 import secrets
+import traceback
 import typing
+from contextlib import AsyncExitStack
 from starlette.datastructures import State
 from starlette.routing import BaseRoute
 from starlette.types import Receive, Scope, Send
@@ -105,14 +107,11 @@ class Kupala:
 
     def create_asgi_app(self) -> ASGIHandler:
         return ASGIHandler(
-            app=self,
             debug=self.debug,
             routes=self.routes,
             middleware=self.middleware,
             error_handlers=self.error_handlers,
-            lifespan_handlers=self.lifespan,
             exception_handler=self.exception_handler,
-            request_class=self.request_class,
         )
 
     def get_asgi_app(self) -> ASGIHandler:
@@ -137,6 +136,8 @@ class Kupala:
         return app.run()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        assert scope['type'] in {'http', 'websocket', 'lifespan'}
+
         if scope['type'] == 'lifespan':
             # reset inner ASGI app because underlying routes stack may have been changed between
             # app instantiation and invocation of this method.
@@ -144,17 +145,40 @@ class Kupala:
             # to complete
             # TODO: may be this is a bad idea
             self._asgi_app = None
+            await self.lifespan_handler(scope, receive, send)
+            return
 
         if self._asgi_app is None:
-            try:
-                self._asgi_app = self.get_asgi_app()
-            except Exception as ex:
-                logging.exception(ex)
-                await send({'type': 'lifespan.startup.failed', 'message': str(ex)})
-                raise ex
+            self._asgi_app = self.get_asgi_app()
 
         assert self._asgi_app, 'ASGI application has not been initialized.'
+
+        scope['app'] = self
+        scope['state'] = {}
+        if scope['type'] == 'http':
+            scope['request'] = self.request_class(scope, receive)
         await self._asgi_app(scope, receive, send)
+
+    async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
+        started = False
+        try:
+            await receive()
+            async with AsyncExitStack() as stack:
+                for hook in self.lifespan:
+                    await stack.enter_async_context(hook(self))
+                await send({'type': 'lifespan.startup.complete'})
+                started = True
+                await receive()
+        except BaseException as ex:
+            logging.exception(ex)
+            logging.error(f'Application failed to boot: {ex}.')
+            text = traceback.format_exc()
+            if started:
+                await send({'type': 'lifespan.shutdown.failed', 'message': text})
+            else:
+                await send({'type': 'lifespan.startup.failed', 'message': text})
+        else:
+            await send({'type': 'lifespan.shutdown.complete'})
 
 
 _current_app: cv.ContextVar[Kupala] = cv.ContextVar('_current_app')

@@ -1,5 +1,3 @@
-import typing
-from contextlib import asynccontextmanager
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.application import Kupala
@@ -7,7 +5,7 @@ from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.testclient import TestClient
-from tests.conftest import TestApp, TestAppFactory
+from tests.conftest import TestAppFactory
 
 
 def test_routes(test_app_factory: TestAppFactory) -> None:
@@ -66,30 +64,6 @@ def test_exception_handler(test_app_factory: TestAppFactory) -> None:
 
     client = TestClient(app.create_asgi_app(), raise_server_exceptions=False)
     assert client.get('/').text == 'error'
-
-
-def test_lifespan(test_app_factory: TestAppFactory) -> None:
-    enter_called = False
-    exit_called = False
-
-    @asynccontextmanager
-    async def handler(app: TestApp) -> typing.AsyncIterator[None]:
-        nonlocal enter_called, exit_called
-        enter_called = True
-        yield
-        exit_called = True
-
-    def view() -> Response:
-        return Response('content')
-
-    app = test_app_factory(lifespan_handlers=[handler])
-    app.routes.add('/', view)
-
-    with TestClient(app.create_asgi_app()) as client:
-        client.get('/')
-        assert not exit_called
-    assert enter_called
-    assert exit_called
 
 
 class CustomRequest(Request):
