@@ -4,7 +4,7 @@ import abc
 import typing
 
 
-class BaseUser(abc.ABC):  # pragma: nocover
+class BaseUser:  # pragma: nocover
     @abc.abstractmethod
     def get_id(self) -> typing.Any:
         raise NotImplementedError()
