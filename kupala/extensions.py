@@ -8,11 +8,13 @@ import logging
 import os
 import time
 import typing
+from click.testing import CliRunner
 from email.message import Message
 from functools import cached_property
 from imia import BaseAuthenticator, LoginManager, UserProvider, UserToken
 from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, create_transport_from_url
 
+from kupala.console.application import ConsoleApplication
 from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import to_app_injectable, to_request_injectable
 from kupala.storages.storages import LocalStorage, S3Storage, Storage
@@ -374,11 +376,20 @@ class SignerExtension(Extension):
 
 
 class ConsoleExtension:
-    def __init__(self, commands: list[click.Command] = None) -> None:
+    def __init__(self, app: Kupala, commands: list[click.Command] = None) -> None:
+        self.app = app
         self.commands = commands or []
+
+    @property
+    def test_runner(self) -> CliRunner:
+        return CliRunner()
 
     def add(self, *command: click.Command) -> None:
         self.commands.extend(command)
+
+    def run(self) -> int:
+        app = ConsoleApplication(self.app, self.commands)
+        return app.run()
 
     def __iter__(self) -> typing.Iterator[click.Command]:
         return iter(self.commands)

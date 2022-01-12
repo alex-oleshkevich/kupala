@@ -15,7 +15,6 @@ from starlette.types import Receive, Scope, Send
 
 from kupala.asgi import ASGIHandler
 from kupala.config import Config
-from kupala.console.application import ConsoleApplication
 from kupala.contracts import TemplateRenderer
 from kupala.di import Injector
 from kupala.extensions import (
@@ -86,7 +85,7 @@ class Kupala:
         self.mail = MailExtension()
         self.auth = AuthenticationExtension(self)
         self.storages = StoragesExtension(storages)
-        self.commands = ConsoleExtension(commands)
+        self.commands = ConsoleExtension(self, commands)
         self.signer = SignerExtension(self.secret_key)
         self.renderer = RendererExtension(renderer or self.jinja.renderer)
         self.staticfiles = StaticFilesExtension(self)
@@ -131,9 +130,7 @@ class Kupala:
 
     def cli(self) -> int:
         """Run console application."""
-        set_current_application(self)
-        app = ConsoleApplication(self, self.commands)
-        return app.run()
+        return self.commands.run()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         assert scope['type'] in {'http', 'websocket', 'lifespan'}

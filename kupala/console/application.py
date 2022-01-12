@@ -57,6 +57,10 @@ class ConsoleApplication:
         self.commands = commands
 
     def run(self) -> int:
+        from kupala.application import set_current_application
+
+        set_current_application(self.app)
+
         @click.group()
         @click.pass_context
         def console_app(ctx: click.Context) -> None:
