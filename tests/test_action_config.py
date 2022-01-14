@@ -72,3 +72,44 @@ def test_action_config_middleware() -> None:
 def test_action_config_template() -> None:
     response = client.get("/action-config-template", headers={'accept': 'text/html'})
     assert response.text == 'hello world'
+
+
+def test_action_config_overrides_methods() -> None:
+    """Methods defined by action_config() have higher precedence."""
+
+    @action_config(methods=['post'])
+    def view() -> dict:
+        return {}
+
+    app = Kupala()
+    app.routes.add('/', view, methods=['get'])
+    client = TestClient(app)
+    assert client.get('/').status_code == 405
+    assert client.post('/').status_code == 200
+
+
+def test_action_config_overrides_middleware() -> None:
+    """Methods defined by action_config() have higher precedence."""
+
+    def set_one(app: ASGIApp) -> ASGIApp:
+        async def middleware(scope: Scope, receive: Receive, send: Send) -> None:
+            scope['used'] = 'one'
+            await app(scope, receive, send)
+
+        return middleware
+
+    def set_two(app: ASGIApp) -> ASGIApp:
+        async def middleware(scope: Scope, receive: Receive, send: Send) -> None:
+            scope['used'] = 'two'
+            await app(scope, receive, send)
+
+        return middleware
+
+    @action_config(middleware=[Middleware(set_two)])
+    def view(request: Request) -> str:
+        return request.scope['used']
+
+    app = Kupala()
+    app.routes.add('/', view, middleware=[Middleware(set_one)])
+    client = TestClient(app)
+    assert client.get('/').text == 'two'

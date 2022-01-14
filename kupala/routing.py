@@ -103,11 +103,9 @@ class Route(routing.Route):
         self.name = get_name(endpoint) if name is None else name
         self.include_in_schema = include_in_schema
 
-        action_config = get_action_config(endpoint)
-        if action_config:
-            methods = action_config.methods
-            middleware = middleware or action_config.middleware
-
+        if action_config := get_action_config(endpoint):
+            methods = action_config.methods or methods
+            middleware = action_config.middleware or middleware
         endpoint_handler = endpoint
         while isinstance(endpoint_handler, functools.partial):
             endpoint_handler = endpoint_handler.func

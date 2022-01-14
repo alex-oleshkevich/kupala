@@ -7,7 +7,7 @@ from starlette.types import ASGIApp
 class Middleware:
     """Keeps middleware callable along with its constructor arguments."""
 
-    def __init__(self, obj: t.Type, **kwargs: t.Any) -> None:
+    def __init__(self, obj: t.Any, **kwargs: t.Any) -> None:
         self.obj = obj
         self.args = kwargs
 
