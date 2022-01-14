@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import pytest
 import typing
 from unittest import mock
 
 from kupala.application import Kupala
+from kupala.di import InjectionError
 from kupala.requests import Request
 from kupala.responses import JSONResponse
 from kupala.routing import Route
@@ -148,3 +150,37 @@ def test_injects_from_app_async() -> None:
 
     response = client.get("/")
     assert response.json() == '_AsyncAppInjectable'
+
+
+def test_injects_default_raises() -> None:
+    def view(injectable: str) -> JSONResponse:
+        return JSONResponse(injectable)
+
+    app = Kupala(routes=[Route("/", view)])
+    client = TestClient(app)
+
+    with pytest.raises(InjectionError):
+        response = client.get("/")
+        assert response.json() is None
+
+
+def test_injects_default_null() -> None:
+    def view(injectable: str = None) -> JSONResponse:
+        return JSONResponse(injectable)
+
+    app = Kupala(routes=[Route("/", view)])
+    client = TestClient(app)
+
+    response = client.get("/")
+    assert response.json() is None
+
+
+def test_injects_default_non_null() -> None:
+    def view(injectable: str = 'default') -> JSONResponse:
+        return JSONResponse(injectable)
+
+    app = Kupala(routes=[Route("/", view)])
+    client = TestClient(app)
+
+    response = client.get("/")
+    assert response.json() == 'default'

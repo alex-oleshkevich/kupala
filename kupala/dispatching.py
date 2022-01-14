@@ -76,6 +76,7 @@ async def resolve_injections(
     injections = {}
 
     args = t.get_type_hints(endpoint)
+    signature = inspect.signature(endpoint)
     for arg_name, arg_type in args.items():
         if arg_name == 'return':
             continue
@@ -106,7 +107,12 @@ async def resolve_injections(
                 injection = await injection
             injections[arg_name] = injection
         except InjectionError as ex:
-            raise InjectionError(f'Injection "{arg_name}" cannot be processed in {_callable_name(endpoint)}.') from ex
+            if arg_name in signature.parameters and signature.parameters[arg_name].default != signature.empty:
+                injections[arg_name] = signature.parameters[arg_name].default
+            else:
+                raise InjectionError(
+                    f'Injection "{arg_name}" cannot be processed in {_callable_name(endpoint)}.'
+                ) from ex
         else:
             continue
 

@@ -8,6 +8,7 @@ import functools
 import json
 import typing
 import uuid
+from babel.support import LazyProxy
 
 JSONEncoder = json.JSONEncoder
 
@@ -22,6 +23,7 @@ _type_to_encoder: dict[type, typing.Callable] = {
     collections.abc.KeysView: list,
     collections.abc.ValuesView: list,
     decimal.Decimal: str,
+    LazyProxy: str,
     enum.Enum: lambda x: x.value,
 }
 
