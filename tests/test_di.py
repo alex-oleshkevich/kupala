@@ -39,7 +39,7 @@ def test_to_injectable() -> None:
         return WannaBeInjectable()
 
     app = Kupala()
-    app.di.to_injectable(WannaBeInjectable, factory)
+    app.di.make_injectable(WannaBeInjectable, factory)
     assert isinstance(app.di.make(WannaBeInjectable), WannaBeInjectable)
 
 
@@ -65,7 +65,7 @@ def test_to_request_injectable() -> None:
 
     app = Kupala()
     app.routes.add('/', view)
-    app.di.to_request_injectable(WannaBeInjectable, lambda r: WannaBeInjectable())
+    app.di.make_request_injectable(WannaBeInjectable, lambda r: WannaBeInjectable())
     client = TestClient(app)
     assert client.get('/').text == 'WannaBeInjectable'
 

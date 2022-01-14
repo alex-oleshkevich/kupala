@@ -16,7 +16,7 @@ from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, crea
 
 from kupala.console.application import ConsoleApplication
 from kupala.contracts import PasswordHasher, TemplateRenderer
-from kupala.di import to_app_injectable, to_request_injectable
+from kupala.di import make_app_injectable, make_request_injectable
 from kupala.storages.storages import LocalStorage, S3Storage, Storage
 from kupala.templating import JinjaRenderer
 from kupala.utils import import_string, resolve_path
@@ -117,7 +117,7 @@ class MailExtension(Extension):
         return self.get(self.default)
 
     def initialize(self, app: Kupala) -> None:
-        to_app_injectable(Mailer, lambda app: self.get_default())
+        make_app_injectable(Mailer, lambda app: self.get_default())
 
     async def send(self, message: Email | Message, mailer: str = None) -> SentMessages:
         mailer_name = mailer or self.default
@@ -156,8 +156,8 @@ class AuthenticationExtension(Extension):
             self.authenticators = authenticators
 
     def initialize(self, app: Kupala) -> None:
-        to_app_injectable(LoginManager, lambda app: self.login_manager)
-        to_request_injectable(UserToken, lambda request: request.auth)
+        make_app_injectable(LoginManager, lambda app: self.login_manager)
+        make_request_injectable(UserToken, lambda request: request.auth)
 
 
 class StoragesExtension(Extension):
@@ -208,7 +208,7 @@ class StoragesExtension(Extension):
         )
 
     def initialize(self, app: Kupala) -> None:
-        to_app_injectable(Storage, lambda app: self.get_default())
+        make_app_injectable(Storage, lambda app: self.get_default())
 
 
 class JinjaExtension(Extension):
@@ -330,8 +330,8 @@ class SignerExtension(Extension):
         self.secret_key = secret_key
 
     def initialize(self, app: Kupala) -> None:
-        to_app_injectable(itsdangerous.signer.Signer, lambda app: self.signer)
-        to_app_injectable(itsdangerous.timed.TimestampSigner, lambda app: self.timestamp_signer)
+        make_app_injectable(itsdangerous.signer.Signer, lambda app: self.signer)
+        make_app_injectable(itsdangerous.timed.TimestampSigner, lambda app: self.timestamp_signer)
 
     @cached_property
     def signer(self) -> itsdangerous.signer.Signer:

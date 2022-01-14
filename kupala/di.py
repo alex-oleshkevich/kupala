@@ -31,13 +31,13 @@ class Injector:
         When `factory_or_instance` is callable(app) then it will be called each time the service is requested."""
         self.preferences[klass] = factory_or_instance
 
-    def to_injectable(self, klass: typing.Type[_T], factory: typing.Callable[[Kupala], _T]) -> None:
+    def make_injectable(self, klass: typing.Type[_T], factory: typing.Callable[[Kupala], _T]) -> None:
         """Make `klass` type injectable by adding `from_app` class method to the type."""
-        to_app_injectable(klass, factory)
+        make_app_injectable(klass, factory)
 
-    def to_request_injectable(self, klass: typing.Type[_T], factory: typing.Callable[[Request], _T]) -> None:
+    def make_request_injectable(self, klass: typing.Type[_T], factory: typing.Callable[[Request], _T]) -> None:
         """Make `klass` type request injectable by adding `from_request` class method to the type."""
-        to_request_injectable(klass, factory)
+        make_request_injectable(klass, factory)
 
     def make(self, klass: typing.Type[_T]) -> _T:
         """Find or create and instance for a given type.
@@ -72,12 +72,12 @@ def request_injectable(factory: typing.Callable[[Request], _T]) -> typing.Callab
     return wrapper
 
 
-def to_request_injectable(klass: typing.Type[_T], factory: typing.Callable[[Request], _T]) -> None:
+def make_request_injectable(klass: typing.Type[_T], factory: typing.Callable[[Request], _T]) -> None:
     """Convert regular class into a request injectable."""
     request_injectable(factory=factory)(klass)
 
 
-def to_app_injectable(klass: typing.Type[_T], factory: typing.Callable[[Kupala], _T]) -> None:
+def make_app_injectable(klass: typing.Type[_T], factory: typing.Callable[[Kupala], _T]) -> None:
     """Convert regular class into app injectable."""
     injectable(factory=factory)(klass)
 
