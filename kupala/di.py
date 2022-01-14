@@ -8,6 +8,8 @@ if typing.TYPE_CHECKING:  # pragma: nocover
     from kupala.application import Kupala
 
 _T = typing.TypeVar('_T')
+_FACTORY_ATTR = '__di_factory__'
+_REQUEST_FACTORY_ATTR = '__di_request_factory__'
 
 
 class InjectionError(Exception):
@@ -43,7 +45,7 @@ class Injector:
         It will look up `from_app` class method on `klass` and call it if found.
         If `from_app` is not implemented then it will look up preferences,
         and it will raise `InjectionError` if nothing helped."""
-        if callback := getattr(klass, 'from_app', None):
+        if callback := getattr(klass, 'from_app', getattr(klass, _FACTORY_ATTR, None)):
             return callback(self.app)
 
         if klass in self.preferences:
@@ -54,19 +56,31 @@ class Injector:
         raise InjectionError(f'Factory for type "{klass.__name__}" cannot be found in DI configuration.')
 
 
+def get_request_injectable_key() -> str:
+    return _REQUEST_FACTORY_ATTR
+
+
+def injectable(factory: typing.Callable[[Kupala], _T]) -> typing.Callable[[typing.Type[_T]], typing.Type[_T]]:
+    def wrapper(cls: typing.Type[_T]) -> typing.Type[_T]:
+        setattr(cls, _FACTORY_ATTR, factory)
+        return cls
+
+    return wrapper
+
+
+def request_injectable(factory: typing.Callable[[Request], _T]) -> typing.Callable[[typing.Type[_T]], typing.Type[_T]]:
+    def wrapper(cls: typing.Type[_T]) -> typing.Type[_T]:
+        setattr(cls, _REQUEST_FACTORY_ATTR, factory)
+        return cls
+
+    return wrapper
+
+
 def to_request_injectable(klass: typing.Type[_T], factory: typing.Callable[[Request], _T]) -> None:
     """Convert regular class into a request injectable."""
-
-    def augmentation(cls: typing.Type[_T], request: Request) -> _T:
-        return factory(request)
-
-    setattr(klass, 'from_request', classmethod(augmentation))
+    request_injectable(factory=factory)(klass)
 
 
 def to_app_injectable(klass: typing.Type[_T], factory: typing.Callable[[Kupala], _T]) -> None:
     """Convert regular class into app injectable."""
-
-    def augmentation(cls: typing.Type[_T], app: Kupala) -> _T:
-        return factory(app)
-
-    setattr(klass, 'from_app', classmethod(augmentation))
+    injectable(factory=factory)(klass)

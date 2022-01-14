@@ -4,7 +4,8 @@ import pytest
 import typing
 
 from kupala.application import Kupala
-from kupala.di import InjectionError
+from kupala.di import InjectionError, injectable, request_injectable
+from kupala.requests import Request
 from kupala.responses import PlainTextResponse
 from kupala.testclient import TestClient
 
@@ -67,3 +68,42 @@ def test_to_request_injectable() -> None:
     app.di.to_request_injectable(WannaBeInjectable, lambda r: WannaBeInjectable())
     client = TestClient(app)
     assert client.get('/').text == 'WannaBeInjectable'
+
+
+# APP INJECTABLE DECORATOR
+
+
+def _via_injectable_factory(app: Kupala) -> ViaInjectableDecorator:
+    return ViaInjectableDecorator()
+
+
+@injectable(factory=_via_injectable_factory)
+class ViaInjectableDecorator:
+    pass
+
+
+def test_injectable_decorator() -> None:
+    app = Kupala()
+    assert isinstance(app.di.make(ViaInjectableDecorator), ViaInjectableDecorator)
+
+
+# REQUEST INJECTABLE DECORATOR
+
+
+def _via_request_injectable_factory(request: Request) -> ViaRequestInjectableDecorator:
+    return ViaRequestInjectableDecorator()
+
+
+@request_injectable(factory=_via_request_injectable_factory)
+class ViaRequestInjectableDecorator:
+    pass
+
+
+def test_request_injectable_decorator() -> None:
+    def view(injection: ViaRequestInjectableDecorator) -> PlainTextResponse:
+        return PlainTextResponse(injection.__class__.__name__)
+
+    app = Kupala()
+    app.routes.add('/', view)
+    client = TestClient(app)
+    assert client.get('/').text == 'ViaRequestInjectableDecorator'

@@ -7,7 +7,7 @@ from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextma
 from starlette.concurrency import run_in_threadpool
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.di import InjectionError
+from kupala.di import InjectionError, get_request_injectable_key
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.responses import EmptyResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
@@ -88,7 +88,7 @@ async def resolve_injections(
             injections[arg_name] = request.path_params[arg_name]
             continue
 
-        if callback := getattr(arg_type, 'from_request', None):
+        if callback := getattr(arg_type, 'from_request', getattr(arg_type, get_request_injectable_key(), None)):
             if inspect.isgeneratorfunction(callback):
                 injections[arg_name] = sync_stack.enter_context(contextmanager(callback)(request))
                 continue
@@ -97,7 +97,7 @@ async def resolve_injections(
                 injections[arg_name] = await async_stack.enter_async_context(asynccontextmanager(callback)(request))
                 continue
 
-            injections[arg_name] = await run_async(callback, request=request)
+            injections[arg_name] = await run_async(callback, request)
             continue
 
         try:
