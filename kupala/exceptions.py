@@ -103,3 +103,11 @@ class ValidationError(KupalaError):
         super().__init__(message)
         self.message = message
         self.errors = errors or {}
+
+
+class StartupError(KupalaError):
+    """Raised when application fails to start up (eg. lifespan handler raises error)."""
+
+
+class ShutdownError(KupalaError):
+    """Raised when application fails to shutdown (eg. lifespan handler raises error)."""

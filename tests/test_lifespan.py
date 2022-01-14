@@ -1,26 +1,58 @@
-import typing as t
+import pytest
+import typing
 from contextlib import asynccontextmanager
 
-from kupala.application import Kupala
+from kupala.exceptions import ShutdownError, StartupError
+from kupala.responses import Response
 from kupala.testclient import TestClient
+from tests.conftest import TestApp, TestAppFactory
 
 
-def test_calls_lifespan_callbacks() -> None:
-    startup_complete = False
-    cleanup_complete = False
+def test_lifespan(test_app_factory: TestAppFactory) -> None:
+    enter_called = False
+    exit_called = False
 
     @asynccontextmanager
-    async def lifespan(app: Kupala) -> t.AsyncGenerator[None, None]:
-        nonlocal startup_complete, cleanup_complete
-        startup_complete = True
+    async def handler(app: TestApp) -> typing.AsyncIterator[None]:
+        nonlocal enter_called, exit_called
+        enter_called = True
         yield
-        cleanup_complete = True
+        exit_called = True
 
-    app = Kupala(lifespan_handlers=[lifespan])
+    def view() -> Response:
+        return Response('content')
 
-    with TestClient(app):
-        assert startup_complete
-        assert not cleanup_complete
+    app = test_app_factory(lifespan_handlers=[handler])
+    app.routes.add('/', view)
 
-    assert startup_complete
-    assert cleanup_complete
+    with TestClient(app) as client:
+        client.get('/')
+        assert not exit_called
+    assert enter_called
+    assert exit_called
+
+
+def test_lifespan_boot_error(test_app_factory: TestAppFactory) -> None:
+    @asynccontextmanager
+    async def handler(app: TestApp) -> typing.AsyncIterator[None]:
+        raise TypeError()
+        yield
+
+    app = test_app_factory(lifespan_handlers=[handler])
+
+    with pytest.raises(StartupError):
+        with TestClient(app):
+            pass
+
+
+def test_lifespan_shutdown_error(test_app_factory: TestAppFactory) -> None:
+    @asynccontextmanager
+    async def handler(app: TestApp) -> typing.AsyncIterator[None]:
+        yield
+        raise TypeError()
+
+    app = test_app_factory(lifespan_handlers=[handler])
+
+    with pytest.raises(ShutdownError):
+        with TestClient(app):
+            pass

@@ -17,6 +17,7 @@ from kupala.asgi import ASGIHandler
 from kupala.config import Config
 from kupala.contracts import TemplateRenderer
 from kupala.di import Injector
+from kupala.exceptions import ShutdownError, StartupError
 from kupala.extensions import (
     AuthenticationExtension,
     ConsoleExtension,
@@ -167,13 +168,13 @@ class Kupala:
                 started = True
                 await receive()
         except BaseException as ex:
-            logging.exception(ex)
-            logging.error(f'Application failed to boot: {ex}.')
             text = traceback.format_exc()
             if started:
                 await send({'type': 'lifespan.shutdown.failed', 'message': text})
+                raise ShutdownError(text) from ex
             else:
                 await send({'type': 'lifespan.startup.failed', 'message': text})
+                raise StartupError(text) from ex
         else:
             await send({'type': 'lifespan.shutdown.complete'})
 
