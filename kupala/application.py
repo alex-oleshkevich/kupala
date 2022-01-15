@@ -95,15 +95,21 @@ class Kupala:
 
         set_current_application(self)
 
+        # configure app
+        self.configure()
+
         # bind extensions to this app
-        self._initialize()
+        self._bootstrap()
 
         # ASGI app instance
         self._asgi_app: ASGIHandler | None = None
 
-    def _initialize(self) -> None:
+    def _bootstrap(self) -> None:
         for _, extension in inspect.getmembers(self, lambda x: hasattr(x, 'initialize')):
             extension.initialize(self)
+
+    def configure(self) -> None:
+        pass
 
     def create_asgi_app(self) -> ASGIHandler:
         return ASGIHandler(
