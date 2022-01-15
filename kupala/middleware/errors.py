@@ -407,7 +407,7 @@ def frame_id(frame: inspect.FrameInfo) -> str:
 
 
 def is_vendor(frame: inspect.FrameInfo) -> bool:
-    return sys.exec_prefix in frame.filename
+    return sys.exec_prefix in frame.filename.replace('./', '')
 
 
 def get_package_name(frame: inspect.FrameInfo) -> str:
@@ -535,8 +535,8 @@ class ServerErrorMiddleware:
             id=frame_id(frame),
             dot="" if is_vendor(frame) else " dot-red",
             package="{package} &middot;".format(package=get_package_name(frame)) if is_vendor(frame) else "",
-            file_path=html.escape(frame.filename),
-            file_name=html.escape(get_relative_filename(frame.filename)),
+            file_path=html.escape(frame.filename.replace('./', '')),
+            file_name=html.escape(get_relative_filename(frame.filename.replace('./', ''))),
             symbol=symbol,
             line_number=frame.lineno,
             extra_css_class=" ".join(extra_css_classes),
