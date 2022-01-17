@@ -21,6 +21,15 @@ def _callable_name(injection: typing.Any) -> str:
     return f'{module_name}.{class_name}{inspect.signature(injection)}'
 
 
+ViewDispatchResult = typing.Union[
+    typing.Callable[[Scope, Receive, Send], ASGIApp],
+    Response,
+    typing.Any,
+    typing.Union[typing.Any, int],
+    typing.Union[typing.Any, int, typing.Mapping],
+]
+
+
 @dataclass
 class ActionConfig:
     """Keeps endpoint configuration."""
@@ -146,7 +155,7 @@ def _guess_response_type(
     return PlainTextResponse(str(content), status_code=status, headers=headers)
 
 
-def handle_endpoint_result(request: Request, result: t.Any, action_config: ActionConfig | None) -> ASGIApp:
+def handle_endpoint_result(request: Request, result: ViewDispatchResult, action_config: ActionConfig | None) -> ASGIApp:
     """Takes return value of endpoint execution and converts it into response instance."""
     if result is None:
         return EmptyResponse()
@@ -184,3 +193,8 @@ async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint
             else:
                 response = await run_in_threadpool(endpoint, **args)
     return handle_endpoint_result(request, response, action_config)
+
+
+class ViewResultRenderer:
+    def render(self, request: Request, view_result: ViewDispatchResult) -> Response:
+        pass
