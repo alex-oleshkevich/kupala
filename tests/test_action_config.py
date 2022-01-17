@@ -74,7 +74,7 @@ def test_action_config_template() -> None:
     assert response.text == 'hello world'
 
 
-def test_action_config_overrides_methods() -> None:
+def test_route_overrides_action_config_methods() -> None:
     """Methods defined by action_config() have higher precedence."""
 
     @action_config(methods=['post'])
@@ -84,11 +84,11 @@ def test_action_config_overrides_methods() -> None:
     app = Kupala()
     app.routes.add('/', view, methods=['get'])
     client = TestClient(app)
-    assert client.get('/').status_code == 405
-    assert client.post('/').status_code == 200
+    assert client.get('/').status_code == 200
+    assert client.post('/').status_code == 405
 
 
-def test_action_config_overrides_middleware() -> None:
+def test_route_overrides_action_config_middleware() -> None:
     """Methods defined by action_config() have higher precedence."""
 
     def set_one(app: ASGIApp) -> ASGIApp:
@@ -112,4 +112,4 @@ def test_action_config_overrides_middleware() -> None:
     app = Kupala()
     app.routes.add('/', view, middleware=[Middleware(set_one)])
     client = TestClient(app)
-    assert client.get('/').text == 'two'
+    assert client.get('/').text == 'one'

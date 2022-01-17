@@ -104,8 +104,10 @@ class Route(routing.Route):
         self.include_in_schema = include_in_schema
 
         if action_config := get_action_config(endpoint):
-            methods = action_config.methods or methods
-            middleware = action_config.middleware or middleware
+            if methods is None:
+                methods = action_config.methods
+            if middleware is None:
+                middleware = action_config.middleware
         endpoint_handler = endpoint
         while isinstance(endpoint_handler, functools.partial):
             endpoint_handler = endpoint_handler.func
