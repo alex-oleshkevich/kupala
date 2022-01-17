@@ -180,10 +180,6 @@ def json_view_renderer(request: Request, action_config: ActionConfig, view_resul
     )
 
 
-def empty_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
-    return EmptyResponse(headers=view_result['headers'])
-
-
 def template_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
     return TemplateResponse(
         request=request,
@@ -197,7 +193,6 @@ def template_view_renderer(request: Request, action_config: ActionConfig, view_r
 class ViewResultRenderer:
     def __init__(self) -> None:
         self._renderers: dict[str, ViewRenderer] = {}
-        self.add_renderer('', empty_view_renderer)
         self.add_renderer('text', plain_text_view_renderer)
         self.add_renderer('html', html_view_renderer)
         self.add_renderer('json', json_view_renderer)
@@ -209,7 +204,7 @@ class ViewResultRenderer:
         assert renderer_name in self._renderers, f'No view result renderer named "{renderer_name}" registered.'
         return self._renderers[renderer_name]
 
-    def render(self, request: Request, action_config: ActionConfig, view_result: ViewDispatchResult) -> ASGIApp:
+    def render(self, request: Request, action_config: ActionConfig, view_result: ViewDispatchResult | None) -> ASGIApp:
         if view_result is None:
             return EmptyResponse()
 
