@@ -68,7 +68,7 @@ def test_action_config_template(tmpdir: pathlib.Path) -> None:
     with open(tmpdir / 'index.html', 'w') as f:
         f.write('hello {{name}}')
 
-    @action_config(methods=['post'], renderer='index.html')
+    @action_config(methods=['post'], template='index.html')
     def view() -> dict:
         return {'name': 'world'}
 

@@ -55,7 +55,7 @@ def test_template_renderer(test_app_factory: TestAppFactory, tmpdir: pathlib.Pat
     with open(tmpdir / 'index.html', 'w') as f:
         f.write('content')
 
-    @action_config(renderer='index.html')
+    @action_config(template='index.html')
     def view() -> dict:
         return {}
 

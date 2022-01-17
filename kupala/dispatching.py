@@ -36,11 +36,13 @@ class ActionConfig:
 
     methods: t.List[str] = field(default_factory=list)
     renderer: str = ''
+    template: str | None = None
     middleware: t.Optional[t.Sequence[Middleware]] = None
 
 
 def action_config(
     methods: t.List[str] = None,
+    template: str | None = None,
     renderer: str = '',
     middleware: t.Sequence[Middleware] = None,
 ) -> t.Callable:
@@ -48,7 +50,12 @@ def action_config(
     allowed_methods = methods or ['GET', 'HEAD']
 
     def wrapper(fn: t.Callable) -> t.Callable:
-        action_config = ActionConfig(methods=allowed_methods, renderer=renderer, middleware=middleware)
+        action_config = ActionConfig(
+            methods=allowed_methods,
+            renderer=renderer,
+            template=template,
+            middleware=middleware,
+        )
         setattr(fn, '__action_config__', action_config)
         return fn
 
@@ -181,9 +188,10 @@ def json_view_renderer(request: Request, action_config: ActionConfig, view_resul
 
 
 def template_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
+    assert action_config.template
     return TemplateResponse(
         request=request,
-        template_name=action_config.renderer,
+        template_name=action_config.template,
         context=view_result['content'],
         status_code=view_result['status_code'],
         headers=view_result['headers'],
@@ -225,7 +233,7 @@ class ViewResultRenderer:
                 content, status = view_result
 
         # if renderer has a dot (file extension separator) then force template renderer
-        if '.' in action_config.renderer:
+        if action_config.template:
             renderer = template_view_renderer
         else:
             renderer = self.find_renderer(action_config.renderer)
