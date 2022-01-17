@@ -31,13 +31,15 @@ class Injector:
         When `factory_or_instance` is callable(app) then it will be called each time the service is requested."""
         self.preferences[klass] = factory_or_instance
 
-    def make_injectable(self, klass: typing.Type[_T], factory: typing.Callable[[Kupala], _T]) -> None:
+    def make_injectable(
+        self,
+        klass: typing.Type[_T],
+        *,
+        from_app_factory: typing.Callable[[Kupala], _T] = None,
+        from_request_factory: typing.Callable[[Request], _T] = None,
+    ) -> None:
         """Make `klass` type injectable by adding `from_app` class method to the type."""
-        make_app_injectable(klass, factory)
-
-    def make_request_injectable(self, klass: typing.Type[_T], factory: typing.Callable[[Request], _T]) -> None:
-        """Make `klass` type request injectable by adding `from_request` class method to the type."""
-        make_request_injectable(klass, factory)
+        make_injectable(klass, from_app_factory=from_app_factory, from_request_factory=from_request_factory)
 
     def make(self, klass: typing.Type[_T]) -> _T:
         """Find or create and instance for a given type.
@@ -56,30 +58,31 @@ class Injector:
         raise InjectionError(f'Factory for type "{klass.__name__}" cannot be found in DI configuration.')
 
 
-def injectable(factory: typing.Callable[[Kupala], _T]) -> typing.Callable[[typing.Type[_T]], typing.Type[_T]]:
+def injectable(
+    *,
+    from_app_factory: typing.Callable[[Kupala], _T] = None,
+    from_request_factory: typing.Callable[[Request], _T] = None,
+) -> typing.Callable[[typing.Type[_T]], typing.Type[_T]]:
+    assert from_app_factory or from_request_factory, 'Either "from_app_factory" or "from_request_factory" must be set.'
+
     def wrapper(cls: typing.Type[_T]) -> typing.Type[_T]:
-        setattr(cls, _FACTORY_ATTR, factory)
+        if from_app_factory:
+            setattr(cls, _FACTORY_ATTR, from_app_factory)
+        if from_request_factory:
+            setattr(cls, _REQUEST_FACTORY_ATTR, from_request_factory)
         return cls
 
     return wrapper
 
 
-def request_injectable(factory: typing.Callable[[Request], _T]) -> typing.Callable[[typing.Type[_T]], typing.Type[_T]]:
-    def wrapper(cls: typing.Type[_T]) -> typing.Type[_T]:
-        setattr(cls, _REQUEST_FACTORY_ATTR, factory)
-        return cls
-
-    return wrapper
-
-
-def make_request_injectable(klass: typing.Type[_T], factory: typing.Callable[[Request], _T]) -> None:
-    """Convert regular class into a request injectable."""
-    request_injectable(factory=factory)(klass)
-
-
-def make_app_injectable(klass: typing.Type[_T], factory: typing.Callable[[Kupala], _T]) -> None:
+def make_injectable(
+    klass: typing.Type[_T],
+    *,
+    from_app_factory: typing.Callable[[Kupala], _T] = None,
+    from_request_factory: typing.Callable[[Request], _T] = None,
+) -> None:
     """Convert regular class into app injectable."""
-    injectable(factory=factory)(klass)
+    injectable(from_app_factory=from_app_factory, from_request_factory=from_request_factory)(klass)
 
 
 def get_request_injection_factory(klass: typing.Type) -> typing.Callable[[typing.Any], typing.Any] | None:

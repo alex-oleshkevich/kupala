@@ -4,7 +4,7 @@ import pytest
 import typing
 
 from kupala.application import Kupala
-from kupala.di import InjectionError, injectable, request_injectable
+from kupala.di import InjectionError, injectable
 from kupala.requests import Request
 from kupala.responses import PlainTextResponse
 from kupala.testclient import TestClient
@@ -39,7 +39,7 @@ def test_to_injectable() -> None:
         return WannaBeInjectable()
 
     app = Kupala()
-    app.di.make_injectable(WannaBeInjectable, factory)
+    app.di.make_injectable(WannaBeInjectable, from_app_factory=factory)
     assert isinstance(app.di.make(WannaBeInjectable), WannaBeInjectable)
 
 
@@ -65,7 +65,7 @@ def test_to_request_injectable() -> None:
 
     app = Kupala()
     app.routes.add('/', view)
-    app.di.make_request_injectable(WannaBeInjectable, lambda r: WannaBeInjectable())
+    app.di.make_injectable(WannaBeInjectable, from_request_factory=lambda r: WannaBeInjectable())
     client = TestClient(app)
     assert client.get('/').text == 'WannaBeInjectable'
 
@@ -77,7 +77,7 @@ def _via_injectable_factory(app: Kupala) -> ViaInjectableDecorator:
     return ViaInjectableDecorator()
 
 
-@injectable(factory=_via_injectable_factory)
+@injectable(from_app_factory=_via_injectable_factory)
 class ViaInjectableDecorator:
     pass
 
@@ -94,7 +94,7 @@ def _via_request_injectable_factory(request: Request) -> ViaRequestInjectableDec
     return ViaRequestInjectableDecorator()
 
 
-@request_injectable(factory=_via_request_injectable_factory)
+@injectable(from_request_factory=_via_request_injectable_factory)
 class ViaRequestInjectableDecorator:
     pass
 
