@@ -35,30 +35,31 @@ class ActionConfig:
     """Keeps endpoint configuration."""
 
     methods: t.List[str] = field(default_factory=list)
-    template: t.Optional[str] = None
+    renderer: str = ''
     middleware: t.Optional[t.Sequence[Middleware]] = None
 
 
 def action_config(
     methods: t.List[str] = None,
-    template: str = '',
+    renderer: str = '',
     middleware: t.Sequence[Middleware] = None,
 ) -> t.Callable:
     """Use this decorator to configure endpoint parameters."""
     allowed_methods = methods or ['GET', 'HEAD']
 
     def wrapper(fn: t.Callable) -> t.Callable:
-        setattr(
-            fn, '__action_config__', ActionConfig(methods=allowed_methods, template=template, middleware=middleware)
-        )
+        action_config = ActionConfig(methods=allowed_methods, renderer=renderer, middleware=middleware)
+        setattr(fn, '__action_config__', action_config)
         return fn
 
     return wrapper
 
 
-def get_action_config(endpoint: t.Callable) -> t.Optional[ActionConfig]:
+def get_action_config(endpoint: t.Callable) -> ActionConfig:
     """Return endpoint config if defined otherwise return None."""
-    return getattr(endpoint, '__action_config__', None)
+    if not hasattr(endpoint, '__action_config__'):
+        endpoint.__dict__['__action_config__'] = ActionConfig()
+    return getattr(endpoint, '__action_config__')
 
 
 def detect_request_class(endpoint: t.Callable) -> t.Type[Request]:
@@ -128,57 +129,6 @@ async def resolve_injections(
     return injections
 
 
-def _guess_response_type(
-    request: Request,
-    action_config: ActionConfig | None,
-    content: t.Any,
-    status: int,
-    headers: dict[str, str],
-) -> Response:
-    """When endpoint returns non-response instances, then we try to do our best to guess what response type
-    we should send to the client."""
-    if request.wants_json:
-        return JSONResponse(content=content, status_code=status, headers=headers)
-
-    if 'text/html' in request.headers['accept']:
-        if action_config and action_config.template:
-            return TemplateResponse(
-                request,
-                template_name=action_config.template,
-                context=content,
-                status_code=status,
-                headers=headers,
-            )
-        return HTMLResponse(content, status_code=status, headers=headers)
-
-    # default is text/plain, but we can serialize only several types
-    return PlainTextResponse(str(content), status_code=status, headers=headers)
-
-
-def handle_endpoint_result(request: Request, result: ViewDispatchResult, action_config: ActionConfig | None) -> ASGIApp:
-    """Takes return value of endpoint execution and converts it into response instance."""
-    if result is None:
-        return EmptyResponse()
-
-    if isinstance(result, Response):
-        return result
-
-    if inspect.isfunction(result):  # may be request_response function aka ASGI callable
-        return result
-
-    status = 200
-    headers = {}
-    content = result
-
-    if isinstance(result, tuple):
-        if len(result) == 3:
-            content, status, headers = result
-        elif len(result) == 2:
-            content, status = result
-
-    return _guess_response_type(request, action_config, content, status, headers)
-
-
 async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint: t.Callable) -> ASGIApp:
     """Call endpoint callable resolving all dependencies. Will return response."""
     request_class = detect_request_class(endpoint)
@@ -192,9 +142,96 @@ async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint
                 response = await endpoint(**args)
             else:
                 response = await run_in_threadpool(endpoint, **args)
-    return handle_endpoint_result(request, response, action_config)
+    return request.app.view_renderer.render(request, action_config, response)
+
+
+class ViewResult(typing.TypedDict):
+    content: typing.Any
+    status_code: int
+    headers: dict[str, typing.Any]
+
+
+class ViewRenderer(typing.Protocol):  # pragma: nocover
+    def __call__(self, request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
+        ...
+
+
+def plain_text_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
+    return PlainTextResponse(
+        str(view_result['content']),
+        status_code=view_result['status_code'],
+        headers=view_result['headers'],
+    )
+
+
+def html_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
+    return HTMLResponse(
+        str(view_result['content']),
+        status_code=view_result['status_code'],
+        headers=view_result['headers'],
+    )
+
+
+def json_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
+    return JSONResponse(
+        view_result['content'],
+        status_code=view_result['status_code'],
+        headers=view_result['headers'],
+    )
+
+
+def empty_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
+    return EmptyResponse(headers=view_result['headers'])
+
+
+def template_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
+    return TemplateResponse(
+        request=request,
+        template_name=action_config.renderer,
+        context=view_result['content'],
+        status_code=view_result['status_code'],
+        headers=view_result['headers'],
+    )
 
 
 class ViewResultRenderer:
-    def render(self, request: Request, view_result: ViewDispatchResult) -> Response:
-        pass
+    def __init__(self) -> None:
+        self._renderers: dict[str, ViewRenderer] = {}
+        self.add_renderer('', empty_view_renderer)
+        self.add_renderer('text', plain_text_view_renderer)
+        self.add_renderer('html', html_view_renderer)
+        self.add_renderer('json', json_view_renderer)
+
+    def add_renderer(self, name: str, renderer: ViewRenderer) -> None:
+        self._renderers[name] = renderer
+
+    def find_renderer(self, renderer_name: str) -> ViewRenderer:
+        assert renderer_name in self._renderers, f'No view result renderer named "{renderer_name}" registered.'
+        return self._renderers[renderer_name]
+
+    def render(self, request: Request, action_config: ActionConfig, view_result: ViewDispatchResult) -> ASGIApp:
+        if view_result is None:
+            return EmptyResponse()
+
+        if isinstance(view_result, Response):
+            return view_result
+
+        if inspect.isfunction(view_result):  # may be request_response function aka ASGI callable
+            return view_result
+
+        status = 200
+        headers = {}
+        content = view_result
+
+        if isinstance(view_result, tuple):
+            if len(view_result) == 3:
+                content, status, headers = view_result
+            elif len(view_result) == 2:
+                content, status = view_result
+
+        # if renderer has a dot (file extension separator) then force template renderer
+        if '.' in action_config.renderer:
+            renderer = template_view_renderer
+        else:
+            renderer = self.find_renderer(action_config.renderer)
+        return renderer(request, action_config, {'content': content, 'status_code': status, 'headers': headers})

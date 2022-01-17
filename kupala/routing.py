@@ -103,11 +103,12 @@ class Route(routing.Route):
         self.name = get_name(endpoint) if name is None else name
         self.include_in_schema = include_in_schema
 
-        if action_config := get_action_config(endpoint):
-            if methods is None:
-                methods = action_config.methods
-            if middleware is None:
-                middleware = action_config.middleware
+        action_config = get_action_config(endpoint)
+        middleware = middleware or action_config.middleware
+        methods = methods or action_config.methods
+        if methods is None:
+            methods = ['GET']
+
         endpoint_handler = endpoint
         while isinstance(endpoint_handler, functools.partial):
             endpoint_handler = endpoint_handler.func
@@ -115,8 +116,6 @@ class Route(routing.Route):
         if inspect.isfunction(endpoint_handler) or inspect.ismethod(endpoint_handler):
             # Endpoint is function or method. Treat it as `func(request) -> response`.
             self.app = request_response(endpoint)
-            if methods is None:
-                methods = ["GET"]
         else:
             # Endpoint is a class. Treat it as ASGI.
             self.app = endpoint
@@ -124,12 +123,9 @@ class Route(routing.Route):
         if middleware is not None:
             self.app = apply_middleware(t.cast(t.Callable, self.app), middleware)
 
-        if methods is None:
-            self.methods = None
-        else:
-            self.methods = {method.upper() for method in methods}
-            if "GET" in self.methods:
-                self.methods.add("HEAD")
+        self.methods = {method.upper() for method in methods}
+        if "GET" in self.methods:
+            self.methods.add("HEAD")
 
         self.path_regex, self.path_format, self.param_convertors = compile_path(path)
 

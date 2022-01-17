@@ -1,3 +1,4 @@
+import pathlib
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -34,17 +35,11 @@ async def action_config_middleware_view(request: Request) -> JSONResponse:
     return JSONResponse({'called': request.scope['called']})
 
 
-@action_config(template='hello %(name)s')
-async def action_config_template_view() -> dict:
-    return {'name': 'world'}
-
-
 app = Kupala(
     routes=[
         Route("/action-config", action_config_view),
         Route("/action-config-methods", action_config_methods_view),
         Route("/action-config-middleware", action_config_middleware_view),
-        Route("/action-config-template", action_config_template_view),
     ],
     renderer=FormatRenderer(),
 )
@@ -69,15 +64,25 @@ def test_action_config_middleware() -> None:
     assert response.json() == {'called': True}
 
 
-def test_action_config_template() -> None:
-    response = client.get("/action-config-template", headers={'accept': 'text/html'})
+def test_action_config_template(tmpdir: pathlib.Path) -> None:
+    with open(tmpdir / 'index.html', 'w') as f:
+        f.write('hello {{name}}')
+
+    @action_config(methods=['post'], renderer='index.html')
+    def view() -> dict:
+        return {'name': 'world'}
+
+    app = Kupala(template_dir=tmpdir)
+    app.routes.add('/', view, methods=['get'])
+    client = TestClient(app)
+    response = client.get('/')
     assert response.text == 'hello world'
 
 
 def test_route_overrides_action_config_methods() -> None:
     """Methods defined by action_config() have higher precedence."""
 
-    @action_config(methods=['post'])
+    @action_config(methods=['post'], renderer='json')
     def view() -> dict:
         return {}
 
@@ -105,7 +110,7 @@ def test_route_overrides_action_config_middleware() -> None:
 
         return middleware
 
-    @action_config(middleware=[Middleware(set_two)])
+    @action_config(middleware=[Middleware(set_two)], renderer='text')
     def view(request: Request) -> str:
         return request.scope['used']
 

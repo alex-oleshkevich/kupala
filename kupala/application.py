@@ -5,6 +5,7 @@ import contextvars as cv
 import inspect
 import logging
 import os
+import pathlib
 import secrets
 import traceback
 import typing
@@ -17,6 +18,7 @@ from kupala.asgi import ASGIHandler
 from kupala.config import Config
 from kupala.contracts import TemplateRenderer
 from kupala.di import Injector
+from kupala.dispatching import ViewResultRenderer
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.extensions import (
     AuthenticationExtension,
@@ -52,7 +54,7 @@ class Kupala:
         error_handlers: dict[typing.Type[Exception] | int, typing.Optional[ErrorHandler]] = None,
         lifespan_handlers: list[typing.Callable[[Kupala], typing.AsyncContextManager[None]]] = None,
         exception_handler: typing.Callable[[Request, Exception], Response] | None = None,
-        template_dir: str | list[str] = 'templates',
+        template_dir: str | pathlib.Path | list[str | pathlib.Path] = 'templates',
         commands: list[click.Command] = None,
         storages: dict[str, Storage] = None,
         renderer: TemplateRenderer = None,
@@ -92,6 +94,7 @@ class Kupala:
         self.staticfiles = StaticFilesExtension(self)
         self.urls = URLExtension(self)
         self.di = Injector(self)
+        self.view_renderer = ViewResultRenderer()
 
         set_current_application(self)
 
