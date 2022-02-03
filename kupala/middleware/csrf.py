@@ -149,3 +149,8 @@ def get_csrf_token(request: Request) -> t.Optional[str]:
 def get_csrf_input(request: Request) -> str:
     token = get_csrf_token(request) or ''
     return f'<input type="hidden" name="{CSRF_POST_FIELD}" value="{token}">'
+
+
+def get_csrf_meta_tag(request: Request) -> str:
+    token = get_csrf_token(request) or ''
+    return f'<meta name="{CSRF_QUERY_PARAM}" value="{token}">'

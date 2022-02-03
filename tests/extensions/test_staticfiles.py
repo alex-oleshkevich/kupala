@@ -14,10 +14,7 @@ def test_staticfiles(test_app_factory: TestAppFactory, tmpdir: Path) -> None:
 
     app = test_app_factory()
     app.staticfiles.serve_from_directory(
-        url_path='/statics',
-        directory=tmpdir,
-        storage_name='assets',
-        path_name='assets',
+        url_path='/statics', directory=tmpdir, storage_name='assets', path_name='assets', random_suffix=False
     )
 
     client = TestClient(app)
@@ -38,6 +35,7 @@ def test_staticfiles_with_url_prefix(test_app_factory: TestAppFactory, tmpdir: P
         url_prefix='http://example.com/',
         storage_name='assets',
         path_name='assets',
+        random_suffix=False,
     )
 
     # test asset url generation
@@ -50,10 +48,7 @@ def test_staticfiles_installs_jinja_callback(test_app_factory: TestAppFactory, t
 
     app = test_app_factory(template_dir=tmpdir)
     app.staticfiles.serve_from_directory(
-        url_path='/statics',
-        directory=tmpdir,
-        storage_name='assets',
-        path_name='assets',
+        url_path='/statics', directory=tmpdir, storage_name='assets', path_name='assets', random_suffix=False
     )
 
     assert app.renderer.render('index.html') == '/statics/main.css'
@@ -64,7 +59,7 @@ def test_request_generates_static_url(test_app_factory: TestAppFactory, tmpdir: 
         return PlainTextResponse(request.static_url('main.css'))
 
     app = test_app_factory(template_dir=tmpdir, routes=[Route('/', view)])
-    app.staticfiles.serve_from_directory(directory=tmpdir)
+    app.staticfiles.serve_from_directory(directory=tmpdir, random_suffix=False)
     client = TestClient(app)
     assert client.get('/').text == '/static/main.css'
 

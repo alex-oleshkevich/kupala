@@ -171,3 +171,6 @@ class Collection(typing.Generic[E]):
         contents = ",".join(map(str, self[0:10]))
         suffix = f" and {remainder} items more" if remainder else ""
         return f"<Collection: [{contents}{suffix}]>"
+
+    def __json__(self) -> list[E]:
+        return list(self)

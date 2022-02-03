@@ -14,6 +14,7 @@ from functools import cached_property
 from imia import BaseAuthenticator, LoginManager, UserProvider, UserToken
 from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, create_transport_from_url
 
+from kupala import json
 from kupala.console.application import ConsoleApplication
 from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import make_injectable
@@ -252,6 +253,9 @@ class JinjaExtension(Extension):
             env.policies.update(self.policies)
             env.tests.update(self.tests)
 
+            if 'json.dumps_function' not in env.policies:
+                env.policies['json.dumps_function'] = json.dumps
+
             if "json.dumps_kwargs" not in env.policies:
                 env.policies["json.dumps_kwargs"] = {"ensure_ascii": False, "sort_keys": True}
             self._env = env
@@ -409,7 +413,7 @@ class StaticFilesExtension(Extension):
         url_prefix: str = '',
         storage_name: str = 'static',
         path_name: str = 'static',
-        random_suffix: bool = False,
+        random_suffix: bool = True,
     ) -> None:
         assert self.app, 'Unbound StaticFiles instance.'
         self.url_prefix = url_prefix
