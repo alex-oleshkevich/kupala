@@ -153,4 +153,4 @@ def get_csrf_input(request: Request) -> str:
 
 def get_csrf_meta_tag(request: Request) -> str:
     token = get_csrf_token(request) or ''
-    return f'<meta name="{CSRF_QUERY_PARAM}" value="{token}">'
+    return f'<meta name="{CSRF_QUERY_PARAM}" content="{token}">'
