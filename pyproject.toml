@@ -96,7 +96,7 @@ omit = ["tests/*", ".venv/*", "*/__main__.py"]
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",
-    "raise NotImplementedError"
+    "raise NotImplementedError",
 ]
 
 [tool.mypy]

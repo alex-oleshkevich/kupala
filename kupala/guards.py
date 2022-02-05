@@ -3,7 +3,7 @@ import typing
 from kupala.requests import Request
 
 
-class Guard(typing.Protocol):
+class Guard(typing.Protocol):  # pragma: no cover
     def __call__(self, request: Request) -> bool | None | typing.Awaitable[bool | None]:
         ...
 

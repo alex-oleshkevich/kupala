@@ -83,6 +83,7 @@ def detect_request_class(endpoint: t.Callable) -> t.Type[Request]:
 
 
 async def call_guards(request: Request, guards: t.Iterable[Guard]) -> None:
+    """Call route guards."""
     for guard in guards:
         if inspect.iscoroutinefunction(guard):
             result = guard(request)
