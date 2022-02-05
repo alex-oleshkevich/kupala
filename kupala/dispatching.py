@@ -8,6 +8,8 @@ from starlette.concurrency import run_in_threadpool
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.di import InjectionError, get_request_injection_factory
+from kupala.exceptions import PermissionDenied
+from kupala.guards import Guard
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.responses import EmptyResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
@@ -38,6 +40,7 @@ class ActionConfig:
     renderer: str = ''
     template: str | None = None
     middleware: t.Optional[t.Sequence[Middleware]] = None
+    guards: t.Iterable[Guard] | None = None
 
 
 def action_config(
@@ -45,6 +48,7 @@ def action_config(
     template: str | None = None,
     renderer: str = '',
     middleware: t.Sequence[Middleware] = None,
+    guards: t.Iterable[Guard] | None = None,
 ) -> t.Callable:
     """Use this decorator to configure endpoint parameters."""
     allowed_methods = methods or ['GET', 'HEAD']
@@ -55,6 +59,7 @@ def action_config(
             renderer=renderer,
             template=template,
             middleware=middleware,
+            guards=guards,
         )
         setattr(fn, '__action_config__', action_config)
         return fn
@@ -75,6 +80,20 @@ def detect_request_class(endpoint: t.Callable) -> t.Type[Request]:
     then default request class returned."""
     args = t.get_type_hints(endpoint)
     return args.get('request', Request)
+
+
+async def call_guards(request: Request, guards: t.Iterable[Guard]) -> None:
+    for guard in guards:
+        if inspect.iscoroutinefunction(guard):
+            result = guard(request)
+        else:
+            result = await run_in_threadpool(guard, request)
+
+        if inspect.iscoroutine(result):
+            result = await result
+
+        if result is False:
+            raise PermissionDenied('You are not allowed to access this page.')
 
 
 async def resolve_injections(
@@ -141,6 +160,7 @@ async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint
     request_class = detect_request_class(endpoint)
     request = request_class(scope, receive, send)
     action_config = get_action_config(endpoint)
+    await call_guards(request, action_config.guards or [])
 
     with ExitStack() as sync_stack:
         async with AsyncExitStack() as async_stack:
