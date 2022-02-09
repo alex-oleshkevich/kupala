@@ -50,6 +50,7 @@ def action_config(
     middleware: t.Sequence[Middleware] = None,
     guards: list[route_guards.Guard] | None = None,
     is_authenticated: bool = False,
+    permission: str | None = None,
 ) -> t.Callable:
     """Use this decorator to configure endpoint parameters."""
     allowed_methods = methods or ['GET', 'HEAD']
@@ -57,6 +58,9 @@ def action_config(
     guards = guards or []
     if is_authenticated:
         guards.append(route_guards.is_authenticated)
+
+    if permission:
+        guards.append(route_guards.has_permission(permission))
 
     def wrapper(fn: t.Callable) -> t.Callable:
         action_config = ActionConfig(

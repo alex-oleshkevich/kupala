@@ -177,3 +177,36 @@ def test_when_view_requires_authentication_unauthenticated_user_cannoe_access_pa
     )
     client = TestClient(app)
     assert client.get('/').status_code == 401
+
+
+def test_access_when_user_has_permission() -> None:
+    @action_config(permission='admin')
+    def view() -> JSONResponse:
+        return JSONResponse([])
+
+    class User(BaseUser):
+        def __init__(self, scopes: list[str]) -> None:
+            self.scopes = scopes
+
+        def get_id(self) -> typing.Any:
+            pass
+
+        def get_display_name(self) -> str:
+            pass
+
+        def get_scopes(self) -> list[str]:
+            return self.scopes
+
+        def get_hashed_password(self) -> str:
+            pass
+
+    user_provider = InMemoryProvider({'admin': User(scopes=['admin']), 'user': User(scopes=['user'])})
+    app = Kupala(
+        routes=[Route('/', view)],
+        middleware=[
+            AuthenticationMiddleware.configure(authenticators=[BearerAuthenticator(user_provider)]),
+        ],
+    )
+    client = TestClient(app)
+    assert client.get('/', headers={'authorization': 'Bearer admin'}).status_code == 200
+    assert client.get('/', headers={'authorization': 'Bearer user'}).status_code == 403
