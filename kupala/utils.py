@@ -37,6 +37,16 @@ def resolve_path(path: t.Union[str, os.PathLike]) -> str:
 
 
 async def run_async(fn: t.Callable, *args: t.Any, **kwargs: t.Any) -> t.Any:
+    """Awaits a function. Will convert sync to async callable if needed."""
     if inspect.iscoroutinefunction(fn):
         return await fn(*args, **kwargs)
     return await run_in_threadpool(fn, *args, **kwargs)
+
+
+def to_string_list(value: str | t.Iterable[str] | None) -> list[str]:
+    """Covert string, list, or None to list of strings. If value is None then an empty list returned."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    return list(value)

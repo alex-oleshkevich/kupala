@@ -7,9 +7,9 @@ from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextma
 from starlette.concurrency import run_in_threadpool
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala import guards as route_guards
 from kupala.di import InjectionError, get_request_injection_factory
 from kupala.exceptions import PermissionDenied
-from kupala.guards import Guard
 from kupala.middleware import Middleware
 from kupala.requests import Request
 from kupala.responses import EmptyResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
@@ -40,7 +40,7 @@ class ActionConfig:
     renderer: str = ''
     template: str | None = None
     middleware: t.Optional[t.Sequence[Middleware]] = None
-    guards: t.Iterable[Guard] | None = None
+    guards: list[route_guards.Guard] | None = None
 
 
 def action_config(
@@ -48,10 +48,15 @@ def action_config(
     template: str | None = None,
     renderer: str = '',
     middleware: t.Sequence[Middleware] = None,
-    guards: t.Iterable[Guard] | None = None,
+    guards: list[route_guards.Guard] | None = None,
+    is_authenticated: bool = False,
 ) -> t.Callable:
     """Use this decorator to configure endpoint parameters."""
     allowed_methods = methods or ['GET', 'HEAD']
+
+    guards = guards or []
+    if is_authenticated:
+        guards.append(route_guards.is_authenticated)
 
     def wrapper(fn: t.Callable) -> t.Callable:
         action_config = ActionConfig(
@@ -82,7 +87,7 @@ def detect_request_class(endpoint: t.Callable) -> t.Type[Request]:
     return args.get('request', Request)
 
 
-async def call_guards(request: Request, guards: t.Iterable[Guard]) -> None:
+async def call_guards(request: Request, guards: t.Iterable[route_guards.Guard]) -> None:
     """Call route guards."""
     for guard in guards:
         if inspect.iscoroutinefunction(guard):

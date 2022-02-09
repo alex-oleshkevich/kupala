@@ -110,7 +110,7 @@ def test_is_authenticated_guard_denies() -> None:
     client = TestClient(app)
 
     response = client.get("/")
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 def test_has_permission_guard_allows() -> None:

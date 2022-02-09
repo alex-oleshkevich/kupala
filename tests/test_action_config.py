@@ -1,10 +1,14 @@
 import pathlib
+import typing
+from imia import BearerAuthenticator, InMemoryProvider
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.application import Kupala
+from kupala.authentication import BaseUser
 from kupala.dispatching import action_config
 from kupala.middleware import Middleware
+from kupala.middleware.authentication import AuthenticationMiddleware
 from kupala.requests import Request
 from kupala.responses import JSONResponse
 from kupala.routing import Route
@@ -118,3 +122,58 @@ def test_route_overrides_action_config_middleware() -> None:
     app.routes.add('/', view, middleware=[Middleware(set_one)])
     client = TestClient(app)
     assert client.get('/').text == 'one'
+
+
+def test_view_allows_unauthenticated_access() -> None:
+    @action_config(is_authenticated=False)
+    def view() -> JSONResponse:
+        return JSONResponse([])
+
+    app = Kupala(routes=[Route('/', view)])
+    client = TestClient(app)
+    assert client.get('/').status_code == 200
+
+
+def test_when_view_requires_authentication_authenticated_user_can_access_page() -> None:
+    @action_config(is_authenticated=True)
+    def view() -> JSONResponse:
+        return JSONResponse([])
+
+    class User(BaseUser):
+        def get_id(self) -> typing.Any:
+            pass
+
+        def get_display_name(self) -> str:
+            pass
+
+        def get_scopes(self) -> list[str]:
+            pass
+
+        def get_hashed_password(self) -> str:
+            pass
+
+    user_provider = InMemoryProvider({'root': User()})
+    app = Kupala(
+        routes=[Route('/', view)],
+        middleware=[
+            AuthenticationMiddleware.configure(authenticators=[BearerAuthenticator(user_provider)]),
+        ],
+    )
+    client = TestClient(app)
+    assert client.get('/', headers={'authorization': 'Bearer root'}).status_code == 200
+
+
+def test_when_view_requires_authentication_unauthenticated_user_cannoe_access_page() -> None:
+    @action_config(is_authenticated=True)
+    def view() -> JSONResponse:
+        return JSONResponse([])
+
+    user_provider = InMemoryProvider({})
+    app = Kupala(
+        routes=[Route('/', view)],
+        middleware=[
+            AuthenticationMiddleware.configure(authenticators=[BearerAuthenticator(user_provider)]),
+        ],
+    )
+    client = TestClient(app)
+    assert client.get('/').status_code == 401

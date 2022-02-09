@@ -23,7 +23,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-starlette = "^0.17"
+starlette = "^0.18"
 Jinja2 = "^3.0"
 starsessions = "^1.2"
 imia = "^0.3"
@@ -42,10 +42,10 @@ pytest = "^6.2.4"
 pytest-asyncio = "^0.16.0"
 requests = "^2.27.1"
 pytest-coverage = "^0.0"
-black = "^21.12b0"
-mypy = "^0.930"
+black = "^22.1.0"
+mypy = "^0.931"
 flake8 = "^4.0.1"
-uvicorn = "^0.16.0"
+uvicorn = "^0.17.0"
 
 [tool.poetry.extras]
 s3 = ["aioboto3"]

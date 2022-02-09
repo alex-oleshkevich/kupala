@@ -1,8 +1,9 @@
 import os
 import pathlib
 import pytest
+import typing
 
-from kupala.utils import camel_to_snake, import_string, resolve_path, run_async
+from kupala.utils import camel_to_snake, import_string, resolve_path, run_async, to_string_list
 
 
 def test_resolve_path(tmp_path: pathlib.Path) -> None:
@@ -36,3 +37,14 @@ async def test_run_async() -> None:
 
     assert await run_async(plain, 'one', kwarg='two') == 'called one two'
     assert await run_async(coro, 'one', kwarg='two') == 'called one two'
+
+
+def test_to_string_list() -> None:
+    assert to_string_list(None) == []
+    assert to_string_list('test') == ['test']
+    assert to_string_list(['test']) == ['test']
+
+    def gen() -> typing.Generator[str, None, None]:
+        yield 'test'
+
+    assert to_string_list(gen()) == ['test']

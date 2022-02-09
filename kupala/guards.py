@@ -1,5 +1,6 @@
 import typing
 
+from kupala.exceptions import NotAuthenticated
 from kupala.requests import Request
 
 
@@ -8,9 +9,10 @@ class Guard(typing.Protocol):  # pragma: no cover
         ...
 
 
-def is_authenticated(request: Request) -> bool:
+def is_authenticated(request: Request) -> None:
     """Test if user is authenticated."""
-    return request.auth.is_authenticated
+    if not request.auth.is_authenticated:
+        raise NotAuthenticated()
 
 
 def has_permission(permission: str) -> Guard:
