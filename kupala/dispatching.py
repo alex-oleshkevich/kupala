@@ -43,7 +43,7 @@ class ActionConfig:
     guards: list[route_guards.Guard] | None = None
 
 
-def action_config(
+def route(
     methods: t.List[str] = None,
     template: str | None = None,
     renderer: str = '',
@@ -74,6 +74,9 @@ def action_config(
         return fn
 
     return wrapper
+
+
+action_config = route
 
 
 def get_action_config(endpoint: t.Callable) -> ActionConfig:
