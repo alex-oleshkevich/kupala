@@ -152,7 +152,11 @@ class RedirectResponse(Response, responses.RedirectResponse):
         return self.flash(message, category='success')
 
     def with_input(self: RT) -> RT:
-        """Redirect with form input data. Uploaded files will be removed from data."""
+        """
+        Redirect with form input data.
+
+        Uploaded files will be removed from data.
+        """
         self._capture_input = True
         # self._input_data = {k: v for k, v in input_data.items() if not isinstance(v, UploadFile)}
         return self

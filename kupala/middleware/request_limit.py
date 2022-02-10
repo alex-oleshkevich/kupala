@@ -10,7 +10,9 @@ class LargeEntityError(ValueError):
 
 
 class RequestLimitMiddleware:
-    """Limit request body to a value of max_body_size.
+    """
+    Limit request body to a value of max_body_size.
+
     When request body exceeds the limit then 413 response returned.
     """
 

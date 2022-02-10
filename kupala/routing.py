@@ -26,7 +26,8 @@ def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASG
 
 
 def request_response(func: t.Callable) -> ASGIApp:
-    """Takes a function or coroutine `func(request) -> response` and returns an ASGI application."""
+    """Takes a function or coroutine `func(request) -> response` and returns an
+    ASGI application."""
 
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
         response = await dispatch_endpoint(scope, receive, send, func)
@@ -408,13 +409,13 @@ class Routes(t.Sequence[routing.BaseRoute]):
     def static(
         self,
         path: str,
-        directory: t.Union[str, PathLike[str]] = None,
+        directory: t.Union[str, PathLike[str]] | None = None,
         *,
-        packages: list[str] = None,
+        packages: list[str | tuple[str, str]] | None = None,
         html: bool = False,
         check_dir: bool = True,
-        name: str = None,
-        middleware: t.Sequence[Middleware] = None,
+        name: str | None = None,
+        middleware: t.Sequence[Middleware] | None = None,
     ) -> None:
         """Serve static files from local directories."""
         app = StaticFiles(directory=directory, packages=packages, html=html, check_dir=check_dir)

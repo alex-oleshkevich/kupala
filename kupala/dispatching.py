@@ -87,9 +87,12 @@ def get_action_config(endpoint: t.Callable) -> ActionConfig:
 
 
 def detect_request_class(endpoint: t.Callable) -> t.Type[Request]:
-    """Detect which request class to use for this endpoint.
-    If endpoint does not have `request` argument, or it is not type-hinted
-    then default request class returned."""
+    """
+    Detect which request class to use for this endpoint.
+
+    If endpoint does not have `request` argument, or it is not type-hinted then
+    default request class returned.
+    """
     args = t.get_type_hints(endpoint)
     return args.get('request', Request)
 
@@ -115,12 +118,13 @@ async def resolve_injections(
     sync_stack: ExitStack,
     async_stack: AsyncExitStack,
 ) -> dict[str, t.Any]:
-    """Read endpoint signature and extract injections types.
-    These injections will be resolved into actual service instances.
-    Dependency injections and path parameters are merged.
+    """
+    Read endpoint signature and extract injections types. These injections will
+    be resolved into actual service instances. Dependency injections and path
+    parameters are merged.
 
-    Return value of `from_request` can be a generator. In this case we convert it into context manager
-    and add to sync/async exit stack.
+    Return value of `from_request` can be a generator. In this case we convert
+    it into context manager and add to sync/async exit stack.
     """
     injections = {}
 
@@ -169,7 +173,11 @@ async def resolve_injections(
 
 
 async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint: t.Callable) -> ASGIApp:
-    """Call endpoint callable resolving all dependencies. Will return response."""
+    """
+    Call endpoint callable resolving all dependencies.
+
+    Will return response.
+    """
     request_class = detect_request_class(endpoint)
     request = request_class(scope, receive, send)
     action_config = get_action_config(endpoint)

@@ -6,9 +6,13 @@ from kupala.requests import Request
 
 
 class TemplateContextMiddleware:
-    """For every request this middleware will call given context processors.
-    There return value will be merged and stored in `request.state.template_context` attribute.
-    TemplateResponse will merge it with its own context providing a final template context."""
+    """
+    For every request this middleware will call given context processors.
+
+    There return value will be merged and stored in
+    `request.state.template_context` attribute. TemplateResponse will merge it
+    with its own context providing a final template context.
+    """
 
     def __init__(self, app: ASGIApp, context_processors: list[ContextProcessor] = None) -> None:
         self.app = app

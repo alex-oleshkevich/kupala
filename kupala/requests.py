@@ -105,7 +105,9 @@ class FormData(requests.FormData):
 
 
 class UploadFile(ds.UploadFile):
-    def __init__(self, request: Request, filename: str, file: typing.IO = None, content_type: str = "") -> None:
+    def __init__(
+        self, request: Request, filename: str, file: typing.BinaryIO | None = None, content_type: str = ""
+    ) -> None:
         self.request = request
         super().__init__(filename, file, content_type)
 
@@ -196,8 +198,7 @@ class Request(requests.Request):
 
     @property
     def wants_json(self) -> bool:
-        """Test if request sends Accept header
-        with 'application/json' value."""
+        """Test if request sends Accept header with 'application/json' value."""
         return "application/json" in self.headers.get("accept", "")
 
     @property
@@ -207,10 +208,10 @@ class Request(requests.Request):
     @property
     def is_xhr(self) -> bool:
         """
-        Is true when the request is a XMLHttpRequest.
-        It works if JavaScript's HTTP client sets an X-Requested-With HTTP header.
-        Known frameworks:
-        http://en.wikipedia.org/wiki/List_of_Ajax_frameworks#JavaScript
+        Is true when the request is a XMLHttpRequest. It works if JavaScript's
+        HTTP client sets an X-Requested-With HTTP header. Known frameworks:
+        http://en.wikipedia.org/wiki/List_of_Ajax_frameworks#JavaScript.
+
         :return:
         """
         return self.headers.get("x-requested-with", None) == "XMLHttpRequest"
@@ -254,7 +255,11 @@ class Request(requests.Request):
 
     @property
     def old_input(self) -> OldFormInput:
-        """Get previous form input. This value does not include uploaded files."""
+        """
+        Get previous form input.
+
+        This value does not include uploaded files.
+        """
         if '_form_old_input' not in self.scope:
             old_form_input = OldFormInput({})
             if 'session' in self.scope:
@@ -263,7 +268,8 @@ class Request(requests.Request):
         return self.scope['_form_old_input']
 
     async def remember_form_data(self) -> None:
-        """Flush current form data into session so it can be used on the next page to render form errors."""
+        """Flush current form data into session so it can be used on the next
+        page to render form errors."""
         if 'session' in self.scope:
             data = await self.form()
             self.session['_form_old_input'] = {k: v for k, v in data.items() if not isinstance(v, ds.UploadFile)}
@@ -279,8 +285,11 @@ class Request(requests.Request):
         return self.scope['_form_error']
 
     def set_form_errors(self, field_errors: dict = None) -> None:
-        """Flush form error message and form field errors into session.
-        This data can be later retrieved via `request.form_errors` attribute."""
+        """
+        Flush form error message and form field errors into session.
+
+        This data can be later retrieved via `request.form_errors` attribute.
+        """
         if 'session' in self.scope:
             self.session['_form_field_errors'] = field_errors or {}
 
@@ -318,8 +327,11 @@ class Request(requests.Request):
         return FilesData(FormData([(k, v) for k, v in data.multi_items() if isinstance(v, UploadFile)]))
 
     async def data(self) -> t.Mapping:
-        """Returns a request data.
-        Automatically decodes JSON if Content-Type is application/json."""
+        """
+        Returns a request data.
+
+        Automatically decodes JSON if Content-Type is application/json.
+        """
         if self.is_json:
             return await self.json()
         return await self.form()

@@ -12,7 +12,8 @@ from kupala.testclient import TestClient
 
 @pytest.mark.asyncio
 async def test_request_limit_middleware_limits() -> None:
-    """When request body is larger than a configured limit then 413 response to be returned."""
+    """When request body is larger than a configured limit then 413 response to
+    be returned."""
 
     async def view(request: Request) -> PlainTextResponse:
         await request.form()

@@ -27,8 +27,11 @@ class Config:
         self._is_locked = False
 
     def get(self, key: str, default: t.Any = undefined) -> t.Any:
-        """Get a value from the configuration object using dot-notation.
-        This method returns a deep copy of the found value."""
+        """
+        Get a value from the configuration object using dot-notation.
+
+        This method returns a deep copy of the found value.
+        """
         value = self._data
         for segment in key.split("."):
             if segment in value:
@@ -44,31 +47,39 @@ class Config:
         return copy.deepcopy(self._data.get(key, default))
 
     def set(self, section: str, data: t.Any) -> None:
-        """Set a value for a section.
-        Raises LockedError if the config object locked."""
+        """
+        Set a value for a section.
+
+        Raises LockedError if the config object locked.
+        """
         self._raise_if_locked()
         self._data[section] = data
 
     def update(self, data: t.Any) -> None:
-        """Update configuration object.
+        """
+        Update configuration object.
 
-        This method behaves as dict.update..
-        Raises LockedError if the config object locked."""
+        This method behaves as dict.update.. Raises LockedError if the config
+        object locked.
+        """
         self._raise_if_locked()
         self._data.update(data)
 
     def lock(self) -> None:
-        """Lock the config.
-        Once locked no config modification allowed.
-        Any attempt will raise LockedError."""
+        """
+        Lock the config.
+
+        Once locked no config modification allowed. Any attempt will raise
+        LockedError.
+        """
         self._is_locked = True
 
     def unlock(self) -> _Lock:
-        """Unlock (or temporary unlock) the config.
-        In order to temporary unlock the object
-        use it as a context manager:
-            with config.unlock() as config:
-                config.set('section', 'value')
+        """
+        Unlock (or temporary unlock) the config.
+
+        In order to temporary unlock the object use it as a context manager:
+        with config.unlock() as config:         config.set('section', 'value')
         """
         self._is_locked = False
         return _Lock(self)

@@ -45,7 +45,8 @@ pytest-coverage = "^0.0"
 black = "^22.1.0"
 mypy = "^0.931"
 flake8 = "^4.0.1"
-uvicorn = "^0.17.0"
+uvicorn = "^0.17.4"
+types-pytz = "^2021.3.4"
 
 [tool.poetry.extras]
 s3 = ["aioboto3"]

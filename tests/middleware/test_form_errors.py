@@ -11,8 +11,9 @@ from kupala.testclient import TestClient
 
 
 def test_http_form_errors() -> None:
-    """When ValidationError is raised by a view handler, the request should be redirected to the previous page
-    (determined by Referer headers) with current form data (except files) and validation error messages."""
+    """When ValidationError is raised by a view handler, the request should be
+    redirected to the previous page (determined by Referer headers) with current
+    form data (except files) and validation error messages."""
 
     async def render_form_view(request: Request) -> JSONResponse:
         return JSONResponse(

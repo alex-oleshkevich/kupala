@@ -36,14 +36,22 @@ class Page(t.Generic[M]):
 
     @property
     def next_page(self) -> int:
-        """Next page number. Always returns an integer.
-        If there is no more pages the current page number returned."""
+        """
+        Next page number.
+
+        Always returns an integer. If there is no more pages the current page
+        number returned.
+        """
         return min(self.total_pages, self.page + 1)
 
     @property
     def previous_page(self) -> int:
-        """Previous page number. Always returns an integer.
-        If there is no previous page, the number 1 returned."""
+        """
+        Previous page number.
+
+        Always returns an integer. If there is no previous page, the number 1
+        returned.
+        """
         return max(1, self.page - 1)
 
     @property
@@ -89,8 +97,12 @@ class Page(t.Generic[M]):
         return len(self.rows)
 
     def __bool__(self) -> bool:
-        """A shortcut to check if page has more than one pages.
-        Useful in templates to check if the pagination should be rendered or not."""
+        """
+        A shortcut to check if page has more than one pages.
+
+        Useful in templates to check if the pagination should be rendered or
+        not.
+        """
         return self.total_pages > 1
 
     def __str__(self) -> str:

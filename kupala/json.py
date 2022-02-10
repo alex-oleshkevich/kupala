@@ -47,7 +47,7 @@ def json_default(o: typing.Any) -> typing.Any:
 
 
 def walk(value: typing.Any, callback: typing.Callable) -> typing.Any:
-    """Visit each item and apply"""
+    """Visit each item and apply."""
     if isinstance(value, dict):
         for key, value_ in value.items():
             value[key] = walk(value_, callback)

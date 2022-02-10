@@ -124,7 +124,11 @@ class Kupala:
         )
 
     def get_asgi_app(self) -> ASGIHandler:
-        """Creates ASGI handler. Subsequent calls will return cached instance."""
+        """
+        Creates ASGI handler.
+
+        Subsequent calls will return cached instance.
+        """
         if self._asgi_app is None:
             self._asgi_app = self.create_asgi_app()
         return self._asgi_app
@@ -134,8 +138,13 @@ class Kupala:
         return self.renderer.render(template_name, context or {})
 
     def url_for(self, name: str, **path_params: str) -> str:
-        """Generate URL by name. This method is useful when you want to reverse the URL in non-ASGI mode like CLI.
-        Otherwise, prefer using Request.url_for as it generates full URL incl. host and scheme."""
+        """
+        Generate URL by name.
+
+        This method is useful when you want to reverse the URL in non-ASGI mode
+        like CLI. Otherwise, prefer using Request.url_for as it generates full
+        URL incl. host and scheme.
+        """
         return self.urls.url_for(name, **path_params)
 
     def cli(self) -> int:
