@@ -1,11 +1,11 @@
-import typing as t
+import typing
 
 from kupala.requests import Request
 
-SERVICE = t.TypeVar('SERVICE')
+SERVICE = typing.TypeVar('SERVICE')
 
 
-class PasswordHasher(t.Protocol):  # pragma: no cover
+class PasswordHasher(typing.Protocol):  # pragma: no cover
     def hash(self, plain_password: str) -> str:
         ...
 
@@ -13,34 +13,19 @@ class PasswordHasher(t.Protocol):  # pragma: no cover
         ...
 
 
-class Resolver(t.Protocol):  # pragma: nocover
-    """A service resolver protocol."""
-
-    def resolve(self, key: t.Type[SERVICE]) -> SERVICE:
-        ...
-
-
-class Invoker(t.Protocol):  # pragma: nocover
-    """Invoker is an object that can invoke callables resolving and passing
-    dependencies."""
-
-    def invoke(self, fn_or_class: t.Union[t.Callable, t.Type], extra_kwargs: t.Dict[str, t.Any] = None) -> t.Any:
-        ...
-
-
-class TemplateRenderer(t.Protocol):  # pragma: nocover
+class TemplateRenderer(typing.Protocol):  # pragma: nocover
     """Render template to string."""
 
-    def render(self, template_name: str, context: t.Dict = None) -> str:
+    def render(self, template_name: str, context: typing.Dict = None) -> str:
         ...
 
 
-class ContextProcessor(t.Protocol):  # pragma: nocover
-    def __call__(self, request: Request) -> t.Mapping:
+class ContextProcessor(typing.Protocol):  # pragma: nocover
+    def __call__(self, request: Request) -> typing.Mapping:
         ...
 
 
-class HasPreferredLanguage(t.Protocol):  # pragma: nocover
+class HasPreferredLanguage(typing.Protocol):  # pragma: nocover
     """Defines an object that can provide preselected language information."""
 
     def get_preferred_language(self) -> str | None:
