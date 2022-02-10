@@ -107,7 +107,7 @@ class Route(routing.Route):
         action_config = get_action_config(endpoint)
         middleware = middleware or action_config.middleware
         methods = methods or action_config.methods
-        if methods is None:
+        if not methods:
             methods = ['GET']
 
         endpoint_handler = endpoint
@@ -121,7 +121,7 @@ class Route(routing.Route):
             # Endpoint is a class. Treat it as ASGI.
             self.app = endpoint
 
-        if middleware is not None:
+        if middleware:
             self.app = apply_middleware(t.cast(t.Callable, self.app), middleware)
 
         self.methods = {method.upper() for method in methods}

@@ -38,3 +38,10 @@ class TemplateRenderer(t.Protocol):  # pragma: nocover
 class ContextProcessor(t.Protocol):  # pragma: nocover
     def __call__(self, request: Request) -> t.Mapping:
         ...
+
+
+class HasPreferredLanguage(t.Protocol):  # pragma: nocover
+    """Defines an object that can provide preselected language information."""
+
+    def get_preferred_language(self) -> str | None:
+        ...
