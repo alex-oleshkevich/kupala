@@ -26,7 +26,6 @@ class TemplateContextMiddleware:
         request = Request(scope, receive, send)
         context: dict[str, typing.Any] = {
             'request': request,
-            'config': request.app.config,
             'url': request.url_for,
             'app': request.app,
             'form_errors': request.form_errors,

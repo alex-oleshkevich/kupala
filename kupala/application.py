@@ -15,7 +15,6 @@ from starlette.routing import BaseRoute
 from starlette.types import Receive, Scope, Send
 
 from kupala.asgi import ASGIHandler
-from kupala.config import Config
 from kupala.contracts import TemplateRenderer
 from kupala.di import Injector
 from kupala.dispatching import ViewResultRenderer
@@ -82,7 +81,6 @@ class Kupala:
         # assign core components
         template_dirs = [template_dir] if isinstance(template_dir, (str, os.PathLike)) else template_dir or []
         self.jinja = JinjaExtension(template_dirs=[resolve_path(directory) for directory in template_dirs])
-        self.config = Config()
         self.state = State()
         self.passwords = PasswordsExtension()
         self.mail = MailExtension()

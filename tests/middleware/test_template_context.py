@@ -23,7 +23,6 @@ async def test_template_context_middleware() -> None:
     client = TestClient(app)
     data = client.get('/').json()
     assert 'request' in data
-    assert 'config' in data
     assert 'url' in data
     assert 'app' in data
     assert 'form_errors' in data
