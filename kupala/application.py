@@ -27,7 +27,6 @@ from kupala.extensions import (
     RendererExtension,
     StaticFilesExtension,
     StoragesExtension,
-    URLExtension,
 )
 from kupala.middleware import Middleware, MiddlewareStack
 from kupala.middleware.exception import ErrorHandler
@@ -88,7 +87,6 @@ class Kupala:
         self.signer = Signer(self.secret_key)
         self.renderer = RendererExtension(renderer or self.jinja.renderer)
         self.staticfiles = StaticFilesExtension(self)
-        self.urls = URLExtension(self)
         self.di = Injector(self)
         self.view_renderer = ViewResultRenderer()
 
@@ -143,7 +141,7 @@ class Kupala:
         like CLI. Otherwise, prefer using Request.url_for as it generates full
         URL incl. host and scheme.
         """
-        return self.urls.url_for(name, **path_params)
+        return self.get_asgi_app().router.url_path_for(name, **path_params)
 
     def cli(self) -> int:
         """Run console application."""

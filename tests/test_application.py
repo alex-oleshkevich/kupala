@@ -21,9 +21,11 @@ def test_application_url_for(test_app_factory: TestAppFactory, tmpdir: Path) -> 
     app = test_app_factory(
         routes=[
             Route('/example', view, name='example'),
+            Route('/example-{key}', view, name='example-key'),
         ]
     )
-    assert app.urls.url_for('example') == '/example'
+    assert app.url_for('example') == '/example'
+    assert app.url_for('example-key', key='key') == '/example-key'
 
 
 def test_user_password_hasher() -> None:
