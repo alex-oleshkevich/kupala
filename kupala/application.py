@@ -27,7 +27,6 @@ from kupala.extensions import (
     MailExtension,
     PasswordsExtension,
     RendererExtension,
-    SignerExtension,
     StaticFilesExtension,
     StoragesExtension,
     URLExtension,
@@ -37,6 +36,7 @@ from kupala.middleware.exception import ErrorHandler
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
+from kupala.security.signing import Signer
 from kupala.storages.storages import Storage
 from kupala.utils import resolve_path
 
@@ -89,7 +89,7 @@ class Kupala:
         self.auth = AuthenticationExtension(self)
         self.storages = StoragesExtension(storages)
         self.commands = ConsoleExtension(self, commands)
-        self.signer = SignerExtension(self.secret_key)
+        self.signer = Signer(self.secret_key)
         self.renderer = RendererExtension(renderer or self.jinja.renderer)
         self.staticfiles = StaticFilesExtension(self)
         self.urls = URLExtension(self)
