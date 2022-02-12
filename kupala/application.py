@@ -2,58 +2,73 @@ from __future__ import annotations
 
 import click
 import contextvars as cv
-import inspect
+import jinja2
+import jinja2.ext
 import logging
 import os
-import pathlib
 import secrets
 import traceback
 import typing
+from babel.numbers import format_decimal
 from contextlib import AsyncExitStack
 from imia import BaseAuthenticator, LoginManager, UserProvider
 from starlette.datastructures import State
 from starlette.routing import BaseRoute
 from starlette.types import Receive, Scope, Send
 
+from kupala import json
 from kupala.asgi import ASGIHandler
 from kupala.console.application import ConsoleApplication
 from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import Injector
 from kupala.dispatching import ViewResultRenderer
 from kupala.exceptions import ShutdownError, StartupError
-from kupala.extensions import JinjaExtension, MailExtension, StaticFilesExtension, StoragesExtension
+from kupala.i18n.formatters import (
+    format_currency,
+    format_date,
+    format_datetime,
+    format_number,
+    format_percent,
+    format_scientific,
+    format_time,
+    format_timedelta,
+)
+from kupala.mails import MailerManager
 from kupala.middleware import Middleware, MiddlewareStack
 from kupala.middleware.exception import ErrorHandler
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
 from kupala.security.signing import Signer
-from kupala.storages.storages import Storage
-from kupala.utils import import_string, resolve_path
+from kupala.storages.storages import Storage, StorageManager
+from kupala.templating import JinjaRenderer
+from kupala.utils import import_string
 
 
 class Kupala:
     def __init__(
         self,
         *,
-        secret_key: str = None,
+        secret_key: str | None = None,
         debug: bool = False,
         environment: str = 'production',
-        middleware: list[Middleware] = None,
+        middleware: list[Middleware] | None = None,
         routes: list[BaseRoute] | Routes | None = None,
         request_class: typing.Type[Request] = Request,
         error_handlers: dict[typing.Type[Exception] | int, typing.Optional[ErrorHandler]] = None,
         lifespan_handlers: list[typing.Callable[[Kupala], typing.AsyncContextManager[None]]] = None,
         exception_handler: typing.Callable[[Request, Exception], Response] | None = None,
-        template_dir: str | pathlib.Path | list[str | pathlib.Path] = 'templates',
-        commands: list[click.Command] = None,
-        storages: dict[str, Storage] = None,
-        renderer: TemplateRenderer = None,
+        template_dir: str | os.PathLike | list[str | os.PathLike] = 'templates',
+        commands: list[click.Command] | None = None,
+        storages: dict[str, Storage] | None = None,
+        renderer: TemplateRenderer | None = None,
     ) -> None:
         # base configuration
         self.debug = debug
         self.environment = environment
         self.request_class = request_class
+        self.commands = commands or []
+        self.state = State()
 
         self.secret_key = secret_key
         if self.secret_key is None:
@@ -70,38 +85,22 @@ class Kupala:
         self.middleware = MiddlewareStack(middleware)
         self.routes = Routes(routes or [])
 
+        # templating
+        if renderer:
+            self.use_renderer(renderer)
+        else:
+            self.use_jinja_renderer(template_dirs=template_dir)
+
         # assign core components
-        template_dirs = [template_dir] if isinstance(template_dir, (str, os.PathLike)) else template_dir or []
-        self.jinja = JinjaExtension(template_dirs=[resolve_path(directory) for directory in template_dirs])
-        self.state = State()
-        self.mail = MailExtension()
-        self.storages = StoragesExtension(storages)
-        self.commands = commands or []
-        self.signer = Signer(self.secret_key)
-        self.renderer = renderer or self.jinja.renderer
-        self.staticfiles = StaticFilesExtension(self)
+        self.mail = MailerManager()
+        self.storages = StorageManager(storages)
         self.di = Injector(self)
         self.view_renderer = ViewResultRenderer()
-
-        set_current_application(self)
-
-        # configure app
-        self.configure()
-
-        # bind extensions to this app
-        self._bootstrap()
 
         # ASGI app instance
         self._asgi_app: ASGIHandler | None = None
 
-        self.state.signer = Signer
-
-    def _bootstrap(self) -> None:
-        for _, extension in inspect.getmembers(self, lambda x: hasattr(x, 'initialize')):
-            extension.initialize(self)
-
-    def configure(self) -> None:
-        pass
+        self.state.signer = Signer(self.secret_key)
 
     def create_asgi_app(self) -> ASGIHandler:
         return ASGIHandler(
@@ -124,7 +123,7 @@ class Kupala:
 
     def render(self, template_name: str, context: dict[str, typing.Any] = None) -> str:
         """Render template."""
-        return self.renderer.render(template_name, context or {})
+        return self.state.renderer.render(template_name, context or {})
 
     def url_for(self, name: str, **path_params: str) -> str:
         """
@@ -136,8 +135,24 @@ class Kupala:
         """
         return self.get_asgi_app().router.url_path_for(name, **path_params)
 
+    def static_url(self, path: str, path_name: str = 'static') -> str:
+        return self.url_for(path_name, path=path)
+
+    def serve_static_files(self, directory: str | os.PathLike, url_path: str = '/static', name: str = 'static') -> None:
+        """
+        Serve static files from local directory. This will create a file route
+        and local storage both named after "name" argument.
+
+        :param directory: full path to the local directory path
+        :param url_path: URL path to use in route
+        :param name: route and storage name
+        """
+        self.storages.add_local(name, directory)
+        self.routes.files(url_path, storage=name, name=name, inline=False)
+
     def cli(self) -> int:
         """Run console application."""
+        set_current_application(self)
         return ConsoleApplication(self, self.commands).run()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -162,6 +177,8 @@ class Kupala:
         scope['state'] = {}
         if scope['type'] == 'http':
             scope['request'] = self.request_class(scope, receive)
+
+        set_current_application(self)
         await self._asgi_app(scope, receive, send)
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -210,9 +227,60 @@ class Kupala:
         self.state.login_manager = LoginManager(
             secret_key=self.secret_key,
             user_provider=user_provider,
-            password_verifier=self.state.password_verifier,
+            password_verifier=self.state.password_hasher,
         )
         self.di.make_injectable(LoginManager, from_app_factory=lambda app: app.state.login_manager)
+
+    def use_renderer(self, renderer: TemplateRenderer) -> None:
+        self.state.renderer = renderer
+
+    def use_jinja_renderer(
+        self,
+        template_dirs: str | os.PathLike | list[str | os.PathLike],
+        tests: dict[str, typing.Callable] = None,
+        filters: dict[str, typing.Callable] = None,
+        globals: dict[str, typing.Any] = None,
+        policies: dict[str, typing.Any] = None,
+        extensions: list[str | typing.Type[jinja2.ext.Extension]] = None,
+        env: jinja2.Environment = None,
+        loader: jinja2.BaseLoader = None,
+    ) -> None:
+        template_dirs = [template_dirs] if isinstance(template_dirs, (str, os.PathLike)) else template_dirs
+        loader = loader or jinja2.loaders.FileSystemLoader(searchpath=template_dirs)
+        env = env or jinja2.Environment(loader=loader, extensions=extensions or [])
+        env.tests.update(tests or {})
+        env.globals.update(globals or {})
+        env.filters.update(filters or {})
+        env.policies.update(policies or {})
+
+        env.filters.update(
+            {
+                'datetimeformat': format_datetime,
+                'dateformat': format_date,
+                'timeformat': format_time,
+                'timedeltaformat': format_timedelta,
+                'numberformat': format_number,
+                'decimalformat': format_decimal,
+                'currencyformat': format_currency,
+                'percentformat': format_percent,
+                'scientificformat': format_scientific,
+            }
+        )
+        env.globals.update(
+            {
+                'static': self.static_url,
+                '_': lambda x: x,
+            }
+        )
+
+        if 'json.dumps_function' not in env.policies:
+            env.policies['json.dumps_function'] = json.dumps
+
+        if "json.dumps_kwargs" not in env.policies:
+            env.policies["json.dumps_kwargs"] = {"ensure_ascii": False, "sort_keys": True}
+
+        self.state.jinja_env = env
+        self.use_renderer(JinjaRenderer(env))
 
 
 _current_app: cv.ContextVar[Kupala] = cv.ContextVar('_current_app')

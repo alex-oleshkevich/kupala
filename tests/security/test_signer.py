@@ -45,8 +45,8 @@ def test_signer_safe_unsign_fail(signer: Signer) -> None:
 def test_timed_signer(signer: Signer) -> None:
     app = Kupala()
     value = 'value'
-    signed_value = app.signer.timed_sign(value)
-    assert app.signer.timed_unsign(signed_value, 10) == value.encode()
+    signed_value = app.state.signer.timed_sign(value)
+    assert app.state.signer.timed_unsign(signed_value, 10) == value.encode()
 
 
 def test_timed_signer_raises_for_invalid_value(signer: Signer) -> None:
@@ -69,7 +69,7 @@ def test_signer_safe_timed_unsign_fail(signer: Signer) -> None:
 
 
 @pytest.mark.asyncio
-async def test_is_injectable(signer: Signer) -> None:
+async def test_is_injectable() -> None:
     async def view(signer: Signer) -> PlainTextResponse:
         return PlainTextResponse(signer.sign('value'))
 
@@ -77,4 +77,4 @@ async def test_is_injectable(signer: Signer) -> None:
     app.routes.add('/', view)
 
     client = TestClient(app)
-    assert app.signer.unsign(client.get('/').text) == b'value'
+    assert app.state.signer.unsign(client.get('/').text) == b'value'

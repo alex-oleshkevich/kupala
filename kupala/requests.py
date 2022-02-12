@@ -309,9 +309,9 @@ class Request(requests.Request):
                 return True
         return False
 
-    def static_url(self, path: str | os.PathLike) -> str:
+    def static_url(self, path: str, path_name: str = 'static') -> str:
         """Generate a URL to a static file."""
-        return self.app.staticfiles.static_url(path)
+        return self.app.static_url(path)
 
     async def form(self) -> FormData:
         data = await super().form()

@@ -34,5 +34,5 @@ class TemplateResponse(Response):
             pass
 
         full_context.update(context or {})
-        content = request.app.renderer.render(template_name, full_context)
+        content = request.app.render(template_name, full_context)
         super().__init__(content, status_code, headers, media_type)

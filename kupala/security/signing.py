@@ -67,4 +67,4 @@ class Signer:
 
     @classmethod
     def from_app(cls, app: Kupala) -> Signer:
-        return app.signer
+        return app.state.signer

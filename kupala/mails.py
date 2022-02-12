@@ -1,7 +1,6 @@
-from mailers import Email, Plugin, SentMessages, TemplatedEmail
+from email.message import Message
+from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, TemplatedEmail, create_transport_from_url
 from mailers.message import Recipients
-
-from kupala.application import get_current_application
 
 try:
     import toronado
@@ -19,7 +18,60 @@ class CSSInlinerPlugin(Plugin):
         return email
 
 
+class MailerManager:
+    def __init__(self, mailers: dict[str, Mailer] | None = None, default: str = 'default') -> None:
+        self._mailers = mailers or {}
+        self._default = default
+
+    def use(
+        self,
+        url: str,
+        *,
+        from_address: str = 'no-reply@example.com',
+        from_name: str = 'Example',
+        signer: Signer = None,
+        encrypter: Encrypter = None,
+        plugins: list[Plugin] = None,
+        name: str = 'default',
+    ) -> None:
+        """Create and configure mailer from URL."""
+        if from_name:
+            from_address = f'{from_name} <{from_address}>'
+        transport = create_transport_from_url(url)
+        self.add(
+            name,
+            Mailer(
+                transport,
+                from_address=from_address,
+                plugins=plugins,
+                signer=signer,
+                encrypter=encrypter,
+            ),
+        )
+
+    def add(self, name: str, mailer: Mailer) -> None:
+        """Add new mailer."""
+        assert name not in self._mailers, f'"{name}" already exists.'
+        self._mailers[name] = mailer
+
+    def get(self, name: str) -> Mailer:
+        """Get mailer by name."""
+        if name not in self._mailers:
+            raise KeyError(f'No mailer named "{name}" defined.')
+        return self._mailers[name]
+
+    def get_default(self) -> Mailer:
+        """Get default mailer."""
+        return self.get(self._default)
+
+    async def send(self, message: Email | Message, name: str = 'default') -> SentMessages:
+        """Send message using selected mailer."""
+        mailer = self.get(name)
+        return await mailer.send(message)
+
+
 async def send_mail(
+    mailer: Mailer,
     message: Email = None,
     *,
     to: Recipients = None,
@@ -55,12 +107,11 @@ async def send_mail(
         boundary=boundary,
         message_id=message_id,
     )
-
-    app = get_current_application()
-    return await app.mail.send(message)
+    return await mailer.send(message)
 
 
 async def send_templated_mail(
+    mailer: Mailer,
     message: Email = None,
     *,
     to: Recipients = None,
@@ -99,5 +150,4 @@ async def send_templated_mail(
         message_id=message_id,
     )
 
-    app = get_current_application()
-    return await app.mail.send(message)
+    return await mailer.send(message)

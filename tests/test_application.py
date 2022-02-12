@@ -35,3 +35,20 @@ def test_user_password_hasher() -> None:
     assert getattr(app.state, 'password_hasher')
     hashed = app.state.password_hasher.hash('password')
     assert app.state.password_hasher.verify('password', hashed)
+
+
+def test_use_jinja_renderer() -> None:
+    app = Kupala()
+    app.use_jinja_renderer(
+        template_dirs=['/tmp'],
+        tests={'test': str},
+        filters={'test': str},
+        globals={'test': True},
+        policies={'test': True},
+        extensions=['jinja2.ext.DebugExtension'],
+    )
+    assert '/tmp' in app.state.jinja_env.loader.searchpath  # type: ignore
+    assert 'test' in app.state.jinja_env.globals
+    assert 'test' in app.state.jinja_env.filters
+    assert 'test' in app.state.jinja_env.policies
+    assert 'jinja2.ext.DebugExtension' in app.state.jinja_env.extensions

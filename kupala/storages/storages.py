@@ -43,3 +43,52 @@ class S3Storage(Storage):
 
     def abspath(self, path: t.Union[str, os.PathLike]) -> str:
         return ''
+
+
+class StorageManager:
+    def __init__(self, storages: dict[str, Storage] | None = None, default_storage: str = 'default') -> None:
+        self._default_storage_name: str = default_storage
+        self._storages: dict[str, Storage] = storages or {}
+
+    def add(self, name: str, storage: Storage) -> None:
+        assert name not in self._storages, f'Storage "{name}" already exists.'
+        self._storages[name] = storage
+
+    def add_local(self, name: str, base_dir: str | os.PathLike) -> None:
+        self.add(name, LocalStorage(base_dir))
+
+    def add_s3(
+        self,
+        name: str,
+        bucket: str,
+        aws_access_key_id: str,
+        aws_secret_access_key: str,
+        region_name: str = None,
+        profile_name: str = None,
+        endpoint_url: str = None,
+        link_ttl: int = 300,
+    ) -> None:
+        self.add(
+            name,
+            S3Storage(
+                bucket=bucket,
+                aws_secret_access_key=aws_secret_access_key,
+                aws_access_key_id=aws_access_key_id,
+                region_name=region_name,
+                profile_name=profile_name,
+                endpoint_url=endpoint_url,
+                link_ttl=link_ttl,
+            ),
+        )
+
+    def get(self, name: str) -> Storage:
+        assert name in self._storages
+        return self._storages[name]
+
+    def get_default(self) -> Storage:
+        if len(self._storages) == 1:
+            return list(self._storages.values())[0]
+        try:
+            return self._storages[self._default_storage_name]
+        except KeyError:
+            raise KeyError('No default storage configured.')

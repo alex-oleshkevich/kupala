@@ -11,4 +11,4 @@ def response(request: Request, status_code: int = 200, headers: dict = None) -> 
 
 def render_to_string(template_name: str, context: t.Dict = None) -> str:
     app = get_current_application()
-    return app.renderer.render(template_name, context)
+    return app.render(template_name, context)
