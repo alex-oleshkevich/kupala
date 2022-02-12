@@ -8,7 +8,6 @@ import time
 import typing
 from email.message import Message
 from functools import cached_property
-from imia import BaseAuthenticator, LoginManager, UserProvider, UserToken
 from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, create_transport_from_url
 
 from kupala import json
@@ -87,39 +86,6 @@ class MailExtension(Extension):
     async def send(self, message: Email | Message, mailer: str = None) -> SentMessages:
         mailer_name = mailer or self.default
         return await self.get(mailer_name).send(message)
-
-
-class AuthenticationExtension(Extension):
-    def __init__(self, app: Kupala) -> None:
-        self.user_model: typing.Type[typing.Any] | None = None
-        self.user_provider: UserProvider | None = None
-        self.authenticators: list[BaseAuthenticator] = []
-        self.secret_key = app.secret_key
-
-    def configure(
-        self,
-        user_model: typing.Type[typing.Any] = None,
-        user_provider: UserProvider | None = None,
-        authenticators: list[BaseAuthenticator] | None = None,
-    ) -> None:
-        """Configure multiple options at once."""
-        if user_model:
-            self.user_model = user_model
-        if user_provider:
-            self.user_provider = user_provider
-        if authenticators:
-            self.authenticators = authenticators
-
-    def initialize(self, app: Kupala) -> None:
-        def login_manager_factory(app: Kupala) -> LoginManager:
-            return LoginManager(
-                user_provider=self.user_provider,
-                password_verifier=app.state.password_hasher,
-                secret_key=app.secret_key,
-            )
-
-        make_injectable(LoginManager, from_app_factory=login_manager_factory)
-        make_injectable(UserToken, from_request_factory=lambda request: request.auth)
 
 
 class StoragesExtension(Extension):

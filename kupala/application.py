@@ -10,6 +10,7 @@ import secrets
 import traceback
 import typing
 from contextlib import AsyncExitStack
+from imia import BaseAuthenticator, LoginManager, UserProvider
 from starlette.datastructures import State
 from starlette.routing import BaseRoute
 from starlette.types import Receive, Scope, Send
@@ -20,14 +21,7 @@ from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import Injector
 from kupala.dispatching import ViewResultRenderer
 from kupala.exceptions import ShutdownError, StartupError
-from kupala.extensions import (
-    AuthenticationExtension,
-    JinjaExtension,
-    MailExtension,
-    RendererExtension,
-    StaticFilesExtension,
-    StoragesExtension,
-)
+from kupala.extensions import JinjaExtension, MailExtension, RendererExtension, StaticFilesExtension, StoragesExtension
 from kupala.middleware import Middleware, MiddlewareStack
 from kupala.middleware.exception import ErrorHandler
 from kupala.requests import Request
@@ -81,7 +75,6 @@ class Kupala:
         self.jinja = JinjaExtension(template_dirs=[resolve_path(directory) for directory in template_dirs])
         self.state = State()
         self.mail = MailExtension()
-        self.auth = AuthenticationExtension(self)
         self.storages = StoragesExtension(storages)
         self.commands = commands or []
         self.signer = Signer(self.secret_key)
@@ -207,6 +200,19 @@ class Kupala:
             hasher = typing.cast(PasswordHasher, import_string(imports[hasher]))
         self.state.password_hasher = hasher
         self.di.prefer_for(PasswordHasher, lambda app: app.state.password_hasher)
+
+    def use_authentication(
+        self,
+        user_provider: UserProvider,
+        user_model: typing.Type[typing.Any] | None = None,
+        authenticators: list[BaseAuthenticator] | None = None,
+    ) -> None:
+        self.state.login_manager = LoginManager(
+            secret_key=self.secret_key,
+            user_provider=user_provider,
+            password_verifier=self.state.password_verifier,
+        )
+        self.di.make_injectable(LoginManager, from_app_factory=lambda app: app.state.login_manager)
 
 
 _current_app: cv.ContextVar[Kupala] = cv.ContextVar('_current_app')
