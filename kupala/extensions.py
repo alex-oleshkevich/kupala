@@ -11,7 +11,6 @@ from functools import cached_property
 from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, create_transport_from_url
 
 from kupala import json
-from kupala.contracts import TemplateRenderer
 from kupala.di import make_injectable
 from kupala.storages.storages import LocalStorage, S3Storage, Storage
 from kupala.templating import JinjaRenderer
@@ -24,18 +23,6 @@ if typing.TYPE_CHECKING:  # pragma: nocover
 class Extension:
     def initialize(self, app: Kupala) -> None:
         pass
-
-
-class RendererExtension(Extension):
-    def __init__(self, renderer: TemplateRenderer | None = None) -> None:
-        self._template_renderer = renderer
-
-    def use(self, renderer: TemplateRenderer) -> None:
-        self._template_renderer = renderer
-
-    def render(self, template_name: str, context: dict[str, typing.Any] = None) -> str:
-        assert self._template_renderer, 'Template rendering is not configured.'
-        return self._template_renderer.render(template_name, context)
 
 
 class MailExtension(Extension):
