@@ -15,7 +15,7 @@ from starlette.routing import BaseRoute
 from starlette.types import Receive, Scope, Send
 
 from kupala.asgi import ASGIHandler
-from kupala.contracts import TemplateRenderer
+from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import Injector
 from kupala.dispatching import ViewResultRenderer
 from kupala.exceptions import ShutdownError, StartupError
@@ -24,7 +24,6 @@ from kupala.extensions import (
     ConsoleExtension,
     JinjaExtension,
     MailExtension,
-    PasswordsExtension,
     RendererExtension,
     StaticFilesExtension,
     StoragesExtension,
@@ -37,7 +36,7 @@ from kupala.responses import Response
 from kupala.routing import Routes
 from kupala.security.signing import Signer
 from kupala.storages.storages import Storage
-from kupala.utils import resolve_path
+from kupala.utils import import_string, resolve_path
 
 
 class Kupala:
@@ -82,7 +81,6 @@ class Kupala:
         template_dirs = [template_dir] if isinstance(template_dir, (str, os.PathLike)) else template_dir or []
         self.jinja = JinjaExtension(template_dirs=[resolve_path(directory) for directory in template_dirs])
         self.state = State()
-        self.passwords = PasswordsExtension()
         self.mail = MailExtension()
         self.auth = AuthenticationExtension(self)
         self.storages = StoragesExtension(storages)
@@ -195,6 +193,22 @@ class Kupala:
                 raise StartupError(text) from ex
         else:
             await send({'type': 'lifespan.shutdown.complete'})
+
+    def use_password_hasher(
+        self,
+        hasher: typing.Literal['pbkdf2_sha256', 'pbkdf2_sha512', 'argon2', 'bcrypt', 'des_crypt'] | PasswordHasher,
+    ) -> None:
+        if isinstance(hasher, str):
+            imports = {
+                'pbkdf2_sha256': 'passlib.handlers.pbkdf2:pbkdf2_sha256',
+                'pbkdf2_sha512': 'passlib.handlers.pbkdf2:pbkdf2_sha512',
+                'argon2': 'passlib.handlers.argon2:argon2',
+                'bcrypt': 'passlib.handlers.bcrypt:bcrypt',
+                'des_crypt': 'passlib.handlers.des_crypt:des_crypt',
+            }
+            hasher = typing.cast(PasswordHasher, import_string(imports[hasher]))
+        self.state.password_hasher = hasher
+        self.di.prefer_for(PasswordHasher, lambda app: app.state.password_hasher)
 
 
 _current_app: cv.ContextVar[Kupala] = cv.ContextVar('_current_app')

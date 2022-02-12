@@ -129,17 +129,7 @@ class AuthenticationExtension(Extension):
         self.user_model: typing.Type[typing.Any] | None = None
         self.user_provider: UserProvider | None = None
         self.authenticators: list[BaseAuthenticator] = []
-        self.password_verifier = app.passwords
         self.secret_key = app.secret_key
-
-    @property
-    def login_manager(self) -> LoginManager:
-        assert self.user_provider, 'Authentication component requires user provider to be configured.'
-        return LoginManager(
-            user_provider=self.user_provider,
-            password_verifier=self.password_verifier,
-            secret_key=self.secret_key,
-        )
 
     def configure(
         self,
@@ -156,7 +146,14 @@ class AuthenticationExtension(Extension):
             self.authenticators = authenticators
 
     def initialize(self, app: Kupala) -> None:
-        make_injectable(LoginManager, from_app_factory=lambda app: self.login_manager)
+        def login_manager_factory(app: Kupala) -> LoginManager:
+            return LoginManager(
+                user_provider=self.user_provider,
+                password_verifier=app.state.password_hasher,
+                secret_key=app.secret_key,
+            )
+
+        make_injectable(LoginManager, from_app_factory=login_manager_factory)
         make_injectable(UserToken, from_request_factory=lambda request: request.auth)
 
 
