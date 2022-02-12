@@ -312,8 +312,7 @@ def test_template() -> None:
     def view(request: Request) -> Response:
         return response(request).template('hello world')
 
-    app = Kupala()
-    app.renderer.use(FormatRenderer())
+    app = Kupala(renderer=FormatRenderer())
     app.routes.add('/', view)
 
     client = TestClient(app)

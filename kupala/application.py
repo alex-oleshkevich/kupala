@@ -21,7 +21,7 @@ from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import Injector
 from kupala.dispatching import ViewResultRenderer
 from kupala.exceptions import ShutdownError, StartupError
-from kupala.extensions import JinjaExtension, MailExtension, RendererExtension, StaticFilesExtension, StoragesExtension
+from kupala.extensions import JinjaExtension, MailExtension, StaticFilesExtension, StoragesExtension
 from kupala.middleware import Middleware, MiddlewareStack
 from kupala.middleware.exception import ErrorHandler
 from kupala.requests import Request
@@ -78,7 +78,7 @@ class Kupala:
         self.storages = StoragesExtension(storages)
         self.commands = commands or []
         self.signer = Signer(self.secret_key)
-        self.renderer = RendererExtension(renderer or self.jinja.renderer)
+        self.renderer = renderer or self.jinja.renderer
         self.staticfiles = StaticFilesExtension(self)
         self.di = Injector(self)
         self.view_renderer = ViewResultRenderer()
