@@ -21,7 +21,6 @@ from kupala.asgi import ASGIHandler
 from kupala.console.application import ConsoleApplication
 from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import Injector
-from kupala.dispatching import ViewResultRenderer
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.i18n.formatters import (
     format_currency,
@@ -92,10 +91,9 @@ class Kupala:
             self.use_jinja_renderer(template_dirs=template_dir)
 
         # assign core components
+        self.di = Injector(self)
         self.mail = MailerManager()
         self.storages = StorageManager(storages)
-        self.di = Injector(self)
-        self.view_renderer = ViewResultRenderer()
 
         # ASGI app instance
         self._asgi_app: ASGIHandler | None = None

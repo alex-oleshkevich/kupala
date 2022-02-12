@@ -1,4 +1,3 @@
-import pathlib
 import typing
 from imia import BearerAuthenticator, InMemoryProvider
 from starlette.testclient import TestClient
@@ -10,7 +9,7 @@ from kupala.dispatching import action_config
 from kupala.middleware import Middleware
 from kupala.middleware.authentication import AuthenticationMiddleware
 from kupala.requests import Request
-from kupala.responses import JSONResponse
+from kupala.responses import JSONResponse, PlainTextResponse
 from kupala.routing import Route
 from tests.utils import FormatRenderer
 
@@ -68,27 +67,12 @@ def test_action_config_middleware() -> None:
     assert response.json() == {'called': True}
 
 
-def test_action_config_template(tmpdir: pathlib.Path) -> None:
-    with open(tmpdir / 'index.html', 'w') as f:
-        f.write('hello {{name}}')
-
-    @action_config(methods=['post'], template='index.html')
-    def view() -> dict:
-        return {'name': 'world'}
-
-    app = Kupala(template_dir=tmpdir)
-    app.routes.add('/', view, methods=['get'])
-    client = TestClient(app)
-    response = client.get('/')
-    assert response.text == 'hello world'
-
-
 def test_route_overrides_action_config_methods() -> None:
     """Methods defined by action_config() have higher precedence."""
 
-    @action_config(methods=['post'], renderer='json')
-    def view() -> dict:
-        return {}
+    @action_config(methods=['post'])
+    def view() -> JSONResponse:
+        return JSONResponse({})
 
     app = Kupala()
     app.routes.add('/', view, methods=['get'])
@@ -114,9 +98,9 @@ def test_route_overrides_action_config_middleware() -> None:
 
         return middleware
 
-    @action_config(middleware=[Middleware(set_two)], renderer='text')
-    def view(request: Request) -> str:
-        return request.scope['used']
+    @action_config(middleware=[Middleware(set_two)])
+    def view(request: Request) -> PlainTextResponse:
+        return PlainTextResponse(request.scope['used'])
 
     app = Kupala()
     app.routes.add('/', view, middleware=[Middleware(set_one)])

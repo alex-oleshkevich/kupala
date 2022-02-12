@@ -12,8 +12,6 @@ from kupala.di import InjectionError, get_request_injection_factory
 from kupala.exceptions import PermissionDenied
 from kupala.middleware import Middleware
 from kupala.requests import Request
-from kupala.responses import EmptyResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
-from kupala.templating import TemplateResponse
 from kupala.utils import run_async
 
 
@@ -23,30 +21,17 @@ def _callable_name(injection: typing.Any) -> str:
     return f'{module_name}.{class_name}{inspect.signature(injection)}'
 
 
-ViewDispatchResult = typing.Union[
-    typing.Callable[[Scope, Receive, Send], ASGIApp],
-    Response,
-    typing.Any,
-    typing.Union[typing.Any, int],
-    typing.Union[typing.Any, int, typing.Mapping],
-]
-
-
 @dataclass
 class ActionConfig:
     """Keeps endpoint configuration."""
 
     methods: t.List[str] = field(default_factory=list)
-    renderer: str = ''
-    template: str | None = None
     middleware: t.Optional[t.Sequence[Middleware]] = None
     guards: list[route_guards.Guard] | None = None
 
 
 def route(
     methods: t.List[str] = None,
-    template: str | None = None,
-    renderer: str = '',
     middleware: t.Sequence[Middleware] = None,
     guards: list[route_guards.Guard] | None = None,
     is_authenticated: bool = False,
@@ -65,8 +50,6 @@ def route(
     def wrapper(fn: t.Callable) -> t.Callable:
         action_config = ActionConfig(
             methods=allowed_methods,
-            renderer=renderer,
-            template=template,
             middleware=middleware,
             guards=guards,
         )
@@ -190,92 +173,4 @@ async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint
                 response = await endpoint(**args)
             else:
                 response = await run_in_threadpool(endpoint, **args)
-    return request.app.view_renderer.render(request, action_config, response)
-
-
-class ViewResult(typing.TypedDict):
-    content: typing.Any
-    status_code: int
-    headers: dict[str, typing.Any]
-
-
-class ViewRenderer(typing.Protocol):  # pragma: nocover
-    def __call__(self, request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
-        ...
-
-
-def plain_text_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
-    return PlainTextResponse(
-        str(view_result['content']),
-        status_code=view_result['status_code'],
-        headers=view_result['headers'],
-    )
-
-
-def html_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
-    return HTMLResponse(
-        str(view_result['content']),
-        status_code=view_result['status_code'],
-        headers=view_result['headers'],
-    )
-
-
-def json_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
-    return JSONResponse(
-        view_result['content'],
-        status_code=view_result['status_code'],
-        headers=view_result['headers'],
-    )
-
-
-def template_view_renderer(request: Request, action_config: ActionConfig, view_result: ViewResult) -> Response:
-    assert action_config.template
-    return TemplateResponse(
-        request=request,
-        template_name=action_config.template,
-        context=view_result['content'],
-        status_code=view_result['status_code'],
-        headers=view_result['headers'],
-    )
-
-
-class ViewResultRenderer:
-    def __init__(self) -> None:
-        self._renderers: dict[str, ViewRenderer] = {}
-        self.add_renderer('text', plain_text_view_renderer)
-        self.add_renderer('html', html_view_renderer)
-        self.add_renderer('json', json_view_renderer)
-
-    def add_renderer(self, name: str, renderer: ViewRenderer) -> None:
-        self._renderers[name] = renderer
-
-    def find_renderer(self, renderer_name: str) -> ViewRenderer:
-        assert renderer_name in self._renderers, f'No view result renderer named "{renderer_name}" registered.'
-        return self._renderers[renderer_name]
-
-    def render(self, request: Request, action_config: ActionConfig, view_result: ViewDispatchResult | None) -> ASGIApp:
-        if view_result is None:
-            return EmptyResponse()
-
-        if isinstance(view_result, Response):
-            return view_result
-
-        if inspect.isfunction(view_result):  # may be request_response function aka ASGI callable
-            return view_result
-
-        status = 200
-        headers = {}
-        content = view_result
-
-        if isinstance(view_result, tuple):
-            if len(view_result) == 3:
-                content, status, headers = view_result
-            elif len(view_result) == 2:
-                content, status = view_result
-
-        # if renderer has a dot (file extension separator) then force template renderer
-        if action_config.template:
-            renderer = template_view_renderer
-        else:
-            renderer = self.find_renderer(action_config.renderer)
-        return renderer(request, action_config, {'content': content, 'status_code': status, 'headers': headers})
+    return response
