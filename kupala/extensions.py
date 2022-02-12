@@ -12,11 +12,11 @@ from imia import BaseAuthenticator, LoginManager, UserProvider, UserToken
 from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, create_transport_from_url
 
 from kupala import json
-from kupala.contracts import PasswordHasher, TemplateRenderer
+from kupala.contracts import TemplateRenderer
 from kupala.di import make_injectable
 from kupala.storages.storages import LocalStorage, S3Storage, Storage
 from kupala.templating import JinjaRenderer
-from kupala.utils import import_string, resolve_path
+from kupala.utils import resolve_path
 
 if typing.TYPE_CHECKING:  # pragma: nocover
     from kupala.application import Kupala
@@ -25,38 +25,6 @@ if typing.TYPE_CHECKING:  # pragma: nocover
 class Extension:
     def initialize(self, app: Kupala) -> None:
         pass
-
-
-_PasswordHasherType = typing.Literal['pbkdf2_sha256', 'pbkdf2_sha512', 'argon2', 'bcrypt', 'des_crypt'] | PasswordHasher
-
-
-class PasswordsExtension(Extension):
-    def __init__(self, backend: _PasswordHasherType = 'pbkdf2_sha256') -> None:
-        self._manager = self._create(backend)
-
-    def hash(self, plain_password: str) -> str:
-        return self._manager.hash(plain_password)
-
-    def verify(self, plain: str, hashed: str) -> bool:
-        return self._manager.verify(plain, hashed)
-
-    def use(self, backend: _PasswordHasherType) -> None:
-        self._manager = self._create(backend)
-
-    def _create(self, backend: _PasswordHasherType) -> PasswordHasher:
-        if isinstance(backend, str):
-            imports = {
-                'pbkdf2_sha256': 'passlib.handlers.pbkdf2:pbkdf2_sha256',
-                'pbkdf2_sha512': 'passlib.handlers.pbkdf2:pbkdf2_sha512',
-                'argon2': 'passlib.handlers.argon2:argon2',
-                'bcrypt': 'passlib.handlers.bcrypt:bcrypt',
-                'des_crypt': 'passlib.handlers.des_crypt:des_crypt',
-            }
-            backend = typing.cast(PasswordHasher, import_string(imports[backend]))
-        return backend
-
-    def initialize(self, app: Kupala) -> None:
-        app.di.prefer_for(PasswordHasher, lambda app: self._manager)
 
 
 class RendererExtension(Extension):
