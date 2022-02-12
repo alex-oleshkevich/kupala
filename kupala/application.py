@@ -105,6 +105,8 @@ class Kupala:
         # ASGI app instance
         self._asgi_app: ASGIHandler | None = None
 
+        self.state.signer = Signer
+
     def _bootstrap(self) -> None:
         for _, extension in inspect.getmembers(self, lambda x: hasattr(x, 'initialize')):
             extension.initialize(self)
