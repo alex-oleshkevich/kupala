@@ -30,3 +30,11 @@ class HasPreferredLanguage(typing.Protocol):  # pragma: nocover
 
     def get_preferred_language(self) -> str | None:
         ...
+
+
+class Translator:  # pragma: nocover
+    def gettext(self, msg: str, **variables: typing.Any) -> str:
+        ...
+
+    def ngettext(self, /, singular: str, plural: str, count: int, **variables: typing.Any) -> str:
+        ...

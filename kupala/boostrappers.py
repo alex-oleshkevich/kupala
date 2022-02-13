@@ -10,6 +10,7 @@ from kupala.application import Kupala
 from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import make_injectable
 from kupala.i18n import formatters
+from kupala.i18n.translator import Translator
 from kupala.mails import MailerManager
 from kupala.storages.storages import Storage, StorageManager
 from kupala.templating import JinjaRenderer
@@ -94,9 +95,13 @@ def setup_renderer(app: Kupala, renderer: TemplateRenderer | None = None) -> _Te
 def setup_storages(
     app: Kupala,
     storages: dict[str, Storage] | None = None,
-    default_storage: str = 'default',
+    default_storage: str | None = None,
 ) -> StorageManager:
-    app.state.storages = StorageManager(storages, default_storage)
+    if storages:
+        for name, storage in storages.items():
+            app.state.storages.add(name, storage)
+    if default_storage:
+        app.state.storages.set_default(default_storage)
     return app.state.storages
 
 
@@ -107,23 +112,29 @@ def setup_mailers(
     return app.state.mailers
 
 
-def setup_i18n(app: Kupala) -> None:
-    if hasattr(app.state, 'jinja_env'):
-        app.state.jinja_env.add_extension('jinja2.ext.i18n')
-        app.state.jinja_env.globals.update(
-            {
-                '_': lambda x: x,
-            }
-        )
-        app.state.jinja_env.filters.update(
-            {
-                'datetime': formatters.format_datetime,
-                'date': formatters.format_date,
-                'time': formatters.format_time,
-                'timedelta': formatters.format_timedelta,
-                'number': formatters.format_number,
-                'currency': formatters.format_currency,
-                'percent': formatters.format_percent,
-                'scientific': formatters.format_scientific,
-            }
-        )
+def setup_i18n(app: Kupala, translation_dirs: str | os.PathLike | list[str | os.PathLike] | None = None) -> None:
+    if translation_dirs is None:
+        translation_dirs = []
+    translation_dirs = [translation_dirs] if isinstance(translation_dirs, (str, os.PathLike)) else translation_dirs
+    app.state.translator = Translator(translation_dirs)
+
+    app.jinja_env.add_extension('jinja2.ext.i18n')
+    app.jinja_env.install_gettext_translations(app.state.translator, newstyle=True)  # type: ignore
+    app.jinja_env.globals.update(
+        {
+            '_': app.state.translator.gettext,
+            '_p': app.state.translator.ngettext,
+        }
+    )
+    app.jinja_env.filters.update(
+        {
+            'datetime': formatters.format_datetime,
+            'date': formatters.format_date,
+            'time': formatters.format_time,
+            'timedelta': formatters.format_timedelta,
+            'number': formatters.format_number,
+            'currency': formatters.format_currency,
+            'percent': formatters.format_percent,
+            'scientific': formatters.format_scientific,
+        }
+    )

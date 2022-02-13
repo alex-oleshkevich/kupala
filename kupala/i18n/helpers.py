@@ -1,11 +1,15 @@
 import contextvars as cv
 import datetime
+import typing
 from babel.core import Locale
 from babel.dates import get_timezone as babel_get_timezone
 from babel.util import UTC
 from contextlib import contextmanager
 from pytz.tzinfo import BaseTzInfo
 from typing import Generator
+
+from kupala.requests import Request
+from kupala.responses import Response
 
 _current_locale: cv.ContextVar[Locale] = cv.ContextVar("current_locale", default=Locale.parse("en_US"))
 _current_language: cv.ContextVar[str] = cv.ContextVar("current_language", default="en")
@@ -72,3 +76,12 @@ def to_utc(dt: datetime.datetime) -> datetime.datetime:
     if dt.tzinfo is None:
         dt = get_timezone().localize(dt)
     return dt.astimezone(UTC).replace(tzinfo=None)
+
+
+_R = typing.TypeVar('_R', bound=Response)
+
+
+def remember_language(request: Request, response: _R) -> _R:
+    """Remember current locale in cookie."""
+    response.set_cookie(request.scope.get('i18n.cookie_name', 'language'), str(request.locale))
+    return response

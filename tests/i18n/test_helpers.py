@@ -2,10 +2,12 @@ import datetime
 from babel.core import Locale
 from babel.dates import get_timezone as babel_get_timezone
 
+from kupala.application import Kupala
 from kupala.i18n.helpers import (
     get_language,
     get_locale,
     get_timezone,
+    remember_language,
     set_locale,
     set_timezone,
     switch_locale,
@@ -13,6 +15,10 @@ from kupala.i18n.helpers import (
     to_user_timezone,
     to_utc,
 )
+from kupala.middleware.locale import LocaleMiddleware
+from kupala.requests import Request
+from kupala.responses import JSONResponse
+from kupala.testclient import TestClient
 
 
 def test_set_get_locale() -> None:
@@ -77,3 +83,26 @@ def test_to_utc() -> None:
 
         aware_dt = datetime.datetime(2022, 12, 25, 12, 30, 59, tzinfo=babel_get_timezone('CET'))
         assert to_utc(aware_dt).isoformat() == '2022-12-25T11:30:59'
+
+
+def test_remember_language() -> None:
+    def view(request: Request) -> JSONResponse:
+        response = JSONResponse(request.language)
+        return remember_language(request, response)
+
+    set_locale('be')
+    app = Kupala()
+    app.routes.add('/', view)
+    app.middleware.use(LocaleMiddleware, languages=['be', 'pl', 'en'])
+
+    client = TestClient(app)
+    response = client.get('/')
+    assert response.text == '"en"'
+
+    # select language
+    response = client.get('/?lang=be')
+    assert response.status_code == 200
+
+    # check language
+    response = client.get('/')
+    assert response.text == '"be"'

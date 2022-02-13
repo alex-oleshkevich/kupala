@@ -81,6 +81,7 @@ class LocaleMiddleware:
         set_locale(locale)
         scope["locale"] = locale
         scope['language'] = locale.language
+        scope['i18n.cookie_name'] = self.cookie_name
         await self.app(scope, receive, send_wrapper)
 
     def detect_locale(self, request: Request) -> Locale:

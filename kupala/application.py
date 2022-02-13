@@ -16,7 +16,7 @@ from starlette.types import Receive, Scope, Send
 from kupala import json
 from kupala.asgi import ASGIHandler
 from kupala.console.application import ConsoleApplication
-from kupala.contracts import TemplateRenderer
+from kupala.contracts import TemplateRenderer, Translator
 from kupala.di import Injector
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.mails import MailerManager
@@ -116,6 +116,11 @@ class Kupala:
     @property
     def mailers(self) -> MailerManager:
         return self.state.mailers
+
+    @property
+    def translator(self) -> Translator:
+        assert hasattr(self.state, 'translator'), 'Translations are not enabled.'
+        return self.state.translator
 
     def create_asgi_app(self) -> ASGIHandler:
         return ASGIHandler(

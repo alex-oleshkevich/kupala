@@ -48,8 +48,8 @@ class S3Storage(Storage):
 
 
 class StorageManager:
-    def __init__(self, storages: dict[str, Storage] | None = None, default_storage: str = 'default') -> None:
-        self._default_storage_name: str = default_storage
+    def __init__(self, storages: dict[str, Storage] | None = None, default_storage: str | None = None) -> None:
+        self._default_storage_name = default_storage or ''
         self._storages: dict[str, Storage] = storages or {}
 
     def add(self, name: str, storage: Storage) -> StorageManager:
