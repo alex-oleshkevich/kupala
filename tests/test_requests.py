@@ -241,10 +241,8 @@ def test_file_upload_store(tmp_path: Path) -> None:
 
         return JSONResponse(filename)
 
-    app = Kupala(
-        routes=[Route('/', upload_view, methods=['POST'])],
-        storages={'default': LocalStorage(tmp_path)},
-    )
+    app = Kupala(routes=[Route('/', upload_view, methods=['POST'])])
+    app.storages.add('default', LocalStorage(tmp_path))
     client = TestClient(app)
 
     file1 = io.BytesIO(b'content')
@@ -271,8 +269,8 @@ def test_file_upload_store_with_filename(tmp_path: Path) -> None:
 
     app = Kupala(
         routes=[Route('/', upload_view, methods=['POST'])],
-        storages={'default': LocalStorage(tmp_path)},
     )
+    app.storages.add('default', LocalStorage(base_dir=tmp_path))
     client = TestClient(app)
 
     file1 = io.BytesIO(b'content')
@@ -298,8 +296,8 @@ def test_file_upload_store_without_filename(tmp_path: Path) -> None:
 
     app = Kupala(
         routes=[Route('/', upload_view, methods=['POST'])],
-        storages={'default': LocalStorage(base_dir=tmp_path)},
     )
+    app.storages.add('default', LocalStorage(base_dir=tmp_path))
     client = TestClient(app)
 
     file1 = io.BytesIO(b'content')

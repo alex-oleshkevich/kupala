@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from email.message import Message
 from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, TemplatedEmail, create_transport_from_url
 from mailers.message import Recipients
@@ -33,12 +35,12 @@ class MailerManager:
         encrypter: Encrypter = None,
         plugins: list[Plugin] = None,
         name: str = 'default',
-    ) -> None:
+    ) -> MailerManager:
         """Create and configure mailer from URL."""
         if from_name:
             from_address = f'{from_name} <{from_address}>'
         transport = create_transport_from_url(url)
-        self.add(
+        return self.add(
             name,
             Mailer(
                 transport,
@@ -49,10 +51,11 @@ class MailerManager:
             ),
         )
 
-    def add(self, name: str, mailer: Mailer) -> None:
+    def add(self, name: str, mailer: Mailer) -> MailerManager:
         """Add new mailer."""
         assert name not in self._mailers, f'"{name}" already exists.'
         self._mailers[name] = mailer
+        return self
 
     def get(self, name: str) -> Mailer:
         """Get mailer by name."""

@@ -19,6 +19,7 @@ def test_app_factory() -> TestAppFactory:
         kwargs.setdefault('debug', True)
         kwargs.setdefault('app_class', TestApp)
         app_class = kwargs.pop('app_class')
-        return app_class(*args, **kwargs)
+        app = app_class(*args, **kwargs)
+        return app
 
     return factory

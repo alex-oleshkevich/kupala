@@ -13,8 +13,8 @@ from kupala.storages.storages import LocalStorage, Storage
 def test_file_server_attachment(tmp_path: Path) -> None:
     app = Kupala(
         routes=[Mount("/media", FileServer(storage='media'))],
-        storages={'media': LocalStorage(tmp_path)},
     )
+    app.storages.add('media', LocalStorage(tmp_path))
     client = TestClient(app)
     response = client.get('/media/file.txt')
     assert response.status_code == 404
@@ -30,8 +30,8 @@ def test_file_server_attachment(tmp_path: Path) -> None:
 def test_file_server_inline(tmp_path: Path) -> None:
     app = Kupala(
         routes=[Mount("/media", FileServer(storage='media', as_attachment=False))],
-        storages={'media': LocalStorage(tmp_path)},
     )
+    app.storages.add('media', LocalStorage(tmp_path))
     client = TestClient(app)
     tmp_file = tmp_path / 'file.txt'
     tmp_file.write_text('content')
@@ -44,8 +44,8 @@ def test_file_server_inline(tmp_path: Path) -> None:
 def test_file_server_allows_only_get(tmp_path: Path) -> None:
     app = Kupala(
         routes=[Mount("/media", FileServer(storage='media', as_attachment=False))],
-        storages={'media': LocalStorage(tmp_path)},
     )
+    app.storages.add('media', LocalStorage(tmp_path))
     client = TestClient(app)
     response = client.post('/media/file.txt')
     assert response.status_code == 405
@@ -56,10 +56,8 @@ def test_file_server_redirects_for_drivers_returning_urls() -> None:
         async def url(self, path: t.Union[str, os.PathLike]) -> str:
             return 'https://example.com'
 
-    app = Kupala(
-        routes=[Mount("/media", FileServer(storage='media', as_attachment=False))],
-        storages={'media': S3Storage(MemoryDriver())},
-    )
+    app = Kupala(routes=[Mount("/media", FileServer(storage='media', as_attachment=False))])
+    app.storages.add('media', S3Storage(MemoryDriver()))
     client = TestClient(app)
     response = client.get('/media/file.txt', allow_redirects=False)
     assert response.status_code == 307

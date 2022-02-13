@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import pathlib
 import typing as t
@@ -50,12 +52,14 @@ class StorageManager:
         self._default_storage_name: str = default_storage
         self._storages: dict[str, Storage] = storages or {}
 
-    def add(self, name: str, storage: Storage) -> None:
+    def add(self, name: str, storage: Storage) -> StorageManager:
         assert name not in self._storages, f'Storage "{name}" already exists.'
         self._storages[name] = storage
+        return self
 
-    def add_local(self, name: str, base_dir: str | os.PathLike) -> None:
+    def add_local(self, name: str, base_dir: str | os.PathLike) -> StorageManager:
         self.add(name, LocalStorage(base_dir))
+        return self
 
     def add_s3(
         self,
@@ -67,7 +71,7 @@ class StorageManager:
         profile_name: str = None,
         endpoint_url: str = None,
         link_ttl: int = 300,
-    ) -> None:
+    ) -> StorageManager:
         self.add(
             name,
             S3Storage(
@@ -80,6 +84,7 @@ class StorageManager:
                 link_ttl=link_ttl,
             ),
         )
+        return self
 
     def get(self, name: str) -> Storage:
         assert name in self._storages

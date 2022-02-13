@@ -13,7 +13,7 @@ async def test_mail_regular_send() -> None:
     storage: list[Message] = []
     app = Kupala()
     mailer = Mailer(InMemoryTransport(storage), from_address='root <root@localhost>')
-    app.mail.add('default', mailer)
+    app.mailers.add('default', mailer)
     await send_mail(mailer, Email(subject='test', text='body'))
     assert len(storage) == 1
     assert storage[0]['From'] == 'root <root@localhost>'
@@ -29,9 +29,9 @@ async def test_send_templated_mail(tmpdir: Path) -> None:
     mailer = Mailer(
         InMemoryTransport(storage),
         from_address='root <root@localhost>',
-        plugins=[JinjaRendererPlugin(app.state.jinja_env)],
+        plugins=[JinjaRendererPlugin(app.jinja_env)],
     )
-    app.mail.add('default', mailer)
+    app.mailers.add('default', mailer)
     await send_templated_mail(mailer, to='root@localhost', subject='test', html_template='index.html')
     assert len(storage) == 1
     assert storage[0]['From'] == 'root <root@localhost>'
@@ -40,25 +40,25 @@ async def test_send_templated_mail(tmpdir: Path) -> None:
 
 def test_mail_use() -> None:
     app = Kupala()
-    app.mail.use('memory://')
-    assert isinstance(app.mail.get_default(), Mailer)
+    app.mailers.use('memory://')
+    assert isinstance(app.mailers.get_default(), Mailer)
 
     with pytest.raises(KeyError, match='No mailer named'):
-        app.mail.get('missing')
+        app.mailers.get('missing')
 
 
 def test_mail_add() -> None:
     storage: list[Message] = []
     app = Kupala()
-    app.mail.add('default', Mailer(InMemoryTransport(storage)))
-    assert isinstance(app.mail.get_default(), Mailer)
+    app.mailers.add('default', Mailer(InMemoryTransport(storage)))
+    assert isinstance(app.mailers.get_default(), Mailer)
 
 
 @pytest.mark.asyncio
 async def test_mail_send() -> None:
     storage: list[Message] = []
     app = Kupala()
-    app.mail.add('default', Mailer(InMemoryTransport(storage), from_address='root <root@localhost>'))
-    await app.mail.send(Email(subject='test', text='body'))
+    app.mailers.add('default', Mailer(InMemoryTransport(storage), from_address='root <root@localhost>'))
+    await app.mailers.send(Email(subject='test', text='body'))
     assert len(storage) == 1
     assert storage[0]['From'] == 'root <root@localhost>'

@@ -3,15 +3,12 @@ from __future__ import annotations
 import click
 import contextvars as cv
 import jinja2
-import jinja2.ext
 import logging
 import os
 import secrets
 import traceback
 import typing
-from babel.numbers import format_decimal
 from contextlib import AsyncExitStack
-from imia import BaseAuthenticator, LoginManager, UserProvider
 from starlette.datastructures import State
 from starlette.routing import BaseRoute
 from starlette.types import Receive, Scope, Send
@@ -19,28 +16,43 @@ from starlette.types import Receive, Scope, Send
 from kupala import json
 from kupala.asgi import ASGIHandler
 from kupala.console.application import ConsoleApplication
-from kupala.contracts import PasswordHasher, TemplateRenderer
+from kupala.contracts import TemplateRenderer
 from kupala.di import Injector
 from kupala.exceptions import ShutdownError, StartupError
-from kupala.i18n.formatters import (
-    format_currency,
-    format_date,
-    format_datetime,
-    format_number,
-    format_percent,
-    format_scientific,
-    format_time,
-    format_timedelta,
-)
 from kupala.mails import MailerManager
 from kupala.middleware import Middleware, MiddlewareStack
 from kupala.middleware.exception import ErrorHandler
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
-from kupala.storages.storages import Storage, StorageManager
+from kupala.storages.storages import StorageManager
 from kupala.templating import JinjaRenderer
-from kupala.utils import import_string
+
+
+def _setup_default_jinja_env(
+    app: Kupala,
+    template_dirs: str | os.PathLike | list[str | os.PathLike],
+) -> jinja2.Environment:
+    template_dirs = [template_dirs] if isinstance(template_dirs, (str, os.PathLike)) else template_dirs
+    loader = jinja2.ChoiceLoader(
+        [
+            jinja2.PackageLoader('kupala'),
+            jinja2.FileSystemLoader(template_dirs),
+        ]
+    )
+    env = jinja2.Environment(loader=loader, extensions=['jinja2.ext.with_', 'jinja2.ext.debug'])
+    env.globals.update(
+        {
+            'static': app.static_url,
+        }
+    )
+    env.policies.update(
+        {
+            'json.dumps_function': json.dumps,
+            'json.dumps_kwargs': {"ensure_ascii": False, "sort_keys": True},
+        }
+    )
+    return env
 
 
 class Kupala:
@@ -56,18 +68,12 @@ class Kupala:
         error_handlers: dict[typing.Type[Exception] | int, typing.Optional[ErrorHandler]] = None,
         lifespan_handlers: list[typing.Callable[[Kupala], typing.AsyncContextManager[None]]] = None,
         exception_handler: typing.Callable[[Request, Exception], Response] | None = None,
-        template_dir: str | os.PathLike | list[str | os.PathLike] = 'templates',
         commands: list[click.Command] | None = None,
-        storages: dict[str, Storage] | None = None,
         renderer: TemplateRenderer | None = None,
+        template_dir: str | os.PathLike | list[str | os.PathLike] = 'templates',
+        static_dir: str | os.PathLike | None = None,
     ) -> None:
         # base configuration
-        self.debug = debug
-        self.environment = environment
-        self.request_class = request_class
-        self.commands = commands or []
-        self.state = State()
-
         self.secret_key = secret_key
         if self.secret_key is None:
             self.secret_key = secrets.token_hex(128)
@@ -76,6 +82,18 @@ class Kupala:
                 'This value will be reset after application restart.'
             )
 
+        self.debug = debug
+        self.environment = environment
+        self.request_class = request_class
+        self.commands = commands or []
+        self.jinja_env = _setup_default_jinja_env(self, template_dirs=template_dir)
+
+        # default services
+        self.state = State()
+        self.state.storages = StorageManager()
+        self.state.mailers = MailerManager()
+        self.state.renderer = renderer or JinjaRenderer(self.jinja_env)
+
         # ASGI related
         self.error_handlers = error_handlers or {}
         self.lifespan = lifespan_handlers or []
@@ -83,19 +101,21 @@ class Kupala:
         self.middleware = MiddlewareStack(middleware)
         self.routes = Routes(routes or [])
 
-        # templating
-        if renderer:
-            self.use_renderer(renderer)
-        else:
-            self.use_jinja_renderer(template_dirs=template_dir)
-
-        # assign core components
         self.di = Injector(self)
-        self.mail = MailerManager()
-        self.storages = StorageManager(storages)
 
         # ASGI app instance
         self._asgi_app: ASGIHandler | None = None
+
+        if static_dir:
+            self.serve_static_files(static_dir)
+
+    @property
+    def storages(self) -> StorageManager:
+        return self.state.storages
+
+    @property
+    def mailers(self) -> MailerManager:
+        return self.state.mailers
 
     def create_asgi_app(self) -> ASGIHandler:
         return ASGIHandler(
@@ -142,7 +162,7 @@ class Kupala:
         :param url_path: URL path to use in route
         :param name: route and storage name
         """
-        self.storages.add_local(name, directory)
+        self.state.storages.add_local(name, directory)
         self.routes.files(url_path, storage=name, name=name, inline=False)
 
     def cli(self) -> int:
@@ -197,85 +217,8 @@ class Kupala:
         else:
             await send({'type': 'lifespan.shutdown.complete'})
 
-    def use_password_hasher(
-        self,
-        hasher: typing.Literal['pbkdf2_sha256', 'pbkdf2_sha512', 'argon2', 'bcrypt', 'des_crypt'] | PasswordHasher,
-    ) -> None:
-        if isinstance(hasher, str):
-            imports = {
-                'pbkdf2_sha256': 'passlib.handlers.pbkdf2:pbkdf2_sha256',
-                'pbkdf2_sha512': 'passlib.handlers.pbkdf2:pbkdf2_sha512',
-                'argon2': 'passlib.handlers.argon2:argon2',
-                'bcrypt': 'passlib.handlers.bcrypt:bcrypt',
-                'des_crypt': 'passlib.handlers.des_crypt:des_crypt',
-            }
-            hasher = typing.cast(PasswordHasher, import_string(imports[hasher]))
-        self.state.password_hasher = hasher
-        self.di.prefer_for(PasswordHasher, lambda app: app.state.password_hasher)
-
-    def use_authentication(
-        self,
-        user_provider: UserProvider,
-        user_model: typing.Type[typing.Any] | None = None,
-        authenticators: list[BaseAuthenticator] | None = None,
-    ) -> None:
-        self.state.login_manager = LoginManager(
-            secret_key=self.secret_key,
-            user_provider=user_provider,
-            password_verifier=self.state.password_hasher,
-        )
-        self.di.make_injectable(LoginManager, from_app_factory=lambda app: app.state.login_manager)
-
-    def use_renderer(self, renderer: TemplateRenderer) -> None:
+    def set_renderer(self, renderer: TemplateRenderer) -> None:
         self.state.renderer = renderer
-
-    def use_jinja_renderer(
-        self,
-        template_dirs: str | os.PathLike | list[str | os.PathLike],
-        tests: dict[str, typing.Callable] = None,
-        filters: dict[str, typing.Callable] = None,
-        globals: dict[str, typing.Any] = None,
-        policies: dict[str, typing.Any] = None,
-        extensions: list[str | typing.Type[jinja2.ext.Extension]] = None,
-        env: jinja2.Environment = None,
-        loader: jinja2.BaseLoader = None,
-    ) -> None:
-        template_dirs = [template_dirs] if isinstance(template_dirs, (str, os.PathLike)) else template_dirs
-        loader = loader or jinja2.loaders.FileSystemLoader(searchpath=template_dirs)
-        env = env or jinja2.Environment(loader=loader, extensions=extensions or [])
-        env.tests.update(tests or {})
-        env.globals.update(globals or {})
-        env.filters.update(filters or {})
-        env.policies.update(policies or {})
-
-        env.filters.update(
-            {
-                'datetimeformat': format_datetime,
-                'dateformat': format_date,
-                'timeformat': format_time,
-                'timedeltaformat': format_timedelta,
-                'numberformat': format_number,
-                'decimalformat': format_decimal,
-                'currencyformat': format_currency,
-                'percentformat': format_percent,
-                'scientificformat': format_scientific,
-            }
-        )
-        env.globals.update(
-            {
-                'static': self.static_url,
-                '_': lambda x: x,
-            }
-        )
-
-        if 'json.dumps_function' not in env.policies:
-            env.policies['json.dumps_function'] = json.dumps
-
-        if "json.dumps_kwargs" not in env.policies:
-            env.policies["json.dumps_kwargs"] = {"ensure_ascii": False, "sort_keys": True}
-
-        self.state.jinja_env = env
-        self.use_renderer(JinjaRenderer(env))
 
 
 _current_app: cv.ContextVar[Kupala] = cv.ContextVar('_current_app')

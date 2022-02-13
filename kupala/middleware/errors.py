@@ -570,7 +570,7 @@ class ServerErrorMiddleware:
     def render_details_row(self, data: typing.Mapping) -> str:
         row_html = ""
         for name, value in data.items():
-            row_html += DETAILS_ROW_TEMPLATE.format(label=name, value=mask_secrets(name, value))
+            row_html += DETAILS_ROW_TEMPLATE.format(label=name, value=mask_secrets(name, html.escape(repr(value))))
 
         if not row_html:
             row_html = "<dl><dt>empty</dt><dd></dd></dl>"
