@@ -62,7 +62,7 @@ class Cache:
         ...
 
 
-@injectable(from_app_factory=lambda app: app.state.cache_manager)
+@injectable(from_app_factory=lambda app: app.state.caches)
 class CacheManager:
     def __init__(self, caches: dict[str, Cache] | None = None, default_cache: str = 'default') -> None:
         self._default_cache_name = default_cache

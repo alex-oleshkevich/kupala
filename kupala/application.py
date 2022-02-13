@@ -15,6 +15,7 @@ from starlette.types import Receive, Scope, Send
 
 from kupala import json
 from kupala.asgi import ASGIHandler
+from kupala.cache import CacheManager
 from kupala.console.application import ConsoleApplication
 from kupala.contracts import TemplateRenderer, Translator
 from kupala.di import Injector
@@ -92,6 +93,7 @@ class Kupala:
         self.state = State()
         self.state.storages = StorageManager()
         self.state.mailers = MailerManager()
+        self.state.caches = CacheManager()
         self.state.renderer = renderer or JinjaRenderer(self.jinja_env)
 
         # ASGI related

@@ -7,6 +7,7 @@ from imia import LoginManager, UserProvider
 from mailers import Mailer
 
 from kupala.application import Kupala
+from kupala.cache import Cache, CacheManager
 from kupala.contracts import PasswordHasher, TemplateRenderer
 from kupala.di import make_injectable
 from kupala.i18n import formatters
@@ -110,6 +111,13 @@ def setup_mailers(
 ) -> MailerManager:
     app.state.mailers = MailerManager(mailers, default_mailer)
     return app.state.mailers
+
+
+def setup_cache(app: Kupala, caches: dict[str, Cache] | None = None, default: str = 'default') -> CacheManager:
+    if caches:
+        for name, cache in caches.items():
+            app.state.caches.add(name, cache)
+    return app.state.caches
 
 
 def setup_i18n(app: Kupala, translation_dirs: str | os.PathLike | list[str | os.PathLike] | None = None) -> None:
