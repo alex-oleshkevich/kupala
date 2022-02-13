@@ -3,68 +3,63 @@ from __future__ import annotations
 import itsdangerous
 import typing
 
-if typing.TYPE_CHECKING:  # pragma: nocover
-    from kupala.application import Kupala
+
+def sign_value(secret_key: str, value: str | bytes) -> bytes:
+    """Sign value."""
+    return itsdangerous.signer.Signer(secret_key).sign(value)
 
 
-class Signer:
-    def __init__(self, secret_key: str) -> None:
-        self.signer = itsdangerous.signer.Signer(secret_key)
-        self.timed_signer = itsdangerous.timed.TimestampSigner(secret_key)
+def unsign_value(secret_key: str, signed_value: str | bytes) -> bytes:
+    """
+    Unsign value.
 
-    def sign(self, value: str | bytes) -> bytes:
-        """Sign value."""
-        return self.signer.sign(value)
+    Raises itsdangerous.BadSignature exception.
+    """
+    return itsdangerous.signer.Signer(secret_key).unsign(signed_value)
 
-    def unsign(self, signed_value: str | bytes) -> bytes:
-        """
-        Unsign value.
 
-        Raises itsdangerous.BadSignature exception.
-        """
-        return self.signer.unsign(signed_value)
+def safe_unsign_value(secret_key: str, signed_value: str | bytes) -> tuple[bool, typing.Optional[bytes]]:
+    """
+    Safely unsign value.
 
-    def safe_unsign(self, signed_value: str | bytes) -> tuple[bool, typing.Optional[bytes]]:
-        """
-        Unsign value.
+    Will not raise itsdangerous.BadSignature. Returns two-tuple: operation
+    status and unsigned value.
+    """
+    try:
+        return True, unsign_value(secret_key, signed_value)
+    except itsdangerous.BadSignature:
+        return False, None
 
-        Will not raise itsdangerous.BadSignature. Returns two-tuple: operation
-        status and unsigned value.
-        """
-        try:
-            return True, self.unsign(signed_value)
-        except itsdangerous.BadSignature:
-            return False, None
 
-    def timed_sign(self, value: str | bytes) -> bytes:
-        """
-        Sign value.
+def timed_sign_value(secret_key: str, value: str | bytes) -> bytes:
+    """
+    Sign value.
 
-        The signature will be valid for a specific time period.
-        """
-        return self.timed_signer.sign(value)
+    The signature will be valid for a specific time period.
+    """
+    return itsdangerous.TimestampSigner(secret_key).sign(value)
 
-    def timed_unsign(self, signed_value: str | bytes, max_age: int) -> bytes:
-        """
-        Unsign value.
 
-        Will raise itsdangerous.BadSignature or itsdangerous.BadTimeSignature
-        exception if signed value cannot be decoded or expired..
-        """
-        return self.timed_signer.unsign(signed_value, max_age)
+def timed_unsign_value(secret_key: str, signed_value: str | bytes, max_age: int) -> bytes:
+    """
+    Unsign value.
 
-    def safe_timed_unsign(self, signed_value: str | bytes, max_age: int) -> tuple[bool, typing.Optional[bytes]]:
-        """
-        Unsign value.
+    Will raise itsdangerous.BadSignature or itsdangerous.BadTimeSignature
+    exception if signed value cannot be decoded or expired..
+    """
+    return itsdangerous.TimestampSigner(secret_key).unsign(signed_value, max_age)
 
-        Will not raise itsdangerous.BadTimeSignature. Returns two-tuple:
-        operation status and unsigned value.
-        """
-        try:
-            return True, self.timed_unsign(signed_value, max_age)
-        except itsdangerous.BadSignature:
-            return False, None
 
-    @classmethod
-    def from_app(cls, app: Kupala) -> Signer:
-        return app.state.signer
+def safe_timed_unsign_value(
+    secret_key: str, signed_value: str | bytes, max_age: int
+) -> tuple[bool, typing.Optional[bytes]]:
+    """
+    Safely unsign value.
+
+    Will not raise itsdangerous.BadTimeSignature. Returns two-tuple: operation
+    status and unsigned value.
+    """
+    try:
+        return True, timed_unsign_value(secret_key, signed_value, max_age)
+    except itsdangerous.BadSignature:
+        return False, None

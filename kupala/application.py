@@ -38,7 +38,6 @@ from kupala.middleware.exception import ErrorHandler
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
-from kupala.security.signing import Signer
 from kupala.storages.storages import Storage, StorageManager
 from kupala.templating import JinjaRenderer
 from kupala.utils import import_string
@@ -97,8 +96,6 @@ class Kupala:
 
         # ASGI app instance
         self._asgi_app: ASGIHandler | None = None
-
-        self.state.signer = Signer(self.secret_key)
 
     def create_asgi_app(self) -> ASGIHandler:
         return ASGIHandler(
