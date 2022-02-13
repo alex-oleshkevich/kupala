@@ -41,7 +41,7 @@ async def test_send_templated_mail(tmpdir: Path) -> None:
 def test_mail_use() -> None:
     app = Kupala()
     app.mailers.use('memory://')
-    assert isinstance(app.mailers.get_default(), Mailer)
+    assert isinstance(app.mailers.default, Mailer)
 
     with pytest.raises(KeyError, match='No mailer named'):
         app.mailers.get('missing')
@@ -51,7 +51,7 @@ def test_mail_add() -> None:
     storage: list[Message] = []
     app = Kupala()
     app.mailers.add('default', Mailer(InMemoryTransport(storage)))
-    assert isinstance(app.mailers.get_default(), Mailer)
+    assert isinstance(app.mailers.default, Mailer)
 
 
 @pytest.mark.asyncio

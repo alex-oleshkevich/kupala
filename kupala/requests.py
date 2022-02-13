@@ -14,8 +14,6 @@ from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 from starsessions import Session
 
-from kupala.storages.storages import Storage
-
 if typing.TYPE_CHECKING:
     from kupala.application import Kupala
 
@@ -132,11 +130,10 @@ class UploadFile(ds.UploadFile):
 
         file_path = os.path.join(directory, filename or suggested_filename)
 
-        storage: Storage
         if disk:
             storage = self.request.app.storages.get(disk)
         else:
-            storage = self.request.app.storages.get_default()
+            storage = self.request.app.storages.default
         await storage.put(file_path, await self.read())
         return file_path
 

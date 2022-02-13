@@ -107,9 +107,14 @@ def setup_storages(
 
 
 def setup_mailers(
-    app: Kupala, mailers: dict[str, Mailer] | None = None, default_mailer: str = 'default'
+    app: Kupala, mailers: dict[str, Mailer] | None = None, default_mailer: str | None = None
 ) -> MailerManager:
-    app.state.mailers = MailerManager(mailers, default_mailer)
+    if mailers:
+        for name, mailer in mailers.items():
+            app.state.mailers.use(name, mailer)
+
+    if default_mailer:
+        app.state.mailers.set_default(default_mailer)
     return app.state.mailers
 
 
