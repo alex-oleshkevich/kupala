@@ -4,6 +4,8 @@ from email.message import Message
 from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, TemplatedEmail, create_transport_from_url
 from mailers.message import Recipients
 
+from kupala.di import injectable, make_injectable
+
 try:
     import toronado
 except ImportError:
@@ -20,10 +22,16 @@ class CSSInlinerPlugin(Plugin):
         return email
 
 
+@injectable(from_app_factory=lambda app: app.state.mailers)
 class MailerManager:
     def __init__(self, mailers: dict[str, Mailer] | None = None, default: str = 'default') -> None:
         self._mailers = mailers or {}
         self._default = default
+
+    @property
+    def default(self) -> Mailer:
+        """Get default mailer."""
+        return self.get(self._default)
 
     def use(
         self,
@@ -63,14 +71,18 @@ class MailerManager:
             raise KeyError(f'No mailer named "{name}" defined.')
         return self._mailers[name]
 
-    def get_default(self) -> Mailer:
-        """Get default mailer."""
-        return self.get(self._default)
-
     async def send(self, message: Email | Message, name: str = 'default') -> SentMessages:
         """Send message using selected mailer."""
         mailer = self.get(name)
         return await mailer.send(message)
+
+    def set_default(self, name: str) -> MailerManager:
+        """Set default mailer name."""
+        self._default = name
+        return self
+
+
+make_injectable(Mailer, from_app_factory=lambda app: app.state.mailers.default)
 
 
 async def send_mail(

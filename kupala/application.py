@@ -56,6 +56,8 @@ def _setup_default_jinja_env(
 
 
 class Kupala:
+    state: State
+
     def __init__(
         self,
         *,

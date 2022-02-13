@@ -6,7 +6,10 @@ import typing as t
 from deesk.drivers.fs import LocalFsDriver
 from deesk.storage import Storage as BaseStorage
 
+from kupala.di import injectable
 
+
+@injectable(from_app_factory=lambda app: app.state.storages.default)
 class Storage(BaseStorage):  # pragma: nocover
     async def url(self, path: t.Union[str, os.PathLike]) -> str:
         raise NotImplementedError()
@@ -47,10 +50,20 @@ class S3Storage(Storage):
         return ''
 
 
+@injectable(from_app_factory=lambda app: app.state.storages)
 class StorageManager:
     def __init__(self, storages: dict[str, Storage] | None = None, default_storage: str | None = None) -> None:
         self._default_storage_name = default_storage or ''
         self._storages: dict[str, Storage] = storages or {}
+
+    @property
+    def default(self) -> Storage:
+        if len(self._storages) == 1:
+            return list(self._storages.values())[0]
+        try:
+            return self._storages[self._default_storage_name]
+        except KeyError:
+            raise KeyError('No default storage configured.')
 
     def add(self, name: str, storage: Storage) -> StorageManager:
         assert name not in self._storages, f'Storage "{name}" already exists.'
@@ -90,10 +103,6 @@ class StorageManager:
         assert name in self._storages
         return self._storages[name]
 
-    def get_default(self) -> Storage:
-        if len(self._storages) == 1:
-            return list(self._storages.values())[0]
-        try:
-            return self._storages[self._default_storage_name]
-        except KeyError:
-            raise KeyError('No default storage configured.')
+    def set_default(self, name: str) -> StorageManager:
+        self._default_storage_name = name
+        return self
