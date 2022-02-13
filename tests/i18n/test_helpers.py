@@ -7,7 +7,7 @@ from kupala.i18n.helpers import (
     get_language,
     get_locale,
     get_timezone,
-    remember_language,
+    remember_current_language,
     set_locale,
     set_timezone,
     switch_locale,
@@ -88,7 +88,7 @@ def test_to_utc() -> None:
 def test_remember_language() -> None:
     def view(request: Request) -> JSONResponse:
         response = JSONResponse(request.language)
-        return remember_language(request, response)
+        return remember_current_language(request, response)
 
     set_locale('be')
     app = Kupala()

@@ -81,7 +81,7 @@ def to_utc(dt: datetime.datetime) -> datetime.datetime:
 _R = typing.TypeVar('_R', bound=Response)
 
 
-def remember_language(request: Request, response: _R) -> _R:
+def remember_current_language(request: Request, response: _R) -> _R:
     """Remember current locale in cookie."""
     response.set_cookie(request.scope.get('i18n.cookie_name', 'language'), str(request.locale))
     return response
