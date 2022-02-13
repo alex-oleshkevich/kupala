@@ -65,7 +65,7 @@ class Kupala:
         middleware: list[Middleware] | None = None,
         routes: list[BaseRoute] | Routes | None = None,
         request_class: typing.Type[Request] = Request,
-        error_handlers: dict[typing.Type[Exception] | int, typing.Optional[ErrorHandler]] = None,
+        error_handlers: dict[typing.Type[Exception] | int, typing.Optional[ErrorHandler]] | None = None,
         lifespan_handlers: list[typing.Callable[[Kupala], typing.AsyncContextManager[None]]] = None,
         exception_handler: typing.Callable[[Request, Exception], Response] | None = None,
         commands: list[click.Command] | None = None,
