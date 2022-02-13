@@ -13,16 +13,16 @@ class Translator:
 
         self.load_from_directories(directories)
 
-    def load_from_directories(self, directories: list[str | os.PathLike]) -> None:
+    def load_from_directories(self, directories: list[str | os.PathLike], domain: str = 'messages') -> None:
         for directory in directories:
-            self.load_from_directory(directory)
+            self.load_from_directory(directory, domain)
 
-    def load_from_directory(self, directory: str | os.PathLike) -> None:
+    def load_from_directory(self, directory: str | os.PathLike, domain: str = 'messages') -> None:
         for lang in os.listdir(directory):
             if os.path.isfile(os.path.join(directory, lang)):
                 continue
 
-            translations = Translations.load(str(directory), [lang], 'messages')
+            translations = Translations.load(str(directory), [lang], domain)
             if lang in self._cache:
                 self._cache[lang].merge(translations)
             else:
