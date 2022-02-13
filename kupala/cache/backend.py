@@ -1,0 +1,33 @@
+import typing
+
+
+class CacheBackend:
+    async def get(self, key: str) -> typing.Any:
+        ...
+
+    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, typing.Any]:
+        ...
+
+    async def set(self, key: str, ttl: int) -> None:
+        ...
+
+    async def set_many(self, value: dict[str, typing.Any], ttl: int) -> None:
+        ...
+
+    async def delete(self, key: str) -> None:
+        ...
+
+    async def delete_many(self, keys: typing.Iterable[str]) -> None:
+        ...
+
+    async def clear(self) -> None:
+        ...
+
+    async def increment(self, key: str, step: int) -> None:
+        ...
+
+    async def decrement(self, key: str, step: int) -> None:
+        ...
+
+    async def touch(self, key: str, delta: int) -> None:
+        ...
