@@ -1,10 +1,15 @@
+import aioredis
 import os
 import pytest
+import tempfile
 import typing
 
 from kupala.cache import CacheBackend, InMemoryCache
 from kupala.cache.dummy import DummyCache
+from kupala.cache.file import FileCache
 from kupala.cache.redis import RedisCache
+
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://')
 
 
 async def in_memory_factory() -> InMemoryCache:
@@ -12,12 +17,24 @@ async def in_memory_factory() -> InMemoryCache:
 
 
 async def redis_factory() -> RedisCache:
-    redis = RedisCache(os.environ.get('REDIS_URL', 'redis://'))
-    await redis.clear()
-    return redis
+    return RedisCache(REDIS_URL)
 
 
-backends = [redis_factory, in_memory_factory]
+async def file_factory() -> FileCache:
+    base_directory = tempfile.mkdtemp(prefix='kupala_cache_')
+    directory = tempfile.mkdtemp()
+    return FileCache(os.path.join(base_directory, directory))
+
+
+@pytest.mark.asyncio
+@pytest.fixture(autouse=True)
+async def reset_redis() -> typing.AsyncGenerator[None, None]:
+    redis = aioredis.from_url(REDIS_URL)
+    await redis.flushdb()
+    yield
+
+
+backends = [redis_factory, in_memory_factory, file_factory]
 
 
 @pytest.mark.parametrize('backend_factory', backends)
