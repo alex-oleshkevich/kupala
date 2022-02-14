@@ -1,3 +1,4 @@
+import aioredis
 import typing
 
 from kupala.cache import CacheBackend
@@ -5,7 +6,6 @@ from kupala.cache import CacheBackend
 
 class RedisCache(CacheBackend):
     def __init__(self, url: str, **redis_kwargs: typing.Any) -> None:
-        import aioredis
 
         self.redis = aioredis.from_url(url, **redis_kwargs)
 

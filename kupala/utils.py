@@ -4,6 +4,7 @@ import importlib
 import inspect
 import os.path
 import re
+import typing
 import typing as t
 from starlette.concurrency import run_in_threadpool
 
@@ -58,3 +59,7 @@ def to_string_list(value: str | t.Iterable[str] | None) -> list[str]:
     if isinstance(value, str):
         return [value]
     return list(value)
+
+
+# def fq_name(variable: typing.Any) -> str:
+#     module_name = variable.__

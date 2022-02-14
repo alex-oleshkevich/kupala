@@ -123,7 +123,7 @@ class Kupala:
 
     @property
     def caches(self) -> CacheManager:
-        return self.caches
+        return self.state.caches
 
     @property
     def translator(self) -> Translator:

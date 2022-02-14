@@ -6,7 +6,7 @@ from kupala.cache import Cache, InMemoryCache
 
 @pytest.fixture()
 def cache() -> Cache:
-    return Cache(backend=InMemoryCache())
+    return Cache(backend=InMemoryCache(), prefix='cache_')
 
 
 @pytest.mark.asyncio
