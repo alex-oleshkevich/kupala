@@ -78,16 +78,16 @@ async def test_increment_decrement(cache: Cache) -> None:
 @pytest.mark.asyncio
 async def test_set_timedelta(cache: Cache) -> None:
     await cache.set('key', 'value', timedelta(hours=1))
-    assert cache.exists('key')
+    assert await cache.exists('key')
 
 
 @pytest.mark.asyncio
 async def test_get_or_set_timedelta(cache: Cache) -> None:
     await cache.get_or_set('key', 'value', timedelta(hours=1))
-    assert cache.exists('key')
+    assert await cache.exists('key')
 
 
 @pytest.mark.asyncio
 async def test_set_many(cache: Cache) -> None:
     await cache.set_many({'key': 'value'}, timedelta(hours=1))
-    assert cache.exists('key')
+    assert await cache.exists('key')
