@@ -47,7 +47,7 @@ class FileCache(CacheBackend):
     async def set(self, key: str, value: bytes, ttl: int) -> None:
         await self._mkdir()
         dest_file = self._make_path(key)
-        _, tmp_file = await run_in_threadpool(tempfile.mkstemp, dir=self.directory)
+        _, tmp_file = await run_in_threadpool(tempfile.mkstemp, dir=self.directory)  # type: ignore[call-arg]
         async with await anyio.open_file(tmp_file, 'wb') as f:
             moved = False
             try:
