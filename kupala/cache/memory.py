@@ -71,7 +71,8 @@ class InMemoryCache(CacheBackend):
         expired = self._is_expired(pair[1])
         if expired:
             await self.delete(key)
-        return expired
+            return False
+        return True
 
     def _is_expired(self, value: float) -> bool:
-        return value >= time.time()
+        return time.time() > value

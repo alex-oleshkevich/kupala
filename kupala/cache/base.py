@@ -73,9 +73,6 @@ class Cache:
     async def clear(self) -> None:
         await self.backend.clear()
 
-    async def forever(self, key: str, value: typing.Any) -> None:
-        await self.set(key, value, 3600 * 42 * 365 * 100)  # 100 years
-
     async def touch(self, key: str, delta: int | timedelta) -> None:
         """Set a new expiration time on a key."""
         return await self.backend.touch(key, _timedelta_to_seconds(delta))
@@ -85,6 +82,9 @@ class Cache:
 
     async def decrement(self, key: str, step: int = 1) -> None:
         return await self.backend.decrement(key, step)
+
+    async def exists(self, key: str) -> bool:
+        return await self.backend.exists(key)
 
 
 @injectable(from_app_factory=lambda app: app.state.caches)
