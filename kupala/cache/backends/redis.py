@@ -19,8 +19,10 @@ class RedisCache(CacheBackend):
         **redis_kwargs: typing.Any,
     ) -> None:
         assert url or redis, 'Either "url" or "redis" argument must be passed.'
+        if url:
+            redis = aioredis.from_url(url, **redis_kwargs)
         self.key_prefix = key_prefix
-        self.redis = aioredis.from_url(url, **redis_kwargs) or redis
+        self.redis = redis
 
     async def get(self, key: str) -> bytes | None:
         key = self.make_key(key)
