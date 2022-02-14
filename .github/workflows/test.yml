@@ -21,7 +21,8 @@ jobs:
                     --health-interval 10s
                     --health-timeout 5s
                     --health-retries 5
-
+                ports:
+                    - 6379:6379
         strategy:
             fail-fast: false
             matrix:
@@ -51,7 +52,6 @@ jobs:
 
             -   name: Test with pytest
                 env:
-                    REDIS_URL: redis://redis
+                    REDIS_URL: redis://localhost
                 run: |
-                    echo $REDIS_URL
                     pytest --no-cov-on-fail --cov kupala --cov tests
