@@ -69,6 +69,21 @@ optional = true
 python-versions = ">=3.6"
 
 [[package]]
+name = "aioredis"
+version = "2.0.1"
+description = "asyncio (PEP 3156) Redis support"
+category = "dev"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+async-timeout = "*"
+typing-extensions = "*"
+
+[package.extras]
+hiredis = ["hiredis (>=1.0)"]
+
+[[package]]
 name = "aiosignal"
 version = "1.2.0"
 description = "aiosignal: a list of registered asynchronous callbacks"
@@ -135,7 +150,7 @@ name = "async-timeout"
 version = "4.0.2"
 description = "Timeout context manager for asyncio programs"
 category = "main"
-optional = true
+optional = false
 python-versions = ">=3.6"
 
 [[package]]
@@ -942,7 +957,7 @@ s3 = ["aioboto3"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "145c59d89c42314b8eb8fe7fc533717cf5e58f1fe941be3598482c5197d911f9"
+content-hash = "3e8cea544f35affa2ad76b0b1a54cfe40ab1b7ee433c89b7ddc5129aab79158a"
 
 [metadata.files]
 aioboto3 = [
@@ -1033,6 +1048,10 @@ aiohttp = [
 aioitertools = [
     {file = "aioitertools-0.9.0-py3-none-any.whl", hash = "sha256:70a643f07be2b0437674bde442548e18a6d33a653d23bc4be9dc9ba6f3116f94"},
     {file = "aioitertools-0.9.0.tar.gz", hash = "sha256:0fd203d53192193973cae71fa14f0d3689328388ad41ca4a4e03e433f98871ac"},
+]
+aioredis = [
+    {file = "aioredis-2.0.1-py3-none-any.whl", hash = "sha256:9ac0d0b3b485d293b8ca1987e6de8658d7dafcca1cddfcd1d506cae8cdebfdd6"},
+    {file = "aioredis-2.0.1.tar.gz", hash = "sha256:eaa51aaf993f2d71f54b70527c440437ba65340588afeb786cd87c55c89cd98e"},
 ]
 aiosignal = [
     {file = "aiosignal-1.2.0-py3-none-any.whl", hash = "sha256:26e62109036cd181df6e6ad646f91f0dcfd05fe16d0cb924138ff2ab75d64e3a"},
