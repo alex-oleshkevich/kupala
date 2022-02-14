@@ -10,8 +10,18 @@ on:
         branches: [ master ]
 
 jobs:
-    build:
+    test:
         runs-on: ubuntu-latest
+
+        services:
+            redis:
+                image: redis
+                options: >-
+                    --health-cmd "redis-cli ping"
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+
         strategy:
             fail-fast: false
             matrix:
@@ -39,15 +49,8 @@ jobs:
                     poetry config virtualenvs.create false
                     poetry install --no-interaction
 
-            -   name: Lint with flake8
+            -   name: Test with pytest
+                env:
+                    REDIS_URL: redis://redis
                 run: |
-                    flake8 kupala/ tests/
-
-            -   name: Lint with mypy
-                run: |
-                    mypy --config-file pyproject.toml
-
-            -   name: Lint with black
-                run: |
-                    black --config=pyproject.toml --check kupala/ tests/
-
+                    pytest --no-cov-on-fail --cov kupala --cov tests

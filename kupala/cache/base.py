@@ -4,21 +4,41 @@ import typing
 from datetime import timedelta
 
 from kupala.cache.backend import CacheBackend
+from kupala.cache.compressors import CacheCompressor, NullCompressor
 from kupala.cache.memory import InMemoryCache
+from kupala.cache.serializers import CacheSerializer, JSONSerializer
 from kupala.di import injectable
+
+
+def _timedelta_to_seconds(delta: timedelta | int) -> int:
+    if isinstance(delta, timedelta):
+        return int(delta.total_seconds())
+    return delta
 
 
 @injectable(from_app_factory=lambda app: app.caches.default)
 class Cache:
-    def __init__(self, backend: CacheBackend, prefix: str = '') -> None:
+    def __init__(
+        self,
+        backend: CacheBackend,  # todo: support urls
+        prefix: str = '',
+        serializer: CacheSerializer | None = None,  # todo: support literals
+        compressor: CacheCompressor | None = None,  # todo: support literals
+    ) -> None:
         self.backend = backend
+        self.serializer = serializer or JSONSerializer()
+        self.compressor = compressor or NullCompressor()
         self._prefix = prefix
 
     async def get(self, key: str, default: typing.Any = None) -> typing.Any:
-        ...
+        value = await self.backend.get(key)
+        if value is None:
+            return default
+        return self.serializer.loads(self.compressor.decompress(value))
 
     async def get_many(self, keys: typing.Iterable[str]) -> dict[str, typing.Any]:
-        ...
+        value = await self.backend.get_many(keys)
+        return {k: self.serializer.loads(self.compressor.decompress(v)) for k, v in value.items()}
 
     async def get_or_set(self, key: str, default: typing.Any, seconds: int | timedelta) -> typing.Any:
         value = await self.get(key)
@@ -35,31 +55,36 @@ class Cache:
         return value
 
     async def set(self, key: str, value: typing.Any, seconds: int | timedelta) -> None:
-        ...
+        value = self.compressor.compress(self.serializer.dumps(value))
+        await self.backend.set(key, value, _timedelta_to_seconds(seconds))
 
     async def set_many(self, values: dict[str, typing.Any], seconds: int | timedelta) -> None:
-        ...
+        compressed: dict[str, bytes] = {
+            key: self.compressor.compress(self.serializer.dumps(value)) for key, value in values.items()
+        }
+        await self.backend.set_many(compressed, _timedelta_to_seconds(seconds))
 
     async def delete(self, key: str) -> None:
-        ...
+        await self.backend.delete(key)
 
     async def delete_many(self, keys: typing.Iterable[str]) -> None:
-        ...
+        await self.backend.delete_many(keys)
 
     async def clear(self) -> None:
-        ...
+        await self.backend.clear()
 
     async def forever(self, key: str, value: typing.Any) -> None:
         await self.set(key, value, 3600 * 42 * 365 * 100)  # 100 years
 
     async def touch(self, key: str, delta: int | timedelta) -> None:
         """Set a new expiration time on a key."""
+        return await self.backend.touch(key, _timedelta_to_seconds(delta))
 
     async def increment(self, key: str, step: int = 1) -> None:
-        ...
+        return await self.backend.increment(key, step)
 
     async def decrement(self, key: str, step: int = 1) -> None:
-        ...
+        return await self.backend.decrement(key, step)
 
 
 @injectable(from_app_factory=lambda app: app.state.caches)
