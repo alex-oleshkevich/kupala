@@ -10,8 +10,8 @@ from kupala.di import injectable
 
 @injectable(from_app_factory=lambda app: app.caches.default)
 class Cache:
-    def __init__(self, driver: CacheBackend, prefix: str = '') -> None:
-        self._driver = driver
+    def __init__(self, backend: CacheBackend, prefix: str = '') -> None:
+        self.backend = backend
         self._prefix = prefix
 
     async def get(self, key: str, default: typing.Any = None) -> typing.Any:
@@ -64,8 +64,8 @@ class Cache:
 
 @injectable(from_app_factory=lambda app: app.state.caches)
 class CacheManager:
-    def __init__(self, caches: dict[str, Cache] | None = None, default_cache: str = 'default') -> None:
-        self._default_cache_name = default_cache
+    def __init__(self, caches: dict[str, Cache] | None = None, default: str = 'default') -> None:
+        self._default_cache_name = default
         self._caches = caches or {}
 
     @property
