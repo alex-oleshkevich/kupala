@@ -29,7 +29,7 @@ class FileCache(CacheBackend):
                         return contents['data']
                     else:
                         await self.delete(key)
-            except FileNotFoundError:
+            except FileNotFoundError:  # pragma: no cover
                 return None
         return None
 

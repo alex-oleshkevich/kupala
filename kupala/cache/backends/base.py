@@ -4,7 +4,7 @@ import typing
 _T = typing.TypeVar('_T')
 
 
-class CacheBackend(abc.ABC):
+class CacheBackend(abc.ABC):  # pragma: no cover
     @abc.abstractmethod
     async def get(self, key: str) -> bytes | None:
         ...

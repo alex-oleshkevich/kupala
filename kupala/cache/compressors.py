@@ -3,7 +3,7 @@ import lzma
 import zlib
 
 
-class CacheCompressor(abc.ABC):
+class CacheCompressor(abc.ABC):  # pragma: no cover
     @abc.abstractmethod
     def compress(self, value: bytes) -> bytes:
         ...

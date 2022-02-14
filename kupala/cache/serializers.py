@@ -4,7 +4,7 @@ import pickle
 import typing
 
 
-class CacheSerializer(abc.ABC):
+class CacheSerializer(abc.ABC):  # pragma: no cover
     @abc.abstractmethod
     def dumps(self, value: typing.Any) -> bytes:
         ...

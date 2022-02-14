@@ -2,6 +2,7 @@ import pytest
 from datetime import timedelta
 
 from kupala.cache import Cache, InMemoryCache
+from kupala.cache.backends.redis import RedisCache
 
 
 @pytest.fixture()
@@ -19,6 +20,12 @@ async def test_requires_url_or_backend() -> None:
 async def test_creates_backend_from_url() -> None:
     cache = Cache('memory://')
     assert isinstance(cache.backend, InMemoryCache)
+
+
+@pytest.mark.asyncio
+async def test_creates_redis_backend_from_url() -> None:
+    cache = Cache('redis://')
+    assert isinstance(cache.backend, RedisCache)
 
 
 @pytest.mark.asyncio
@@ -59,6 +66,32 @@ async def test_get_or_set(cache: Cache) -> None:
     assert await cache.exists('key')
 
     assert await cache.get_or_set('key', value, 3600) == value
+
+
+@pytest.mark.asyncio
+async def test_get_or_set_with_callable(cache: Cache) -> None:
+    def factory() -> str:
+        return 'value'
+
+    assert not await cache.exists('key')
+
+    await cache.get_or_set('key', factory, 3600)
+    assert await cache.exists('key')
+
+    assert await cache.get_or_set('key', factory, 3600) == 'value'
+
+
+@pytest.mark.asyncio
+async def test_get_or_set_with_async_callable(cache: Cache) -> None:
+    async def factory() -> str:
+        return 'value'
+
+    assert not await cache.exists('key')
+
+    await cache.get_or_set('key', factory, 3600)
+    assert await cache.exists('key')
+
+    assert await cache.get_or_set('key', factory, 3600) == 'value'
 
 
 @pytest.mark.asyncio

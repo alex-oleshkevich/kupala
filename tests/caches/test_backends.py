@@ -4,6 +4,7 @@ import pytest
 import secrets
 import tempfile
 import typing
+from unittest import mock
 
 from kupala.cache import CacheBackend, DummyCache, FileCache, InMemoryCache
 from kupala.cache.backends.redis import RedisCache
@@ -226,3 +227,13 @@ def test_file_creates_from_url() -> None:
 def test_redis_creates_from_url() -> None:
     backend = RedisCache.from_url('redis://localhost/?key_prefix=kupala')
     assert backend.key_prefix == 'kupala'
+
+
+@pytest.mark.asyncio
+async def test_file_backend_deletes_source_if_cannot_move_tmp_file() -> None:
+    tmp_dir = tempfile.mkdtemp()
+    backend = FileCache(tmp_dir)
+    with mock.patch('pickle.dumps', side_effect=TypeError), pytest.raises(TypeError):
+        await backend.set('test', b'', 1)
+
+    assert len(os.listdir(tmp_dir)) == 0
