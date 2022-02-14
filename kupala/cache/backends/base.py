@@ -8,7 +8,7 @@ class CacheBackend(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, bytes]:
+    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, bytes | None]:
         ...
 
     @abc.abstractmethod

@@ -7,7 +7,7 @@ class DummyCache(CacheBackend):
     async def get(self, key: str) -> bytes | None:
         return None
 
-    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, bytes]:
+    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, bytes | None]:
         return {}
 
     async def set(self, key: str, value: bytes, ttl: int) -> None:

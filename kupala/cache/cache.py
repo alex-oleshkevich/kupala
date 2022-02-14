@@ -37,10 +37,13 @@ class Cache:
             return default
         return self.serializer.loads(self.compressor.decompress(value))
 
-    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, typing.Any]:
+    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, typing.Any | None]:
         keys = self._make_keys(keys)
         value = await self.backend.get_many(keys)
-        return {k.lstrip(self._prefix): self.serializer.loads(self.compressor.decompress(v)) for k, v in value.items()}
+        return {
+            k.lstrip(self._prefix): self.serializer.loads(self.compressor.decompress(v)) if v is not None else v
+            for k, v in value.items()
+        }
 
     async def get_or_set(self, key: str, default: typing.Any, seconds: int | timedelta) -> typing.Any:
         value = await self.get(key)

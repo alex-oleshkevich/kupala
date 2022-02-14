@@ -19,12 +19,11 @@ class InMemoryCache(CacheBackend):
             await self.delete(key)  # delete expired key
         return None
 
-    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, bytes]:
-        value: dict[str, bytes] = {}
+    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, bytes | None]:
+        value: dict[str, bytes | None] = {}
 
         async def _fetch(cache_key: str) -> None:
-            if cached := await self.get(cache_key):
-                value[cache_key] = cached
+            value[cache_key] = await self.get(cache_key)
 
         async with anyio.create_task_group() as tg:
             for key in keys:

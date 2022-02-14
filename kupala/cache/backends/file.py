@@ -30,7 +30,7 @@ class FileCache(CacheBackend):
                 return None
         return None
 
-    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, bytes]:
+    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, bytes | None]:
         values: dict[str, typing.Optional[bytes]] = {}
 
         async def getter(key: str) -> None:
@@ -39,7 +39,7 @@ class FileCache(CacheBackend):
         async with anyio.create_task_group() as tg:
             for key in keys:
                 tg.start_soon(getter, key)
-        return {k: v for k, v in values.items() if v is not None}
+        return values
 
     async def set(self, key: str, value: bytes, ttl: int) -> None:
         await self._mkdir()

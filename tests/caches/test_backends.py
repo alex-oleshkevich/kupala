@@ -1,7 +1,7 @@
 import aioredis
-import anyio
 import os
 import pytest
+import secrets
 import tempfile
 import typing
 
@@ -16,7 +16,7 @@ async def in_memory_factory() -> InMemoryCache:
 
 
 async def redis_factory() -> RedisCache:
-    return RedisCache(REDIS_URL)
+    return RedisCache(REDIS_URL, key_prefix='kupala_test_cache_' + secrets.token_hex(4))
 
 
 async def file_factory() -> FileCache:
@@ -30,7 +30,6 @@ async def file_factory() -> FileCache:
 async def reset_redis() -> typing.AsyncGenerator[None, None]:
     redis = aioredis.from_url(REDIS_URL)
     await redis.flushdb()
-    await anyio.sleep(0.02)
     yield
 
 
@@ -84,10 +83,12 @@ async def test_get_set_many_excludes_expired(
     await backend.set('key3', b'value3', ttl=3600)
     await backend.set('key4', b'value4', ttl=-1)  # set key and immediately expire it
     await backend.set_many(expected, ttl=3600)
-    assert await backend.get_many(['key1', 'key2', 'key3', 'key4']) == {
+    assert await backend.get_many(['key1', 'key2', 'key3', 'key4', 'key4', 'key5']) == {
         'key1': b'value1',
         'key2': b'value2',
         'key3': b'value3',
+        'key4': None,
+        'key5': None,
     }
 
 
