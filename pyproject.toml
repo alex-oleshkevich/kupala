@@ -107,6 +107,9 @@ ignore_missing_imports = true
 files = ["kupala", "tests"]
 exclude = "/*venv/"
 pretty = true
+show_error_context = true
+show_column_numbers = true
+show_error_codes = true
 
 [tool.pytest.ini_options]
 minversion = "6.0"

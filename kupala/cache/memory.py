@@ -1,35 +1,77 @@
+import anyio
+import contextlib
+import time
 import typing
 
 from kupala.cache.backend import CacheBackend
 
 
 class InMemoryCache(CacheBackend):
-    async def get(self, key: str) -> typing.Any:
-        pass
+    def __init__(self) -> None:
+        self._cache: dict[str, tuple[bytes, float]] = {}
 
-    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, typing.Any]:
-        pass
+    async def get(self, key: str) -> bytes | None:
+        with contextlib.suppress(TypeError):
+            value, expires = self._cache.get(key)  # type: ignore[misc]
+            if expires >= time.time():
+                return value
 
-    async def set(self, key: str, ttl: int) -> None:
-        pass
+            await self.delete(key)  # delete expired key
+        return None
 
-    async def set_many(self, value: dict[str, typing.Any], ttl: int) -> None:
-        pass
+    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, bytes]:
+        value: dict[str, bytes] = {}
+
+        async def _fetch(cache_key: str) -> None:
+            if cached := await self.get(cache_key):
+                value[cache_key] = cached
+
+        async with anyio.create_task_group() as tg:
+            for key in keys:
+                tg.start_soon(_fetch, key)
+        return value
+
+    async def set(self, key: str, value: bytes, ttl: float) -> None:
+        new_ttl = time.time() + ttl
+        self._cache[key] = (value, new_ttl)
+
+    async def set_many(self, value: dict[str, bytes], ttl: int) -> None:
+        async with anyio.create_task_group() as tg:
+            for key, data in value.items():
+                tg.start_soon(self.set, key, data, ttl)
 
     async def delete(self, key: str) -> None:
-        pass
+        self._cache.pop(key, None)
 
     async def delete_many(self, keys: typing.Iterable[str]) -> None:
-        pass
+        async with anyio.create_task_group() as tg:
+            for key in keys:
+                tg.start_soon(self.delete, key)
 
     async def clear(self) -> None:
-        pass
+        self._cache.clear()
 
     async def increment(self, key: str, step: int) -> None:
-        pass
+        value = int(await self.get(key) or b'0')
+        await self.set(key, str(value + step).encode(), 999_999_999)
 
     async def decrement(self, key: str, step: int) -> None:
-        pass
+        value = int(await self.get(key) or b'0')
+        await self.set(key, str(value - step).encode(), 999_999_999)
 
     async def touch(self, key: str, delta: int) -> None:
-        pass
+        pair = self._cache.get(key)
+        if pair:
+            await self.set(key, pair[0], delta)
+
+    async def exists(self, key: str) -> bool:
+        pair = self._cache.get(key)
+        if not pair:
+            return False
+        expired = self._is_expired(pair[1])
+        if expired:
+            await self.delete(key)
+        return expired
+
+    def _is_expired(self, value: float) -> bool:
+        return value >= time.time()

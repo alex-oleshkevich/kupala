@@ -4,19 +4,19 @@ import typing
 
 class CacheBackend(abc.ABC):
     @abc.abstractmethod
-    async def get(self, key: str) -> typing.Any:
+    async def get(self, key: str) -> bytes | None:
         ...
 
     @abc.abstractmethod
-    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, typing.Any]:
+    async def get_many(self, keys: typing.Iterable[str]) -> dict[str, bytes]:
         ...
 
     @abc.abstractmethod
-    async def set(self, key: str, ttl: int) -> None:
+    async def set(self, key: str, value: bytes, ttl: int) -> None:
         ...
 
     @abc.abstractmethod
-    async def set_many(self, value: dict[str, typing.Any], ttl: int) -> None:
+    async def set_many(self, value: dict[str, bytes], ttl: int) -> None:
         ...
 
     @abc.abstractmethod
@@ -41,4 +41,8 @@ class CacheBackend(abc.ABC):
 
     @abc.abstractmethod
     async def touch(self, key: str, delta: int) -> None:
+        ...
+
+    @abc.abstractmethod
+    async def exists(self, key: str) -> bool:
         ...

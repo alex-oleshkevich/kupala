@@ -8,7 +8,7 @@ from kupala.cache.memory import InMemoryCache
 from kupala.di import injectable
 
 
-@injectable(from_app_factory=lambda app: app.state.caches.get_default())
+@injectable(from_app_factory=lambda app: app.caches.default)
 class Cache:
     def __init__(self, driver: CacheBackend, prefix: str = '') -> None:
         self._driver = driver
@@ -53,7 +53,7 @@ class Cache:
         await self.set(key, value, 3600 * 42 * 365 * 100)  # 100 years
 
     async def touch(self, key: str, delta: int | timedelta) -> None:
-        ...
+        """Set a new expiration time on a key."""
 
     async def increment(self, key: str, step: int = 1) -> None:
         ...
@@ -67,6 +67,10 @@ class CacheManager:
     def __init__(self, caches: dict[str, Cache] | None = None, default_cache: str = 'default') -> None:
         self._default_cache_name = default_cache
         self._caches = caches or {}
+
+    @property
+    def default(self) -> Cache:
+        return self.get(self._default_cache_name)
 
     def get(self, name: str) -> Cache:
         assert name in self._caches, f'Cache "{name}" is not configured.'
@@ -84,6 +88,3 @@ class CacheManager:
         from .redis import RedisCache
 
         return self.add(name, Cache(RedisCache(redis_dsn), prefix=prefix))
-
-    def get_default(self) -> Cache:
-        return self.get(self._default_cache_name)

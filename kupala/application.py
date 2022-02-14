@@ -122,6 +122,10 @@ class Kupala:
         return self.state.mailers
 
     @property
+    def caches(self) -> CacheManager:
+        return self.caches
+
+    @property
     def translator(self) -> Translator:
         assert hasattr(self.state, 'translator'), 'Translations are not enabled.'
         return self.state.translator
