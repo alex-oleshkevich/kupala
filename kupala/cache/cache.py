@@ -4,9 +4,8 @@ import inspect
 import typing
 from datetime import timedelta
 
-from kupala.cache.backend import CacheBackend
+from kupala.cache.backends import CacheBackend, InMemoryCache
 from kupala.cache.compressors import CacheCompressor, NullCompressor
-from kupala.cache.memory import InMemoryCache
 from kupala.cache.serializers import CacheSerializer, JSONSerializer
 from kupala.di import injectable
 
@@ -129,6 +128,6 @@ class CacheManager:
         return self.add(name, Cache(InMemoryCache(), prefix=prefix))
 
     def add_redis(self, name: str, redis_dsn: str, prefix: str = '') -> CacheManager:
-        from .redis import RedisCache
+        from kupala.cache.backends.redis import RedisCache
 
         return self.add(name, Cache(RedisCache(redis_dsn), prefix=prefix))

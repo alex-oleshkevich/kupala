@@ -1,6 +1,6 @@
 import typing
 
-from kupala.cache import CacheBackend
+from kupala.cache.backends import CacheBackend
 
 
 class DummyCache(CacheBackend):

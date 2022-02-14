@@ -1,5 +1,5 @@
-from .backend import CacheBackend
-from .base import Cache, CacheManager
-from .memory import InMemoryCache
+from kupala.cache.backends import CacheBackend, DummyCache, FileCache, InMemoryCache
 
-__all__ = ['Cache', 'CacheManager', 'CacheBackend', 'InMemoryCache']
+from .cache import Cache, CacheManager
+
+__all__ = ['Cache', 'CacheManager', 'CacheBackend', 'InMemoryCache', 'DummyCache', 'FileCache']

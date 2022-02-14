@@ -3,7 +3,7 @@ import contextlib
 import time
 import typing
 
-from kupala.cache.backend import CacheBackend
+from kupala.cache.backends import CacheBackend
 
 
 class InMemoryCache(CacheBackend):

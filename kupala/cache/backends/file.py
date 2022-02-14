@@ -7,7 +7,7 @@ import time
 import typing
 from starlette.concurrency import run_in_threadpool
 
-from kupala.cache import CacheBackend
+from kupala.cache.backends import CacheBackend
 
 
 class FileCache(CacheBackend):

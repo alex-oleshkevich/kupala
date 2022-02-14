@@ -1,13 +1,12 @@
 import aioredis
+import anyio
 import os
 import pytest
 import tempfile
 import typing
 
-from kupala.cache import CacheBackend, InMemoryCache
-from kupala.cache.dummy import DummyCache
-from kupala.cache.file import FileCache
-from kupala.cache.redis import RedisCache
+from kupala.cache import CacheBackend, DummyCache, FileCache, InMemoryCache
+from kupala.cache.backends.redis import RedisCache
 
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://')
 
@@ -31,6 +30,7 @@ async def file_factory() -> FileCache:
 async def reset_redis() -> typing.AsyncGenerator[None, None]:
     redis = aioredis.from_url(REDIS_URL)
     await redis.flushdb()
+    await anyio.sleep(0.02)
     yield
 
 
