@@ -3,6 +3,7 @@ import pytest
 import typing
 
 from kupala.cache import CacheBackend, InMemoryCache
+from kupala.cache.dummy import DummyCache
 from kupala.cache.redis import RedisCache
 
 
@@ -171,3 +172,19 @@ async def test_exists(backend_factory: typing.Callable[[], typing.Awaitable[Cach
     await backend.set('key1', b'value', 3600)
     assert await backend.exists('key1') is True
     assert await backend.exists('key2') is False
+
+
+@pytest.mark.asyncio
+async def test_dummy_cache() -> None:
+    backend = DummyCache()
+    assert await backend.get('key') is None
+    assert await backend.get_many(['key']) == {}
+    assert await backend.set('key', b'value', 10) is None
+    assert await backend.set_many({}, 10) is None
+    assert await backend.delete('key') is None
+    assert await backend.delete_many(['key']) is None
+    assert await backend.clear() is None
+    assert await backend.increment('counter', 1) is None
+    assert await backend.decrement('counter', 1) is None
+    assert await backend.touch('key', 10) is None
+    assert await backend.exists('key') is False
