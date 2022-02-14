@@ -30,13 +30,15 @@ imia = "^0.4"
 python-multipart = "^0.0.5"
 python-dotenv = "^0.19"
 deesk = "^0.1"
-aioboto3 = { version = "^9.3", optional = true }
 click = "^8.0"
 mailers = "^2.0.0"
 toronado = "^0.1.0"
 Babel = "^2.9.1"
 passlib = "^1.7.4"
 pydantic = "^1.9.0"
+aioboto3 = { version = "^9.3", optional = true }
+aioredis = { version = "^2.0.1", optional = true }
+msgpack = { version = "^1.0.3", optional = true }
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"
@@ -53,6 +55,8 @@ msgpack = "^1.0.3"
 
 [tool.poetry.extras]
 s3 = ["aioboto3"]
+redis = ["aioredis"]
+msgpack = ["msgpack"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
