@@ -1,6 +1,8 @@
 import abc
 import typing
 
+_T = typing.TypeVar('_T')
+
 
 class CacheBackend(abc.ABC):
     @abc.abstractmethod
@@ -46,3 +48,7 @@ class CacheBackend(abc.ABC):
     @abc.abstractmethod
     async def exists(self, key: str) -> bool:
         ...
+
+    @classmethod
+    def from_url(cls: typing.Type[_T], url: str) -> _T:
+        raise NotImplementedError()

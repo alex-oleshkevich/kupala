@@ -206,3 +206,23 @@ async def test_dummy_cache() -> None:
     assert await backend.decrement('counter', 1) is None
     assert await backend.touch('key', 10) is None
     assert await backend.exists('key') is False
+
+
+def test_inmemory_creates_from_url() -> None:
+    backend = InMemoryCache.from_url('memory://')
+    assert backend
+
+
+def test_dummy_creates_from_url() -> None:
+    backend = DummyCache.from_url('dummy://')
+    assert backend
+
+
+def test_file_creates_from_url() -> None:
+    backend = FileCache.from_url('file:///tmp')
+    assert backend.directory == '/tmp'
+
+
+def test_redis_creates_from_url() -> None:
+    backend = RedisCache.from_url('redis://localhost/?key_prefix=kupala')
+    assert backend.key_prefix == 'kupala'

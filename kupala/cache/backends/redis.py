@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import aioredis
 import typing
+import urllib.parse
 
 from kupala.cache.backends import CacheBackend
 
@@ -68,3 +71,9 @@ class RedisCache(CacheBackend):
 
     def make_key(self, key: str) -> str:
         return self.key_prefix + key
+
+    @classmethod
+    def from_url(cls: typing.Type[RedisCache], url: str) -> RedisCache:
+        components = urllib.parse.urlparse(url)
+        key_prefix = urllib.parse.parse_qs(components.query).get('key_prefix', [''])[0]
+        return RedisCache(url, key_prefix=key_prefix)

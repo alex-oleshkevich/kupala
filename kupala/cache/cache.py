@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import inspect
+import os
 import typing
+import urllib.parse
 from datetime import timedelta
 
-from kupala.cache.backends import CacheBackend, InMemoryCache
+from kupala.cache.backends import CacheBackend, DummyCache, FileCache, InMemoryCache
 from kupala.cache.compressors import CacheCompressor, NullCompressor
 from kupala.cache.serializers import CacheSerializer, JSONSerializer
 from kupala.di import injectable
@@ -16,15 +18,43 @@ def _timedelta_to_seconds(delta: timedelta | int) -> int:
     return delta
 
 
+_BACKENDS: dict[str, typing.Type[CacheBackend]] = {
+    'memory': InMemoryCache,
+    'dummy': DummyCache,
+    'file': FileCache,
+}
+
+
+def backend_from_url(url: str) -> CacheBackend:
+    scheme = urllib.parse.urlparse(url).scheme
+    if scheme == 'redis':
+        from .backends.redis import RedisCache
+
+        return RedisCache.from_url(url)
+    try:
+        return _BACKENDS[scheme].from_url(url)
+    except KeyError:
+        raise KeyError(f'Unknown backend: {scheme}://')
+
+
 @injectable(from_app_factory=lambda app: app.caches.default)
 class Cache:
+    backend: CacheBackend
+
     def __init__(
         self,
-        backend: CacheBackend,  # todo: support urls
+        url: str | None = None,
+        *,
+        backend: CacheBackend | None = None,
         prefix: str = '',
         serializer: CacheSerializer | None = None,  # todo: support literals
         compressor: CacheCompressor | None = None,  # todo: support literals
     ) -> None:
+        assert url or backend, 'Either "url" or "backend" argument is required.'
+        if url:
+            backend = backend_from_url(url)
+
+        assert backend
         self.backend = backend
         self.serializer = serializer or JSONSerializer()
         self.compressor = compressor or NullCompressor()
@@ -128,9 +158,13 @@ class CacheManager:
         return self
 
     def add_in_memory(self, name: str, prefix: str = '') -> CacheManager:
-        return self.add(name, Cache(InMemoryCache(), prefix=prefix))
+        return self.add(name, Cache('memory://', prefix=prefix))
 
     def add_redis(self, name: str, redis_dsn: str, prefix: str = '') -> CacheManager:
-        from kupala.cache.backends.redis import RedisCache
+        return self.add(name, Cache(url=redis_dsn, prefix=prefix))
 
-        return self.add(name, Cache(RedisCache(redis_dsn), prefix=prefix))
+    def add_dummy(self, name: str, prefix: str = '') -> CacheManager:
+        return self.add(name, Cache(url='dummy://', prefix=prefix))
+
+    def add_file(self, name: str, directory: str | os.PathLike, prefix: str = '') -> CacheManager:
+        return self.add(name, Cache(backend=FileCache(directory), prefix=prefix))

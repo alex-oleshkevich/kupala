@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import anyio
 import hashlib
 import os
@@ -5,6 +7,7 @@ import pickle
 import tempfile
 import time
 import typing
+import urllib.parse
 from starlette.concurrency import run_in_threadpool
 
 from kupala.cache.backends import CacheBackend
@@ -106,3 +109,13 @@ class FileCache(CacheBackend):
             await run_in_threadpool(os.makedirs, self.directory, 0o700, exist_ok=True)
         finally:
             os.umask(old_umask)
+
+    @classmethod
+    def from_url(cls: typing.Type[FileCache], url: str) -> FileCache:
+        """
+        Create backend from URLs like:
+
+        file:///tmp
+        """
+        components = urllib.parse.urlparse(url)
+        return cls(directory=components.path)

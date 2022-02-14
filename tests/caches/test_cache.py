@@ -10,6 +10,24 @@ def cache() -> Cache:
 
 
 @pytest.mark.asyncio
+async def test_requires_url_or_backend() -> None:
+    with pytest.raises(AssertionError, match='Either "url" or "backend" argument is required.'):
+        Cache()
+
+
+@pytest.mark.asyncio
+async def test_creates_backend_from_url() -> None:
+    cache = Cache('memory://')
+    assert isinstance(cache.backend, InMemoryCache)
+
+
+@pytest.mark.asyncio
+async def test_raises_for_unknown_backend() -> None:
+    with pytest.raises(KeyError, match='Unknown backend: unknown://'):
+        Cache('unknown://')
+
+
+@pytest.mark.asyncio
 async def test_get_set_delete_exists(cache: Cache) -> None:
     value = 'value'
     await cache.set('key', value, 3600)

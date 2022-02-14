@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import anyio
 import contextlib
 import time
@@ -75,3 +77,7 @@ class InMemoryCache(CacheBackend):
 
     def _is_expired(self, value: float) -> bool:
         return time.time() > value
+
+    @classmethod
+    def from_url(cls: typing.Type[InMemoryCache], url: str) -> InMemoryCache:
+        return cls()

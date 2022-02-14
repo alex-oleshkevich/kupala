@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import typing
 
 from kupala.cache.backends import CacheBackend
@@ -36,3 +38,7 @@ class DummyCache(CacheBackend):
 
     async def exists(self, key: str) -> bool:
         return False
+
+    @classmethod
+    def from_url(cls: typing.Type[DummyCache], url: str) -> DummyCache:
+        return cls()
