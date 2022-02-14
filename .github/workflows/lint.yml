@@ -45,6 +45,7 @@ jobs:
 
             -   name: Lint with mypy
                 run: |
+                    mypy --version
                     mypy --config-file pyproject.toml
 
             -   name: Lint with black

@@ -21,6 +21,8 @@ class RedisCache(CacheBackend):
         assert url or redis, 'Either "url" or "redis" argument must be passed.'
         if url:
             redis = aioredis.from_url(url, **redis_kwargs)
+
+        assert redis
         self.key_prefix = key_prefix
         self.redis = redis
 
