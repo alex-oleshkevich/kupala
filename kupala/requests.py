@@ -8,7 +8,7 @@ import typing
 import typing as t
 import uuid
 from babel.core import Locale
-from imia import UserLike, UserToken
+from imia import AnonymousUser, LoginState, UserLike, UserToken
 from starlette import datastructures as ds, requests
 from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
@@ -186,8 +186,7 @@ class Request(requests.Request):
 
     @property
     def auth(self) -> UserToken:
-        assert "auth" in self.scope, "AuthenticationMiddleware must be installed to access request.auth"
-        return self.scope["auth"]
+        return self.scope.get('auth', UserToken(user=AnonymousUser(), state=LoginState.ANONYMOUS))
 
     @property
     def user(self) -> UserLike:
