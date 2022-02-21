@@ -6,6 +6,7 @@ import os
 import sys
 import traceback
 import typing
+from markupsafe import Markup
 from pprint import pformat
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
@@ -570,7 +571,11 @@ class ServerErrorMiddleware:
     def render_details_row(self, data: typing.Mapping) -> str:
         row_html = ""
         for name, value in data.items():
-            row_html += DETAILS_ROW_TEMPLATE.format(label=name, value=mask_secrets(name, html.escape(repr(value))))
+            if not isinstance(value, (str, float)):
+                value = repr(value)
+            if not isinstance(value, Markup):
+                value = html.escape(value)
+            row_html += DETAILS_ROW_TEMPLATE.format(label=name, value=mask_secrets(name, value))
 
         if not row_html:
             row_html = "<dl><dt>empty</dt><dd></dd></dl>"
@@ -634,7 +639,7 @@ class ServerErrorMiddleware:
                     "Python version": sys.version,
                     "Platform": sys.platform,
                     "Python": sys.executable,
-                    "Paths": "<br>".join(sys.path),
+                    "Paths": Markup("<br>".join(sys.path)),
                 }
             ),
             open="",
