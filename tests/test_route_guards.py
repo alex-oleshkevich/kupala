@@ -3,7 +3,7 @@ from imia import BearerAuthenticator, InMemoryProvider
 
 from kupala.application import Kupala
 from kupala.authentication import BaseUser
-from kupala.dispatching import action_config
+from kupala.dispatching import route
 from kupala.exceptions import PageNotFound
 from kupala.guards import has_permission, is_authenticated
 from kupala.middleware import Middleware
@@ -44,7 +44,7 @@ def exception_guard(request: Request) -> None:
 
 
 def test_sync_guards() -> None:
-    @action_config(guards=[sync_guard])
+    @route(guards=[sync_guard])
     def view() -> JSONResponse:
         return JSONResponse({})
 
@@ -56,7 +56,7 @@ def test_sync_guards() -> None:
 
 
 def test_async_guards() -> None:
-    @action_config(guards=[async_guard])
+    @route(guards=[async_guard])
     def view() -> JSONResponse:
         return JSONResponse({})
 
@@ -68,7 +68,7 @@ def test_async_guards() -> None:
 
 
 def test_exception_guards() -> None:
-    @action_config(guards=[exception_guard])
+    @route(guards=[exception_guard])
     def view() -> JSONResponse:
         return JSONResponse({})
 
@@ -80,7 +80,7 @@ def test_exception_guards() -> None:
 
 
 def test_is_authenticated_guard_allows() -> None:
-    @action_config(guards=[is_authenticated])
+    @route(guards=[is_authenticated])
     def view() -> JSONResponse:
         return JSONResponse({})
 
@@ -97,7 +97,7 @@ def test_is_authenticated_guard_allows() -> None:
 
 
 def test_is_authenticated_guard_denies() -> None:
-    @action_config(guards=[is_authenticated])
+    @route(guards=[is_authenticated])
     def view() -> JSONResponse:
         return JSONResponse({})
 
@@ -114,7 +114,7 @@ def test_is_authenticated_guard_denies() -> None:
 
 
 def test_has_permission_guard_allows() -> None:
-    @action_config(guards=[has_permission('users.edit')])
+    @route(guards=[has_permission('users.edit')])
     def view() -> JSONResponse:
         return JSONResponse({})
 
@@ -130,7 +130,7 @@ def test_has_permission_guard_allows() -> None:
 
 
 def test_has_permission_guard_denies() -> None:
-    @action_config(guards=[has_permission('users.edit')])
+    @route(guards=[has_permission('users.edit')])
     def view() -> JSONResponse:
         return JSONResponse({})
 

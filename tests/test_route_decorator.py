@@ -5,7 +5,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.application import Kupala
 from kupala.authentication import BaseUser
-from kupala.dispatching import action_config
+from kupala.dispatching import route
 from kupala.middleware import Middleware
 from kupala.middleware.authentication import AuthenticationMiddleware
 from kupala.requests import Request
@@ -14,12 +14,12 @@ from kupala.routing import Route
 from tests.utils import FormatRenderer
 
 
-@action_config()
+@route()
 async def action_config_view(request: Request) -> JSONResponse:
     return JSONResponse({'method': request.method})
 
 
-@action_config(['get', 'post'])
+@route(['get', 'post'])
 async def action_config_methods_view(request: Request) -> JSONResponse:
     return JSONResponse({'method': request.method})
 
@@ -33,7 +33,7 @@ class SampleMiddleware:
         return await self.app(scope, receive, send)
 
 
-@action_config(middleware=[Middleware(SampleMiddleware)])
+@route(middleware=[Middleware(SampleMiddleware)])
 async def action_config_middleware_view(request: Request) -> JSONResponse:
     return JSONResponse({'called': request.scope['called']})
 
@@ -70,7 +70,7 @@ def test_action_config_middleware() -> None:
 def test_route_overrides_action_config_methods() -> None:
     """Methods defined by action_config() have higher precedence."""
 
-    @action_config(methods=['post'])
+    @route(methods=['post'])
     def view() -> JSONResponse:
         return JSONResponse({})
 
@@ -98,7 +98,7 @@ def test_route_overrides_action_config_middleware() -> None:
 
         return middleware
 
-    @action_config(middleware=[Middleware(set_two)])
+    @route(middleware=[Middleware(set_two)])
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.scope['used'])
 
@@ -109,7 +109,7 @@ def test_route_overrides_action_config_middleware() -> None:
 
 
 def test_view_allows_unauthenticated_access() -> None:
-    @action_config(is_authenticated=False)
+    @route(is_authenticated=False)
     def view() -> JSONResponse:
         return JSONResponse([])
 
@@ -119,7 +119,7 @@ def test_view_allows_unauthenticated_access() -> None:
 
 
 def test_when_view_requires_authentication_authenticated_user_can_access_page() -> None:
-    @action_config(is_authenticated=True)
+    @route(is_authenticated=True)
     def view() -> JSONResponse:
         return JSONResponse([])
 
@@ -148,7 +148,7 @@ def test_when_view_requires_authentication_authenticated_user_can_access_page() 
 
 
 def test_when_view_requires_authentication_unauthenticated_user_cannoe_access_page() -> None:
-    @action_config(is_authenticated=True)
+    @route(is_authenticated=True)
     def view() -> JSONResponse:
         return JSONResponse([])
 
@@ -164,7 +164,7 @@ def test_when_view_requires_authentication_unauthenticated_user_cannoe_access_pa
 
 
 def test_access_when_user_has_permission() -> None:
-    @action_config(permission='admin')
+    @route(permission='admin')
     def view() -> JSONResponse:
         return JSONResponse([])
 

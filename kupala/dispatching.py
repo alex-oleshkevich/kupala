@@ -45,9 +45,6 @@ def route(
     return wrapper
 
 
-action_config = route
-
-
 def detect_request_class(endpoint: t.Callable) -> t.Type[Request]:
     """
     Detect which request class to use for this endpoint.
