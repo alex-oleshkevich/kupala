@@ -6,3 +6,5 @@ __pycache__
 .idea
 dist/
 demo_app
+_private
+
