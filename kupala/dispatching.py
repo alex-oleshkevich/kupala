@@ -1,5 +1,4 @@
 import inspect
-import typing
 import typing as t
 from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextmanager
 from starlette.concurrency import run_in_threadpool
@@ -10,13 +9,7 @@ from kupala.di import InjectionError, get_request_injection_factory
 from kupala.exceptions import PermissionDenied
 from kupala.middleware import Middleware
 from kupala.requests import Request
-from kupala.utils import run_async
-
-
-def _callable_name(injection: typing.Any) -> str:
-    class_name = injection.__name__ if inspect.isclass(injection) else getattr(injection, '__name__', repr(injection))
-    module_name = getattr(injection, '__module__', '')
-    return f'{module_name}.{class_name}{inspect.signature(injection)}'
+from kupala.utils import callable_name, run_async
 
 
 def route(
@@ -123,7 +116,7 @@ async def resolve_injections(
                 injections[arg_name] = signature.parameters[arg_name].default
             else:
                 raise InjectionError(
-                    f'Injection "{arg_name}" cannot be processed in {_callable_name(endpoint)}.'
+                    f'Injection "{arg_name}" cannot be processed in {callable_name(endpoint)}.'
                 ) from ex
         else:
             continue

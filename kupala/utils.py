@@ -61,5 +61,7 @@ def to_string_list(value: str | t.Iterable[str] | None) -> list[str]:
     return list(value)
 
 
-# def fq_name(variable: typing.Any) -> str:
-#     module_name = variable.__
+def callable_name(injection: typing.Any) -> str:
+    class_name = injection.__name__ if inspect.isclass(injection) else getattr(injection, '__name__', repr(injection))
+    module_name = getattr(injection, '__module__', '')
+    return f'{module_name}.{class_name}{inspect.signature(injection)}'
