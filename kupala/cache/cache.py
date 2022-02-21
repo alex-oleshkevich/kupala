@@ -152,6 +152,10 @@ class CacheManager:
         assert name in self._caches, f'Cache "{name}" is not configured.'
         return self._caches[name]
 
+    def use(self, url: str, name: str = 'default') -> CacheManager:
+        self.add(name, Cache(url))
+        return self
+
     def add(self, name: str, cache: Cache) -> CacheManager:
         assert name not in self._caches, f'Cache "{name}" already configured.'
         self._caches[name] = cache
