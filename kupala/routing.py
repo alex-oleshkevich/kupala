@@ -9,7 +9,7 @@ from starlette.routing import compile_path, get_name
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.dispatching import dispatch_endpoint, get_action_config
+from kupala.dispatching import dispatch_endpoint
 from kupala.middleware import Middleware
 from kupala.responses import RedirectResponse
 from kupala.storages.file_server import FileServer
@@ -92,7 +92,7 @@ class Route(routing.Route):
         *,
         name: str = None,
         include_in_schema: bool = True,
-        methods: list[str] = None,
+        methods: list[str] | None = None,
         middleware: t.Sequence[Middleware] = None,
     ) -> None:
         assert path.startswith("/"), "Routed paths must start with '/'"
@@ -101,11 +101,8 @@ class Route(routing.Route):
         self.name = get_name(endpoint) if name is None else name
         self.include_in_schema = include_in_schema
 
-        action_config = get_action_config(endpoint)
-        middleware = middleware or action_config.middleware
-        methods = methods or action_config.methods
-        if not methods:
-            methods = ['GET']
+        methods = methods or getattr(endpoint, '__route_methods__', ['GET', 'HEAD'])
+        middleware = middleware or getattr(endpoint, '__route_middleware__', [])
 
         endpoint_handler = endpoint
         while isinstance(endpoint_handler, functools.partial):
@@ -204,17 +201,11 @@ class Routes(t.Sequence[routing.BaseRoute]):
         path: str,
         endpoint: t.Callable,
         *,
-        methods: t.List[str] = None,
+        methods: list[str] = None,
         name: str = None,
         include_in_schema: bool = True,
         middleware: t.Sequence[Middleware] = None,
     ) -> None:
-        if not methods:
-            action_config = get_action_config(endpoint)
-            if action_config and action_config.methods:
-                methods = action_config.methods
-            else:
-                methods = ['GET', 'HEAD']
         route = Route(
             path,
             endpoint,

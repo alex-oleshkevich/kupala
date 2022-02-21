@@ -1,5 +1,3 @@
-from dataclasses import dataclass, field
-
 import inspect
 import typing
 import typing as t
@@ -21,15 +19,6 @@ def _callable_name(injection: typing.Any) -> str:
     return f'{module_name}.{class_name}{inspect.signature(injection)}'
 
 
-@dataclass
-class ActionConfig:
-    """Keeps endpoint configuration."""
-
-    methods: t.List[str] = field(default_factory=list)
-    middleware: t.Optional[t.Sequence[Middleware]] = None
-    guards: list[route_guards.Guard] | None = None
-
-
 def route(
     methods: t.List[str] = None,
     middleware: t.Sequence[Middleware] = None,
@@ -48,25 +37,15 @@ def route(
         guards.append(route_guards.has_permission(permission))
 
     def wrapper(fn: t.Callable) -> t.Callable:
-        action_config = ActionConfig(
-            methods=allowed_methods,
-            middleware=middleware,
-            guards=guards,
-        )
-        setattr(fn, '__action_config__', action_config)
+        setattr(fn, '__route_methods__', allowed_methods)
+        setattr(fn, '__route_guards__', guards)
+        setattr(fn, '__route_middleware__', middleware)
         return fn
 
     return wrapper
 
 
 action_config = route
-
-
-def get_action_config(endpoint: t.Callable) -> ActionConfig:
-    """Return endpoint config if defined otherwise return None."""
-    if not hasattr(endpoint, '__action_config__'):
-        endpoint.__dict__['__action_config__'] = ActionConfig()
-    return getattr(endpoint, '__action_config__')
 
 
 def detect_request_class(endpoint: t.Callable) -> t.Type[Request]:
@@ -163,8 +142,7 @@ async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint
     """
     request_class = detect_request_class(endpoint)
     request = request_class(scope, receive, send)
-    action_config = get_action_config(endpoint)
-    await call_guards(request, action_config.guards or [])
+    await call_guards(request, getattr(endpoint, '__route_guards__', []))
 
     with ExitStack() as sync_stack:
         async with AsyncExitStack() as async_stack:
