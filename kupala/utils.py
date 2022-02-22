@@ -5,7 +5,6 @@ import inspect
 import os.path
 import re
 import typing
-import typing as t
 from starlette.concurrency import run_in_threadpool
 
 CAMEL_TO_SNAKE_PATTERN = re.compile(r'(?<!^)(?=[A-Z])')
@@ -15,7 +14,7 @@ def camel_to_snake(name: str) -> str:
     return CAMEL_TO_SNAKE_PATTERN.sub('_', name).lower()
 
 
-def import_string(path: str, package: str = None) -> t.Any:
+def import_string(path: str, package: str = None) -> typing.Any:
     attr = None
     if ':' in path:
         module_name, attr = path.split(':')
@@ -28,7 +27,7 @@ def import_string(path: str, package: str = None) -> t.Any:
     return module_instance
 
 
-def resolve_path(path: t.Union[str, os.PathLike]) -> str:
+def resolve_path(path: typing.Union[str, os.PathLike]) -> str:
     path = str(path)
     if not path.startswith('@'):
         return os.path.abspath(path)
@@ -37,7 +36,7 @@ def resolve_path(path: t.Union[str, os.PathLike]) -> str:
     return os.path.join(str(os.path.dirname(str(package_spec.__file__))), package_path)
 
 
-async def run_async(fn: t.Callable, *args: t.Any, **kwargs: t.Any) -> t.Any:
+async def run_async(fn: typing.Callable, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
     """
     Awaits a function.
 
@@ -48,7 +47,7 @@ async def run_async(fn: t.Callable, *args: t.Any, **kwargs: t.Any) -> t.Any:
     return await run_in_threadpool(fn, *args, **kwargs)
 
 
-def to_string_list(value: str | t.Iterable[str] | None) -> list[str]:
+def to_string_list(value: str | typing.Iterable[str] | None) -> list[str]:
     """
     Covert string, list, or None to list of strings.
 

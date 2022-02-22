@@ -111,7 +111,8 @@ class Kupala:
         self._asgi_app: ASGIHandler | None = None
 
         if static_dir:
-            self.serve_static_files(static_dir)
+            self.storages.add_local('static', static_dir)
+            self.routes.files('/static', storage='static', name='static')
 
     @property
     def storages(self) -> StorageManager:
@@ -165,18 +166,6 @@ class Kupala:
 
     def static_url(self, path: str, path_name: str = 'static') -> str:
         return self.url_for(path_name, path=path)
-
-    def serve_static_files(self, directory: str | os.PathLike, url_path: str = '/static', name: str = 'static') -> None:
-        """
-        Serve static files from local directory. This will create a file route
-        and local storage both named after "name" argument.
-
-        :param directory: full path to the local directory path
-        :param url_path: URL path to use in route
-        :param name: route and storage name
-        """
-        self.state.storages.add_local(name, directory)
-        self.routes.files(url_path, storage=name, name=name, inline=False)
 
     def cli(self) -> int:
         """Run console application."""
