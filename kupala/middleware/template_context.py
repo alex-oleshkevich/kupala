@@ -3,6 +3,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.contracts import ContextProcessor
 from kupala.requests import Request
+from kupala.utils import run_async
 
 
 class TemplateContextMiddleware:
@@ -33,7 +34,8 @@ class TemplateContextMiddleware:
         }
         request = Request(scope, receive, send)
         for processor in self.context_processors:
-            context.update(processor(request))
+            data = await run_async(processor, request)
+            context.update(data)
         scope['state'].setdefault('template_context', {})
         scope['state']['template_context'].update(context)
         await self.app(scope, receive, send)

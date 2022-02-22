@@ -47,3 +47,23 @@ async def test_template_context_middleware_with_custom_processor() -> None:
     client = TestClient(app)
     data = client.get('/').json()
     assert 'custom' in data
+
+
+@pytest.mark.asyncio
+async def test_template_context_middleware_with_custom_async_processor() -> None:
+    async def processor(request: Request) -> dict[str, str]:
+        return {'custom': 'key'}
+
+    async def view(request: Request) -> JSONResponse:
+        return JSONResponse(list(request.state.template_context.keys()))
+
+    app = Kupala(
+        middleware=[
+            Middleware(TemplateContextMiddleware, context_processors=[processor]),
+        ]
+    )
+    app.routes.add('/', view)
+
+    client = TestClient(app)
+    data = client.get('/').json()
+    assert 'custom' in data
