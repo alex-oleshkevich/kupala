@@ -27,7 +27,7 @@ from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
 from kupala.storages.storages import StorageManager
-from kupala.templating import JinjaRenderer
+from kupala.templating import JinjaRenderer, default_template_variables
 
 
 def _setup_default_jinja_env(
@@ -90,8 +90,10 @@ class Kupala:
         self.environment = environment
         self.request_class = request_class
         self.commands = commands or []
-        self.context_processors = context_processors or []
         self.jinja_env = _setup_default_jinja_env(self, template_dirs=template_dir)
+
+        self.context_processors = context_processors or []
+        self.context_processors.append(default_template_variables)
 
         # default services
         self.state = State()
