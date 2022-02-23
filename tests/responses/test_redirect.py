@@ -4,7 +4,6 @@ from starsessions import SessionMiddleware
 from kupala.application import Kupala
 from kupala.middleware import Middleware
 from kupala.middleware.flash_messages import FlashMessagesMiddleware, flash
-from kupala.middleware.template_context import TemplateContextMiddleware
 from kupala.requests import Request
 from kupala.responses import JSONResponse, RedirectResponse
 from kupala.testclient import TestClient
@@ -197,7 +196,6 @@ def test_redirect_with_error_and_input() -> None:
     app = Kupala(
         middleware=[
             Middleware(SessionMiddleware, secret_key='key!', autoload=True),
-            Middleware(TemplateContextMiddleware),
             Middleware(FlashMessagesMiddleware, storage='session'),
         ]
     )

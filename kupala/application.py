@@ -17,7 +17,7 @@ from kupala import json
 from kupala.asgi import ASGIHandler
 from kupala.cache import CacheManager
 from kupala.console.application import ConsoleApplication
-from kupala.contracts import TemplateRenderer, Translator
+from kupala.contracts import ContextProcessor, TemplateRenderer, Translator
 from kupala.di import Injector
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.mails import MailerManager
@@ -72,6 +72,7 @@ class Kupala:
         lifespan_handlers: list[typing.Callable[[Kupala], typing.AsyncContextManager[None]]] = None,
         exception_handler: typing.Callable[[Request, Exception], Response] | None = None,
         commands: list[click.Command] | None = None,
+        context_processors: list[ContextProcessor] | None = None,
         renderer: TemplateRenderer | None = None,
         template_dir: str | os.PathLike | list[str | os.PathLike] = 'templates',
         static_dir: str | os.PathLike | None = None,
@@ -89,6 +90,7 @@ class Kupala:
         self.environment = environment
         self.request_class = request_class
         self.commands = commands or []
+        self.context_processors = context_processors or []
         self.jinja_env = _setup_default_jinja_env(self, template_dirs=template_dir)
 
         # default services
@@ -98,7 +100,6 @@ class Kupala:
         self.state.caches = CacheManager()
         self.state.renderer = renderer or JinjaRenderer(self.jinja_env)
 
-        # ASGI related
         self.error_handlers = error_handlers or {}
         self.lifespan = lifespan_handlers or []
         self.exception_handler = exception_handler

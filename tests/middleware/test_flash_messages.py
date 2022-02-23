@@ -5,7 +5,6 @@ from starsessions import SessionMiddleware
 from kupala.application import Kupala
 from kupala.middleware import Middleware
 from kupala.middleware.flash_messages import FlashBag, FlashMessage, FlashMessagesMiddleware, MessageCategory, flash
-from kupala.middleware.template_context import TemplateContextMiddleware
 from kupala.requests import Request
 from kupala.responses import JSONResponse
 from kupala.testclient import TestClient
@@ -23,7 +22,6 @@ def test_flash_messages(storage: t.Literal['session']) -> None:
 
     app = Kupala(
         middleware=[
-            Middleware(TemplateContextMiddleware),
             Middleware(SessionMiddleware, secret_key='key!', autoload=True),
             Middleware(FlashMessagesMiddleware, storage=storage),
         ]
@@ -49,17 +47,6 @@ def test_flash_messages_session_storages_requires_session() -> None:
         client = TestClient(FlashMessagesMiddleware(app, storage='session'))
         client.get('/')
     assert ex.value.args[0] == 'Sessions are disabled. Flash messages depend on SessionMiddleware.'
-
-
-def test_flash_messages_requires_flashmessages_middleware() -> None:
-    request = Request(
-        {
-            'type': 'http',
-        }
-    )
-    with pytest.raises(AssertionError) as ex:
-        flash(request)
-    assert str(ex.value) == 'Flash messages require FlashMessagesMiddleware.'
 
 
 def test_flash_bag() -> None:

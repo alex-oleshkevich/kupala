@@ -2,11 +2,14 @@ from dataclasses import dataclass
 
 import abc
 import enum
+import logging
 import typing as t
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from kupala.json import jsonify
 from kupala.requests import Request
+
+logger = logging.getLogger(__name__)
 
 SCOPE_KEY = 'flash_messages'
 SESSION_KEY = 'flash_messages'
@@ -140,5 +143,8 @@ class FlashMessagesMiddleware:
 
 
 def flash(request: Request) -> FlashBag:
-    assert SCOPE_KEY in request.scope, 'Flash messages require FlashMessagesMiddleware.'
+    """Get flash messages bag."""
+    if SCOPE_KEY not in request.scope:
+        logger.warning('FlashMessagesMiddleware is not installed.')
+        return FlashBag([])
     return request.scope[SCOPE_KEY]

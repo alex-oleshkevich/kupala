@@ -16,7 +16,6 @@ from kupala.middleware.csrf import (
     generate_token,
     validate_csrf_token,
 )
-from kupala.middleware.template_context import TemplateContextMiddleware
 from kupala.requests import Request
 from kupala.responses import PlainTextResponse
 
@@ -166,7 +165,6 @@ def test_middleware_injects_template_context() -> None:
 
     app = Kupala(
         middleware=[
-            Middleware(TemplateContextMiddleware),
             Middleware(SessionMiddleware, secret_key='secret', autoload=True),
             Middleware(CSRFMiddleware, secret_key='secret', exclude_urls=['http://testserver/']),
         ]
