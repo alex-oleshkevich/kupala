@@ -12,6 +12,7 @@ from .exceptions import (
     UnprocessableEntity,
     UnsupportedMediaType,
 )
+from .middleware.exception import ErrorHandler
 from .requests import Cookies, FilesData, FormData, FormErrors, Headers, OldFormInput, QueryParams, Request, UploadFile
 from .response_factories import response
 from .responses import (
@@ -37,6 +38,7 @@ __all__ = [
     'UploadFile',
     'FilesData',
     'Cookies',
+    'ErrorHandler',
     'Headers',
     'Request',
     'Response',
