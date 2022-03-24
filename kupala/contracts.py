@@ -21,7 +21,7 @@ class TemplateRenderer(typing.Protocol):  # pragma: nocover
 
 
 class ContextProcessor(typing.Protocol):  # pragma: nocover
-    def __call__(self, request: Request) -> typing.Mapping:
+    def __call__(self, request: Request) -> typing.Mapping | typing.Awaitable[typing.Mapping]:
         ...
 
 
