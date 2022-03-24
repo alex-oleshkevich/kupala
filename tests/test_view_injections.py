@@ -6,9 +6,9 @@ from unittest import mock
 
 from kupala.application import Kupala
 from kupala.di import InjectionError
-from kupala.requests import Request
-from kupala.responses import JSONResponse
-from kupala.routing import Route
+from kupala.http.requests import Request
+from kupala.http.responses import JSONResponse
+from kupala.http.routing import Route
 from kupala.testclient import TestClient
 
 

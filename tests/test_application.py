@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from kupala.responses import Response
-from kupala.routing import Route
+from kupala.http.responses import Response
+from kupala.http.routing import Route
 from tests.conftest import TestAppFactory
 
 

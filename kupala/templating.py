@@ -2,9 +2,9 @@ import jinja2
 import typing
 from starlette.types import Receive, Scope, Send
 
+from kupala.http.requests import Request
+from kupala.http.responses import Response
 from kupala.middleware.flash_messages import flash
-from kupala.requests import Request
-from kupala.responses import Response
 from kupala.utils import run_async
 
 

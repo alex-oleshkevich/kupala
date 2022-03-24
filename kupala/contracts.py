@@ -1,6 +1,6 @@
 import typing
 
-from kupala.requests import Request
+from kupala.http.requests import Request
 
 SERVICE = typing.TypeVar('SERVICE')
 

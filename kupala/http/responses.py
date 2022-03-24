@@ -9,8 +9,8 @@ from starlette.types import Receive, Scope, Send
 from urllib.parse import quote
 
 from kupala import json
+from kupala.http.requests import Request
 from kupala.json import JSONEncoder
-from kupala.requests import Request
 
 
 class Response(responses.Response):

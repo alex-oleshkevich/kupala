@@ -5,9 +5,10 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as BaseHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from kupala.exceptions import HTTPException, ValidationError
-from kupala.requests import Request
-from kupala.responses import GoBackResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
+from kupala.exceptions import ValidationError
+from kupala.http.exceptions import HTTPException
+from kupala.http.requests import Request
+from kupala.http.responses import GoBackResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
 
 E = t.TypeVar('E', bound=Exception)
 ErrorHandler = t.Callable[[Request, E], t.Any]

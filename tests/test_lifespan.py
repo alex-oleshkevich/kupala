@@ -3,7 +3,7 @@ import typing
 from contextlib import asynccontextmanager
 
 from kupala.exceptions import ShutdownError, StartupError
-from kupala.responses import Response
+from kupala.http.responses import Response
 from kupala.testclient import TestClient
 from tests.conftest import TestApp, TestAppFactory
 

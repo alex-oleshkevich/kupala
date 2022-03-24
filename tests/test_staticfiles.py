@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from kupala.requests import Request
-from kupala.responses import PlainTextResponse
-from kupala.routing import Route
+from kupala.http.requests import Request
+from kupala.http.responses import PlainTextResponse
+from kupala.http.routing import Route
 from kupala.testclient import TestClient
 from tests.conftest import TestAppFactory
 

@@ -1,7 +1,7 @@
 import typing
 
-from kupala.exceptions import NotAuthenticated
-from kupala.requests import Request
+from kupala.http.exceptions import NotAuthenticated
+from kupala.http.requests import Request
 
 
 class Guard(typing.Protocol):  # pragma: no cover

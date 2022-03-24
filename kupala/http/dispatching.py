@@ -1,24 +1,24 @@
 import inspect
-import typing as t
+import typing
 from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextmanager
 from starlette.concurrency import run_in_threadpool
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala import guards as route_guards
 from kupala.di import InjectionError, get_request_injection_factory
-from kupala.exceptions import PermissionDenied
+from kupala.http import guards as route_guards
+from kupala.http.exceptions import PermissionDenied
+from kupala.http.requests import Request
 from kupala.middleware import Middleware
-from kupala.requests import Request
 from kupala.utils import callable_name, run_async
 
 
 def route(
-    methods: t.List[str] = None,
-    middleware: t.Sequence[Middleware] = None,
+    methods: list[str] = None,
+    middleware: typing.Sequence[Middleware] = None,
     guards: list[route_guards.Guard] | None = None,
     is_authenticated: bool = False,
     permission: str | None = None,
-) -> t.Callable:
+) -> typing.Callable:
     """Use this decorator to configure endpoint parameters."""
     allowed_methods = methods or ['GET', 'HEAD']
 
@@ -29,7 +29,7 @@ def route(
     if permission:
         guards.append(route_guards.has_permission(permission))
 
-    def wrapper(fn: t.Callable) -> t.Callable:
+    def wrapper(fn: typing.Callable) -> typing.Callable:
         setattr(fn, '__route_methods__', allowed_methods)
         setattr(fn, '__route_guards__', guards)
         setattr(fn, '__route_middleware__', middleware)
@@ -38,18 +38,18 @@ def route(
     return wrapper
 
 
-def detect_request_class(endpoint: t.Callable) -> t.Type[Request]:
+def detect_request_class(endpoint: typing.Callable) -> typing.Type[Request]:
     """
     Detect which request class to use for this endpoint.
 
     If endpoint does not have `request` argument, or it is not type-hinted then
     default request class returned.
     """
-    args = t.get_type_hints(endpoint)
+    args = typing.get_type_hints(endpoint)
     return args.get('request', Request)
 
 
-async def call_guards(request: Request, guards: t.Iterable[route_guards.Guard]) -> None:
+async def call_guards(request: Request, guards: typing.Iterable[route_guards.Guard]) -> None:
     """Call route guards."""
     for guard in guards:
         if inspect.iscoroutinefunction(guard):
@@ -66,10 +66,10 @@ async def call_guards(request: Request, guards: t.Iterable[route_guards.Guard]) 
 
 async def resolve_injections(
     request: Request,
-    endpoint: t.Callable,
+    endpoint: typing.Callable,
     sync_stack: ExitStack,
     async_stack: AsyncExitStack,
-) -> dict[str, t.Any]:
+) -> dict[str, typing.Any]:
     """
     Read endpoint signature and extract injections types. These injections will
     be resolved into actual service instances. Dependency injections and path
@@ -80,7 +80,7 @@ async def resolve_injections(
     """
     injections = {}
 
-    args = t.get_type_hints(endpoint)
+    args = typing.get_type_hints(endpoint)
     signature = inspect.signature(endpoint)
     for arg_name, arg_type in args.items():
         if arg_name == 'return':
@@ -124,7 +124,7 @@ async def resolve_injections(
     return injections
 
 
-async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint: t.Callable) -> ASGIApp:
+async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint: typing.Callable) -> ASGIApp:
     """
     Call endpoint callable resolving all dependencies.
 

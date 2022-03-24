@@ -5,7 +5,7 @@ from pathlib import Path
 from starlette.testclient import TestClient
 
 from kupala.application import Kupala
-from kupala.routing import Mount
+from kupala.http.routing import Mount
 from kupala.storages.file_server import FileServer
 from kupala.storages.storages import LocalStorage, Storage
 

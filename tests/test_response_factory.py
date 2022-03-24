@@ -6,9 +6,9 @@ from json import JSONEncoder
 from starlette.testclient import TestClient
 
 from kupala.application import Kupala
-from kupala.requests import Request
-from kupala.responses import Response
-from kupala.shortcuts import response
+from kupala.http.requests import Request
+from kupala.http.response_factories import response
+from kupala.http.responses import Response
 from tests.utils import FormatRenderer
 
 

@@ -4,7 +4,9 @@ from starlette.testclient import TestClient
 from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
-from kupala.exceptions import PermissionDenied
+from kupala.http.exceptions import PermissionDenied
+from kupala.http.requests import Request
+from kupala.http.responses import PlainTextResponse
 from kupala.middleware import Middleware
 from kupala.middleware.csrf import (
     CSRFError,
@@ -16,8 +18,6 @@ from kupala.middleware.csrf import (
     generate_token,
     validate_csrf_token,
 )
-from kupala.requests import Request
-from kupala.responses import PlainTextResponse
 
 
 @pytest.fixture()

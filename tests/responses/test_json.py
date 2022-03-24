@@ -1,9 +1,9 @@
 import typing as t
 
 from kupala.application import Kupala
+from kupala.http.requests import Request
+from kupala.http.responses import JSONResponse
 from kupala.json import JSONEncoder
-from kupala.requests import Request
-from kupala.responses import JSONResponse
 from kupala.testclient import TestClient
 
 

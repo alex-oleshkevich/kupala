@@ -2,7 +2,9 @@ import typing as t
 from json import JSONEncoder
 from pathlib import Path
 
-from .requests import Request
+from kupala.http.requests import Request
+from kupala.templating import TemplateResponse
+
 from .responses import (
     EmptyResponse,
     FileResponse,
@@ -13,7 +15,6 @@ from .responses import (
     RedirectResponse,
     StreamingResponse,
 )
-from .templating import TemplateResponse
 
 
 class ResponseFactory:
@@ -124,3 +125,7 @@ class ResponseFactory:
             headers=self.headers,
             media_type=media_type,
         )
+
+
+def response(request: Request, status_code: int = 200, headers: dict = None) -> ResponseFactory:
+    return ResponseFactory(request, status_code, headers)

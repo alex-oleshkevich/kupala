@@ -8,8 +8,8 @@ from contextlib import contextmanager
 from pytz.tzinfo import BaseTzInfo
 from typing import Generator
 
-from kupala.requests import Request
-from kupala.responses import Response
+from kupala.http.requests import Request
+from kupala.http.responses import Response
 
 _current_locale: cv.ContextVar[Locale] = cv.ContextVar("current_locale", default=Locale.parse("en_US"))
 _current_language: cv.ContextVar[str] = cv.ContextVar("current_language", default="en")

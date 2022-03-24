@@ -9,9 +9,9 @@ from starlette.routing import compile_path, get_name
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.dispatching import dispatch_endpoint
+from kupala.http.dispatching import dispatch_endpoint
+from kupala.http.responses import RedirectResponse
 from kupala.middleware import Middleware
-from kupala.responses import RedirectResponse
 from kupala.storages.file_server import FileServer
 from kupala.utils import import_string
 

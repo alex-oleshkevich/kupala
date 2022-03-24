@@ -3,8 +3,8 @@ import pathlib
 from starlette.testclient import TestClient
 
 from kupala.application import Kupala
-from kupala.requests import Request
-from kupala.responses import FileResponse
+from kupala.http.requests import Request
+from kupala.http.responses import FileResponse
 
 
 def test_sends_file(tmpdir: pathlib.Path) -> None:

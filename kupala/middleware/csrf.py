@@ -6,8 +6,8 @@ import typing as t
 from itsdangerous import BadData, SignatureExpired, URLSafeTimedSerializer
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.exceptions import PermissionDenied
-from kupala.requests import Request
+from kupala.http.exceptions import PermissionDenied
+from kupala.http.requests import Request
 
 CSRF_SESSION_KEY = '_csrf_token'
 CSRF_HEADER = 'x-csrf-token'

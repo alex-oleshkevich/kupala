@@ -1,6 +1,6 @@
-from kupala.requests import Request
-from kupala.responses import JSONResponse
-from kupala.routing import Routes
+from kupala.http.requests import Request
+from kupala.http.responses import JSONResponse
+from kupala.http.routing import Routes
 
 
 def view(request: Request) -> JSONResponse:

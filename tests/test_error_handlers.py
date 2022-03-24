@@ -4,8 +4,8 @@ from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket
 
 from kupala.application import Kupala
-from kupala.requests import Request
-from kupala.responses import PlainTextResponse, Response
+from kupala.http.requests import Request
+from kupala.http.responses import PlainTextResponse, Response
 from kupala.testclient import TestClient
 
 

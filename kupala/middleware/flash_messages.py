@@ -7,8 +7,8 @@ import typing
 import typing as t
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from kupala.http.requests import Request
 from kupala.json import jsonify
-from kupala.requests import Request
 
 logger = logging.getLogger(__name__)
 

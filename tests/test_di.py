@@ -5,8 +5,8 @@ import typing
 
 from kupala.application import Kupala
 from kupala.di import InjectionError, injectable
-from kupala.requests import Request
-from kupala.responses import PlainTextResponse
+from kupala.http.requests import Request
+from kupala.http.responses import PlainTextResponse
 from kupala.testclient import TestClient
 
 

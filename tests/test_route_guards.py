@@ -3,14 +3,14 @@ from imia import BearerAuthenticator, InMemoryProvider
 
 from kupala.application import Kupala
 from kupala.authentication import BaseUser
-from kupala.dispatching import route
-from kupala.exceptions import PageNotFound
-from kupala.guards import has_permission, is_authenticated
+from kupala.http.dispatching import route
+from kupala.http.exceptions import PageNotFound
+from kupala.http.guards import has_permission, is_authenticated
+from kupala.http.requests import Request
+from kupala.http.responses import JSONResponse
+from kupala.http.routing import Route
 from kupala.middleware import Middleware
 from kupala.middleware.authentication import AuthenticationMiddleware
-from kupala.requests import Request
-from kupala.responses import JSONResponse
-from kupala.routing import Route
 from kupala.testclient import TestClient
 
 

@@ -4,12 +4,12 @@ import typing as t
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.application import Kupala
+from kupala.http.requests import Request
+from kupala.http.responses import PlainTextResponse, Response
+from kupala.http.routing import Route, Router, Routes
+from kupala.http.websockets import WebSocket
 from kupala.middleware import Middleware
-from kupala.requests import Request
-from kupala.responses import PlainTextResponse, Response
-from kupala.routing import Route, Router, Routes
 from kupala.testclient import TestClient
-from kupala.websockets import WebSocket
 
 
 async def view(request: Request) -> Response:

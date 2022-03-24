@@ -1,7 +1,7 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from kupala.http.routing import Router
 from kupala.middleware import Middleware, MiddlewareStack
-from kupala.routing import Router
 
 
 class StubMiddleware(BaseHTTPMiddleware):

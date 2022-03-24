@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 
-from kupala.requests import Request
+from kupala.http.requests import Request
 
 if typing.TYPE_CHECKING:  # pragma: nocover
     from kupala.application import Kupala

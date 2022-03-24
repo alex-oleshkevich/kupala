@@ -1,9 +1,9 @@
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.application import Kupala
+from kupala.http.requests import Request
+from kupala.http.responses import Response
 from kupala.middleware import Middleware
-from kupala.requests import Request
-from kupala.responses import Response
 from kupala.testclient import TestClient
 from tests.conftest import TestAppFactory
 

@@ -1,7 +1,7 @@
 import os
 from starlette.types import Receive, Scope, Send
 
-from kupala.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
+from kupala.http.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from kupala.storages.storages import Storage
 
 

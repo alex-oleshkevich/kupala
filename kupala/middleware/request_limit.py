@@ -2,7 +2,7 @@ import typing
 from starlette import status
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from kupala.responses import PlainTextResponse
+from kupala.http.responses import PlainTextResponse
 
 
 class LargeEntityError(ValueError):

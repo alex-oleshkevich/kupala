@@ -2,8 +2,8 @@ import asyncio
 import typing as t
 
 from kupala.application import Kupala
-from kupala.requests import Request
-from kupala.responses import StreamingResponse
+from kupala.http.requests import Request
+from kupala.http.responses import StreamingResponse
 from kupala.testclient import TestClient
 
 
