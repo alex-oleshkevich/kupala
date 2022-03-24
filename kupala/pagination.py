@@ -97,13 +97,7 @@ class Page(t.Generic[M]):
         return len(self.rows)
 
     def __bool__(self) -> bool:
-        """
-        A shortcut to check if page has more than one pages.
-
-        Useful in templates to check if the pagination should be rendered or
-        not.
-        """
-        return self.total_pages > 1
+        return len(self.rows) > 1
 
     def __str__(self) -> str:
         return (

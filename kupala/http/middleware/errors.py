@@ -588,11 +588,21 @@ class ServerErrorMiddleware:
                 {
                     "Method": request.method,
                     "Path": request.url.path,
-                    "Path params": "<br>".join(
-                        [f'<span class="text-muted">{k}</span> = {v}' for k, v in request.path_params.items()]
+                    "Path params": Markup(
+                        "<br>".join(
+                            [
+                                f'<span class="text-muted">{k}</span> = {html.escape(v)}'
+                                for k, v in request.path_params.items()
+                            ]
+                        )
                     ),
-                    "Query params": "<br>".join(
-                        [f'<span class="text-muted">{k}</span> = {v}' for k, v in request.query_params.items()]
+                    "Query params": Markup(
+                        "<br>".join(
+                            [
+                                f'<span class="text-muted">{k}</span> = {html.escape(v)}'
+                                for k, v in request.query_params.items()
+                            ]
+                        )
                     ),
                     "Content type": request.headers.get("Content-Type", ""),
                     "Client": f"{request.client.host}:{request.client.port}" if request.client else 'unknown',
