@@ -595,7 +595,7 @@ class ServerErrorMiddleware:
                         [f'<span class="text-muted">{k}</span> = {v}' for k, v in request.query_params.items()]
                     ),
                     "Content type": request.headers.get("Content-Type", ""),
-                    "Client": f"{request.client.host}:{request.client.port}",
+                    "Client": f"{request.client.host}:{request.client.port}" if request.client else 'unknown',
                 },
             ),
             open="open",

@@ -215,6 +215,7 @@ class Request(requests.Request):
     @property
     def ip(self) -> str:
         """Returns the IP address of user."""
+        assert self.client, 'Client address is unknown.'
         return self.client.host
 
     @property
