@@ -3,10 +3,10 @@ from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket
 
 from kupala.application import Kupala
+from kupala.http.middleware import Middleware
+from kupala.http.middleware.request_limit import RequestLimitMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import PlainTextResponse
-from kupala.middleware import Middleware
-from kupala.middleware.request_limit import RequestLimitMiddleware
 from kupala.testclient import TestClient
 
 

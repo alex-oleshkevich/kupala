@@ -2,7 +2,6 @@ import os
 import typing
 from babel.support import LazyProxy, NullTranslations, Translations
 
-from kupala.application import get_current_application
 from kupala.i18n.helpers import get_locale
 
 
@@ -54,6 +53,8 @@ class Translator:
 
 
 def _lookup_callback(singular: str, plural: str = None, count: int = None, **kwargs: typing.Any) -> str:
+    from kupala.application import get_current_application
+
     locale = kwargs.pop('locale', str(get_locale()))
     translator = get_current_application().state.translator
     if plural:

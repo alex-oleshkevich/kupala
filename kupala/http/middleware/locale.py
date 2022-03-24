@@ -3,9 +3,9 @@ from babel.core import Locale
 from functools import lru_cache
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from kupala.contracts import HasPreferredLanguage
 from kupala.http.requests import Request
 from kupala.i18n.helpers import set_locale
+from kupala.i18n.protocols import HasPreferredLanguage
 
 
 def _get_language_from_query(request: Request, query_param: str) -> str | None:

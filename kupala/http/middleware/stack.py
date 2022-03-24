@@ -1,13 +1,11 @@
-from __future__ import annotations
-
-import typing as t
+import typing
 from starlette.types import ASGIApp
 
 
 class Middleware:
     """Keeps middleware callable along with its constructor arguments."""
 
-    def __init__(self, obj: t.Any, **kwargs: t.Any) -> None:
+    def __init__(self, obj: typing.Any, **kwargs: typing.Any) -> None:
         self.obj = obj
         self.args = kwargs
 
@@ -18,7 +16,7 @@ class Middleware:
     def __repr__(self) -> str:  # pragma: no cover
         return "<Middleware: %s, kwargs=%r>" % (self.obj, self.args)
 
-    def __iter__(self) -> t.Iterator:
+    def __iter__(self) -> typing.Iterator:
         yield self.obj
         yield self.args
 
@@ -29,18 +27,18 @@ class MiddlewareStack:
     def __init__(self, middleware: list[Middleware] = None) -> None:
         self._global: list[Middleware] = middleware or []
 
-    def top(self, mw: t.Type, **kwargs: t.Any) -> None:
+    def top(self, mw: typing.Type, **kwargs: typing.Any) -> None:
         """Add middleware to the top of stack."""
         self._global.insert(0, Middleware(mw, **kwargs))
 
-    def use(self, mw: t.Type, **kwargs: t.Any) -> None:
+    def use(self, mw: typing.Type, **kwargs: typing.Any) -> None:
         """Add middleware to the end of stack."""
         self._global.append(Middleware(mw, **kwargs))
 
-    def __iter__(self) -> t.Iterator[Middleware]:
+    def __iter__(self) -> typing.Iterator[Middleware]:
         return iter(self._global)
 
-    def __reversed__(self) -> t.Iterator[Middleware]:
+    def __reversed__(self) -> typing.Iterator[Middleware]:
         return reversed(self._global)
 
     def __len__(self) -> int:

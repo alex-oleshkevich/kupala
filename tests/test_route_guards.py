@@ -6,11 +6,10 @@ from kupala.authentication import BaseUser
 from kupala.http.dispatching import route
 from kupala.http.exceptions import PageNotFound
 from kupala.http.guards import has_permission, is_authenticated
+from kupala.http.middleware import AuthenticationMiddleware, Middleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
 from kupala.http.routing import Route
-from kupala.middleware import Middleware
-from kupala.middleware.authentication import AuthenticationMiddleware
 from kupala.testclient import TestClient
 
 

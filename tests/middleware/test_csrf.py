@@ -5,10 +5,8 @@ from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
 from kupala.http.exceptions import PermissionDenied
-from kupala.http.requests import Request
-from kupala.http.responses import PlainTextResponse
-from kupala.middleware import Middleware
-from kupala.middleware.csrf import (
+from kupala.http.middleware import Middleware
+from kupala.http.middleware.csrf import (
     CSRFError,
     CSRFMiddleware,
     TokenDecodeError,
@@ -18,6 +16,8 @@ from kupala.middleware.csrf import (
     generate_token,
     validate_csrf_token,
 )
+from kupala.http.requests import Request
+from kupala.http.responses import PlainTextResponse
 
 
 @pytest.fixture()

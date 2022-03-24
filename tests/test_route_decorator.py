@@ -6,11 +6,10 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from kupala.application import Kupala
 from kupala.authentication import BaseUser
 from kupala.http.dispatching import route
+from kupala.http.middleware import AuthenticationMiddleware, Middleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse, PlainTextResponse
 from kupala.http.routing import Route
-from kupala.middleware import Middleware
-from kupala.middleware.authentication import AuthenticationMiddleware
 from tests.utils import FormatRenderer
 
 
@@ -140,7 +139,7 @@ def test_when_view_requires_authentication_authenticated_user_can_access_page() 
     app = Kupala(
         routes=[Route('/', view)],
         middleware=[
-            AuthenticationMiddleware.configure(authenticators=[BearerAuthenticator(user_provider)]),
+            Middleware(AuthenticationMiddleware, authenticators=[BearerAuthenticator(user_provider)]),
         ],
     )
     client = TestClient(app)
@@ -156,7 +155,7 @@ def test_when_view_requires_authentication_unauthenticated_user_cannoe_access_pa
     app = Kupala(
         routes=[Route('/', view)],
         middleware=[
-            AuthenticationMiddleware.configure(authenticators=[BearerAuthenticator(user_provider)]),
+            Middleware(AuthenticationMiddleware, authenticators=[BearerAuthenticator(user_provider)]),
         ],
     )
     client = TestClient(app)
@@ -188,7 +187,7 @@ def test_access_when_user_has_permission() -> None:
     app = Kupala(
         routes=[Route('/', view)],
         middleware=[
-            AuthenticationMiddleware.configure(authenticators=[BearerAuthenticator(user_provider)]),
+            Middleware(AuthenticationMiddleware, authenticators=[BearerAuthenticator(user_provider)]),
         ],
     )
     client = TestClient(app)

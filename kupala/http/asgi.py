@@ -3,12 +3,12 @@ from __future__ import annotations
 import typing
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.http.middleware import MiddlewareStack
+from kupala.http.middleware.errors import ServerErrorMiddleware
+from kupala.http.middleware.exception import ErrorHandler, ExceptionMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import Response
 from kupala.http.routing import Router, Routes
-from kupala.middleware import MiddlewareStack
-from kupala.middleware.errors import ServerErrorMiddleware
-from kupala.middleware.exception import ErrorHandler, ExceptionMiddleware
 
 
 class ASGIHandler:

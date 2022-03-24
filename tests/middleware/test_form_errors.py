@@ -2,11 +2,11 @@ from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
 from kupala.exceptions import ValidationError
+from kupala.http.middleware import Middleware
+from kupala.http.middleware.flash_messages import FlashMessagesMiddleware
+from kupala.http.middleware.form_errors import FormErrorsMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
-from kupala.middleware import Middleware
-from kupala.middleware.flash_messages import FlashMessagesMiddleware
-from kupala.middleware.form_errors import FormErrorsMiddleware
 from kupala.testclient import TestClient
 
 

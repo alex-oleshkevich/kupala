@@ -5,11 +5,10 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.application import Kupala
 from kupala.authentication import BaseUser
+from kupala.http.middleware import LocaleMiddleware, Middleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
 from kupala.http.routing import Route
-from kupala.middleware import Middleware
-from kupala.middleware.locale import LocaleMiddleware
 from kupala.testclient import TestClient
 
 

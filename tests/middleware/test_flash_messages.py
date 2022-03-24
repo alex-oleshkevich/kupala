@@ -3,10 +3,16 @@ import typing as t
 from starsessions import SessionMiddleware
 
 from kupala.application import Kupala
+from kupala.http.middleware import Middleware
+from kupala.http.middleware.flash_messages import (
+    FlashBag,
+    FlashMessage,
+    FlashMessagesMiddleware,
+    MessageCategory,
+    flash,
+)
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
-from kupala.middleware import Middleware
-from kupala.middleware.flash_messages import FlashBag, FlashMessage, FlashMessagesMiddleware, MessageCategory, flash
 from kupala.testclient import TestClient
 
 

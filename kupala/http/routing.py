@@ -10,8 +10,8 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.http.dispatching import dispatch_endpoint
+from kupala.http.middleware import Middleware
 from kupala.http.responses import RedirectResponse
-from kupala.middleware import Middleware
 from kupala.storages.file_server import FileServer
 from kupala.utils import import_string
 

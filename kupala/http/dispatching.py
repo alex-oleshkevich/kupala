@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import inspect
 import typing
 from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextmanager
@@ -8,8 +10,10 @@ from kupala.di import InjectionError, get_request_injection_factory
 from kupala.http import guards as route_guards
 from kupala.http.exceptions import PermissionDenied
 from kupala.http.requests import Request
-from kupala.middleware import Middleware
 from kupala.utils import callable_name, run_async
+
+if typing.TYPE_CHECKING:
+    from kupala.http.middleware import Middleware
 
 
 def route(

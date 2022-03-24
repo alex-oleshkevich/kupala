@@ -2,9 +2,9 @@ import anyio
 import pytest
 
 from kupala.application import Kupala
+from kupala.http.middleware import Middleware
+from kupala.http.middleware.timeout import TimeoutMiddleware
 from kupala.http.responses import PlainTextResponse
-from kupala.middleware import Middleware
-from kupala.middleware.timeout import TimeoutMiddleware
 from kupala.testclient import TestClient
 
 

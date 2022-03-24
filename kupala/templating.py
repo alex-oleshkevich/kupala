@@ -4,7 +4,6 @@ from starlette.types import Receive, Scope, Send
 
 from kupala.http.requests import Request
 from kupala.http.responses import Response
-from kupala.middleware.flash_messages import flash
 from kupala.utils import run_async
 
 
@@ -18,18 +17,6 @@ class JinjaRenderer:
 
     def render(self, template_name: str, context: typing.Mapping[str, typing.Any] = None) -> str:
         return self._env.get_template(template_name).render(context or {})
-
-
-def default_template_variables(request: Request) -> dict:
-    return {
-        'app': request.app,
-        'request': request,
-        'url': request.url_for,
-        'static': request.static_url,
-        'flash_messages': flash(request),
-        'form_errors': request.form_errors,
-        'old_input': request.old_input,
-    }
 
 
 class TemplateResponse(Response):

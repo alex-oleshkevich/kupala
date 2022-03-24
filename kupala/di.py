@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import typing
 
-from kupala.http.requests import Request
-
 if typing.TYPE_CHECKING:  # pragma: nocover
     from kupala.application import Kupala
+    from kupala.http.requests import Request
 
 _T = typing.TypeVar('_T')
 _FACTORY_ATTR = '__di_factory__'

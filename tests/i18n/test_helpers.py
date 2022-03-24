@@ -3,6 +3,7 @@ from babel.core import Locale
 from babel.dates import get_timezone as babel_get_timezone
 
 from kupala.application import Kupala
+from kupala.http.middleware import LocaleMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
 from kupala.i18n.helpers import (
@@ -17,7 +18,6 @@ from kupala.i18n.helpers import (
     to_user_timezone,
     to_utc,
 )
-from kupala.middleware.locale import LocaleMiddleware
 from kupala.testclient import TestClient
 
 

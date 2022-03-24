@@ -14,20 +14,23 @@ from starlette.routing import BaseRoute
 from starlette.types import Receive, Scope, Send
 
 from kupala import json
-from kupala.asgi import ASGIHandler
 from kupala.cache import CacheManager
 from kupala.console.application import ConsoleApplication
-from kupala.contracts import ContextProcessor, TemplateRenderer, Translator
+from kupala.contracts import TemplateRenderer
 from kupala.di import Injector
 from kupala.exceptions import ShutdownError, StartupError
+from kupala.http.asgi import ASGIHandler
+from kupala.http.context_processors import standard_processor
+from kupala.http.middleware import Middleware, MiddlewareStack
+from kupala.http.middleware.exception import ErrorHandler
+from kupala.http.protocols import ContextProcessor
 from kupala.http.requests import Request
 from kupala.http.responses import Response
 from kupala.http.routing import Routes
+from kupala.i18n.protocols import Translator
 from kupala.mails import MailerManager
-from kupala.middleware import Middleware, MiddlewareStack
-from kupala.middleware.exception import ErrorHandler
 from kupala.storages.storages import StorageManager
-from kupala.templating import JinjaRenderer, default_template_variables
+from kupala.templating import JinjaRenderer
 
 
 def _setup_default_jinja_env(
@@ -93,7 +96,7 @@ class Kupala:
         self.jinja_env = _setup_default_jinja_env(self, template_dirs=template_dir)
 
         self.context_processors = context_processors or []
-        self.context_processors.append(default_template_variables)
+        self.context_processors.append(standard_processor)
 
         # default services
         self.state = State()
