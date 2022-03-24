@@ -20,7 +20,7 @@ from kupala.contracts import TemplateRenderer
 from kupala.di import Injector
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.http.asgi import ASGIHandler
-from kupala.http.context_processors import standard_processor
+from kupala.http.context_processors import standard_processors
 from kupala.http.middleware import Middleware, MiddlewareStack
 from kupala.http.middleware.exception import ErrorHandler
 from kupala.http.protocols import ContextProcessor
@@ -96,7 +96,7 @@ class Kupala:
         self.jinja_env = _setup_default_jinja_env(self, template_dirs=template_dir)
 
         self.context_processors = context_processors or []
-        self.context_processors.append(standard_processor)
+        self.context_processors.append(standard_processors)
 
         # default services
         self.state = State()

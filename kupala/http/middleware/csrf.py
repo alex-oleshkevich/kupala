@@ -43,13 +43,6 @@ def generate_token(secret_key: str, data: str) -> str:
     return hmac.new(secret_key.encode(), data.encode(), 'sha256').hexdigest()
 
 
-def csrf_processor(request: Request) -> dict[str, typing.Any]:
-    return {
-        'csrf_token': get_csrf_token(request),
-        'csrf_input': get_csrf_input(request),
-    }
-
-
 def validate_csrf_token(
     session_token: str,
     timed_token: str,

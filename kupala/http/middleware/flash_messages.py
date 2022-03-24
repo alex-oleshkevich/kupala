@@ -3,7 +3,6 @@ from dataclasses import dataclass
 import abc
 import enum
 import logging
-import typing
 import typing as t
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -148,9 +147,3 @@ def flash(request: Request) -> FlashBag:
         logger.warning('FlashMessagesMiddleware is not installed.')
         return FlashBag([])
     return request.scope[SCOPE_KEY]
-
-
-def flash_processor(request: Request) -> dict[str, typing.Any]:
-    return {
-        'messages': flash(request),
-    }

@@ -1,10 +1,11 @@
 import typing
 
+from kupala.http.middleware.csrf import get_csrf_input, get_csrf_token
 from kupala.http.middleware.flash_messages import flash
 from kupala.http.requests import Request
 
 
-def standard_processor(request: Request) -> dict[str, typing.Any]:
+def standard_processors(request: Request) -> dict[str, typing.Any]:
     return {
         'app': request.app,
         'request': request,
@@ -13,4 +14,6 @@ def standard_processor(request: Request) -> dict[str, typing.Any]:
         'flash_messages': flash(request),
         'form_errors': request.form_errors,
         'old_input': request.old_input,
+        'csrf_token': get_csrf_token(request),
+        'csrf_input': get_csrf_input(request),
     }
