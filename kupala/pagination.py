@@ -97,7 +97,7 @@ class Page(t.Generic[M]):
         return len(self.rows)
 
     def __bool__(self) -> bool:
-        return len(self.rows) > 1
+        return len(self.rows) > 0
 
     def __str__(self) -> str:
         return (
