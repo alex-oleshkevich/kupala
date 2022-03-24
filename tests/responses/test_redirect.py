@@ -47,7 +47,7 @@ def test_redirect_to_path_name() -> None:
     client = TestClient(app)
     response = client.get('/', allow_redirects=False)
     assert response.status_code == 302
-    assert response.headers['location'] == 'http://testserver/about'
+    assert response.headers['location'] == '/about'
 
 
 def test_redirect_to_path_name_with_path_params() -> None:
@@ -61,7 +61,7 @@ def test_redirect_to_path_name_with_path_params() -> None:
     client = TestClient(app)
     response = client.get('/', allow_redirects=False)
     assert response.status_code == 302
-    assert response.headers['location'] == 'http://testserver/about/42'
+    assert response.headers['location'] == '/about/42'
 
 
 def test_redirect_with_input_capture() -> None:

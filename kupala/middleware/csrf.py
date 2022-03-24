@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import os
+import typing
 import typing as t
 from itsdangerous import BadData, SignatureExpired, URLSafeTimedSerializer
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -40,6 +41,13 @@ def get_generate_random(length: int = 64) -> str:
 
 def generate_token(secret_key: str, data: str) -> str:
     return hmac.new(secret_key.encode(), data.encode(), 'sha256').hexdigest()
+
+
+def csrf_processor(request: Request) -> dict[str, typing.Any]:
+    return {
+        'csrf_token': get_csrf_token(request),
+        'csrf_input': get_csrf_input(request),
+    }
 
 
 def validate_csrf_token(
@@ -98,17 +106,6 @@ class CSRFMiddleware:
         timed_token = str(serializer.dumps(request.session[CSRF_SESSION_KEY], self._salt))
         request.state.csrf_token = request.session[CSRF_SESSION_KEY]
         request.state.csrf_timed_token = timed_token
-
-        try:
-            request.state.template_context.update(
-                {
-                    'csrf_token': get_csrf_token(request),
-                    'csrf_input': get_csrf_input(request),
-                }
-            )
-        except AttributeError:
-            # TemplateContextMiddleware is not installed
-            pass
 
         if self.should_check_token(request):
             try:

@@ -185,7 +185,7 @@ def test_redirect_to_route_name() -> None:
     client = TestClient(app)
     res = client.get('/', allow_redirects=False)
     assert res.status_code == 302
-    assert res.headers['location'] == 'http://testserver/about'
+    assert res.headers['location'] == '/about'
 
 
 def test_streaming_response_with_async_gen() -> None:
