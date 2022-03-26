@@ -44,7 +44,7 @@ def _setup_default_jinja_env(
             jinja2.FileSystemLoader(template_dirs),
         ]
     )
-    env = jinja2.Environment(loader=loader, extensions=['jinja2.ext.with_', 'jinja2.ext.debug'])
+    env = jinja2.Environment(loader=loader, extensions=['jinja2.ext.debug'])
     env.globals.update(
         {
             'static': app.static_url,

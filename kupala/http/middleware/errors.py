@@ -591,7 +591,7 @@ class ServerErrorMiddleware:
                     "Path params": Markup(
                         "<br>".join(
                             [
-                                f'<span class="text-muted">{k}</span> = {html.escape(v)}'
+                                f'<span class="text-muted">{k}</span> = {html.escape(str(v))}'
                                 for k, v in request.path_params.items()
                             ]
                         )
@@ -599,7 +599,7 @@ class ServerErrorMiddleware:
                     "Query params": Markup(
                         "<br>".join(
                             [
-                                f'<span class="text-muted">{k}</span> = {html.escape(v)}'
+                                f'<span class="text-muted">{k}</span> = {html.escape(str(v))}'
                                 for k, v in request.query_params.items()
                             ]
                         )
