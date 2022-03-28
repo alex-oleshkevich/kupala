@@ -21,3 +21,18 @@ async def test_overrides_method(test_app_factory: TestAppFactory, routes: Routes
 
     client = TestClient(app)
     assert client.post('/', data={'_method': 'delete'}).text == 'DELETE'
+
+
+@pytest.mark.asyncio
+async def test_bypass_read_methods(test_app_factory: TestAppFactory, routes: Routes) -> None:
+    async def view(request: Request) -> PlainTextResponse:
+        return PlainTextResponse(request.method)
+
+    routes.add('/', view, methods=['GET'])
+    app = test_app_factory(
+        middleware=[Middleware(RequestParserMiddleware, parsers=['urlencoded']), Middleware(MethodOverrideMiddleware)],
+        routes=routes,
+    )
+
+    client = TestClient(app)
+    assert client.get('/').text == 'GET'

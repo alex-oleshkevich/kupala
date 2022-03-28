@@ -11,11 +11,10 @@ class MethodOverrideMiddleware:
         if scope['type'] != 'http':  # pragma: nocover
             return await self.app(scope, receive, send)
 
-        assert (
-            'body_params' in scope
-        ), 'MethodOverrideMiddleware depends on RequestParserMiddleware which is not installed.'
-
         if scope['method'] == 'POST':
+            assert (
+                'body_params' in scope
+            ), 'MethodOverrideMiddleware depends on RequestParserMiddleware which is not installed.'
             override = scope.get('body_params', {}).get(BODY_PARAM, '')
             if override:
                 scope['original_method'] = scope['method']
