@@ -26,6 +26,12 @@ class BadRequest(_BasePredefinedHTTPException):
     status_code = 400
 
 
+class RequestTooLarge(_BasePredefinedHTTPException):
+    """Raised when the request entity is too large."""
+
+    status_code = 413
+
+
 class NotAuthenticated(_BasePredefinedHTTPException):
     """Similar to 403 Forbidden, but specifically for use when authentication is
     required and has failed or has not yet been provided."""
@@ -107,3 +113,7 @@ class TooManyRequests(_BasePredefinedHTTPException):
     """
 
     status_code = 429
+
+
+class RequestTimeout(_BasePredefinedHTTPException):
+    status_code = 408

@@ -85,6 +85,11 @@ def test_enum() -> None:
     assert json.dumps(value) == '"value"'
 
 
+def test_bytes() -> None:
+    value = b'value'
+    assert json.dumps(value) == '"value"'
+
+
 def test_dataclass() -> None:
     @dataclass
     class SomeDataclass:

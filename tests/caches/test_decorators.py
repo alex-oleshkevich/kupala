@@ -1,11 +1,12 @@
 import pytest
 
-from kupala.application import Kupala, set_current_application
+from kupala.application import set_current_application
 from kupala.cache.decorators import cached
+from tests.conftest import TestAppFactory
 
 
 @pytest.mark.asyncio
-async def test_cached_decorator_with_async_callable() -> None:
+async def test_cached_decorator_with_async_callable(test_app_factory: TestAppFactory) -> None:
     counter = 0
 
     @cached(3600)
@@ -14,7 +15,7 @@ async def test_cached_decorator_with_async_callable() -> None:
         counter += 1
         return counter
 
-    app = Kupala()
+    app = test_app_factory()
     app.caches.add_in_memory('default')
     set_current_application(app)
 
@@ -23,7 +24,7 @@ async def test_cached_decorator_with_async_callable() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cached_decorator_with_async_class_method() -> None:
+async def test_cached_decorator_with_async_class_method(test_app_factory: TestAppFactory) -> None:
     class Example:
         def __init__(self) -> None:
             self.counter = 0
@@ -33,7 +34,7 @@ async def test_cached_decorator_with_async_class_method() -> None:
             self.counter += 1
             return self.counter
 
-    app = Kupala()
+    app = test_app_factory()
     app.caches.add_in_memory('default')
     set_current_application(app)
 

@@ -3,59 +3,61 @@ from __future__ import annotations
 import pytest
 import typing
 
-from kupala.application import Kupala
+from kupala.application import App
 from kupala.di import InjectionError, injectable
+from kupala.http import Routes
 from kupala.http.requests import Request
 from kupala.http.responses import PlainTextResponse
 from kupala.testclient import TestClient
+from tests.conftest import TestAppFactory
 
 
-def test_prefer_for_instance() -> None:
+def test_prefer_for_instance(test_app_factory: TestAppFactory) -> None:
     class SomeProtocol(typing.Protocol):
         ...
 
-    app = Kupala()
+    app = test_app_factory()
     app.di.prefer_for(SomeProtocol, 'value')
     assert app.di.make(SomeProtocol) == 'value'
 
 
-def test_prefer_for_factory() -> None:
+def test_prefer_for_factory(test_app_factory: TestAppFactory) -> None:
     class SomeProtocol(typing.Protocol):
         ...
 
     class Implementation:
         pass
 
-    app = Kupala()
+    app = test_app_factory()
     app.di.prefer_for(SomeProtocol, lambda app: Implementation())
     assert isinstance(app.di.make(SomeProtocol), Implementation)
 
 
-def test_to_injectable() -> None:
+def test_to_injectable(test_app_factory: TestAppFactory) -> None:
     class WannaBeInjectable:
         pass
 
-    def factory(app: Kupala) -> WannaBeInjectable:
+    def factory(app: App) -> WannaBeInjectable:
         return WannaBeInjectable()
 
-    app = Kupala()
+    app = test_app_factory()
     app.di.make_injectable(WannaBeInjectable, from_app_factory=factory)
     assert isinstance(app.di.make(WannaBeInjectable), WannaBeInjectable)
 
 
-def test_make_raises_for_missing_service() -> None:
+def test_make_raises_for_missing_service(test_app_factory: TestAppFactory) -> None:
     class WannaBeInjectable:
         pass
 
     with pytest.raises(InjectionError):
-        Kupala().di.make(WannaBeInjectable)
+        test_app_factory().di.make(WannaBeInjectable)
 
 
 class WannaBeInjectable:
     pass
 
 
-def test_to_request_injectable() -> None:
+def test_to_request_injectable(test_app_factory: TestAppFactory, routes: Routes) -> None:
     if getattr(WannaBeInjectable, 'from_request', None):  # pragma: nocover
         # fixme: a hack to remove "from_request" attribute from module-level class WannaBeInjectable if present
         WannaBeInjectable.from_request = None  # type: ignore
@@ -63,8 +65,8 @@ def test_to_request_injectable() -> None:
     def view(injection: WannaBeInjectable) -> PlainTextResponse:
         return PlainTextResponse(injection.__class__.__name__)
 
-    app = Kupala()
-    app.routes.add('/', view)
+    routes.add('/', view)
+    app = test_app_factory(routes=routes)
     app.di.make_injectable(WannaBeInjectable, from_request_factory=lambda r: WannaBeInjectable())
     client = TestClient(app)
     assert client.get('/').text == 'WannaBeInjectable'
@@ -73,7 +75,7 @@ def test_to_request_injectable() -> None:
 # APP INJECTABLE DECORATOR
 
 
-def _via_injectable_factory(app: Kupala) -> ViaInjectableDecorator:
+def _via_injectable_factory(app: App) -> ViaInjectableDecorator:
     return ViaInjectableDecorator()
 
 
@@ -82,8 +84,8 @@ class ViaInjectableDecorator:
     pass
 
 
-def test_injectable_decorator() -> None:
-    app = Kupala()
+def test_injectable_decorator(test_app_factory: TestAppFactory) -> None:
+    app = test_app_factory()
     assert isinstance(app.di.make(ViaInjectableDecorator), ViaInjectableDecorator)
 
 
@@ -99,11 +101,11 @@ class ViaRequestInjectableDecorator:
     pass
 
 
-def test_request_injectable_decorator() -> None:
+def test_request_injectable_decorator(test_app_factory: TestAppFactory, routes: Routes) -> None:
     def view(injection: ViaRequestInjectableDecorator) -> PlainTextResponse:
         return PlainTextResponse(injection.__class__.__name__)
 
-    app = Kupala()
-    app.routes.add('/', view)
+    routes.add('/', view)
+    app = test_app_factory(routes=routes)
     client = TestClient(app)
     assert client.get('/').text == 'ViaRequestInjectableDecorator'

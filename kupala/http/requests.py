@@ -14,8 +14,10 @@ from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 from starsessions import Session
 
+from kupala.storages.storages import Storage
+
 if typing.TYPE_CHECKING:
-    from kupala.application import Kupala
+    from kupala.application import App
 
 
 class OldFormInput(t.Mapping):
@@ -103,22 +105,15 @@ class FormData(requests.FormData):
 
 
 class UploadFile(ds.UploadFile):
-    def __init__(
-        self, request: Request, filename: str, file: typing.BinaryIO | None = None, content_type: str = ""
-    ) -> None:
-        self.request = request
-        super().__init__(filename, file, content_type)
-
     @classmethod
-    def from_base_upload_file(cls, upload_file: ds.UploadFile, request: Request) -> UploadFile:
+    def from_base_upload_file(cls, upload_file: ds.UploadFile) -> UploadFile:
         return UploadFile(
             filename=upload_file.filename,
             file=upload_file.file,
             content_type=upload_file.content_type,
-            request=request,
         )
 
-    async def save(self, directory: t.Union[str, os.PathLike], filename: str = None, disk: str = None) -> str:
+    async def save(self, storage: Storage, directory: t.Union[str, os.PathLike], filename: str | None = None) -> str:
         uploaded_filename = pathlib.Path(self.filename)
         extension = pathlib.Path(uploaded_filename).suffix
         base_name = os.path.basename(uploaded_filename).replace(extension, '')
@@ -129,11 +124,6 @@ class UploadFile(ds.UploadFile):
         suggested_filename = f'{prefix}_{base_name}.{extension}'
 
         file_path = os.path.join(directory, filename or suggested_filename)
-
-        if disk:
-            storage = self.request.app.storages.get(disk)
-        else:
-            storage = self.request.app.storages.default
         await storage.put(file_path, await self.read())
         return file_path
 
@@ -177,11 +167,16 @@ class Request(requests.Request):
         return scope['request']
 
     @property
+    def id(self) -> str:
+        assert 'request_id' in self.scope, 'RequestIDMiddleware must be installed to access request.id'
+        return self.scope['request_id']
+
+    @property
     def query_params(self) -> QueryParams:
         return QueryParams(super().query_params)
 
     @property
-    def app(self) -> 'Kupala':
+    def app(self) -> 'App':
         return self.scope['app']
 
     @property
@@ -290,6 +285,17 @@ class Request(requests.Request):
         if 'session' in self.scope:
             self.session['_form_field_errors'] = field_errors or {}
 
+    @property
+    def data(self) -> FormData | FilesData | typing.Mapping:
+        assert 'body_params' in self.scope, 'RequestParserMiddleware must be installed to access form data.'
+        return self.scope['body_params']
+
+    @property
+    def files(self) -> FilesData:
+        if isinstance(self.data, FormData):
+            return FilesData(FormData([(k, v) for k, v in self.data.multi_items() if isinstance(v, UploadFile)]))
+        return FilesData(FormData())
+
     def url_matches(self, *patterns: t.Union[str, t.Pattern]) -> bool:
         for pattern in patterns:
             if pattern == self.url.path:
@@ -308,33 +314,10 @@ class Request(requests.Request):
 
     def static_url(self, path: str, path_name: str = 'static') -> str:
         """Generate a URL to a static file."""
-        return self.app.static_url(path)
+        return self.url_for(path_name, path=path)
 
     def url_for(self, name: str, **path_params: typing.Any) -> str:
         return self.app.url_for(name, **path_params)
-
-    async def form(self) -> FormData:
-        data = await super().form()
-        return FormData(
-            [
-                (k, UploadFile.from_base_upload_file(v, self) if isinstance(v, ds.UploadFile) else v)
-                for k, v in data.multi_items()
-            ]
-        )
-
-    async def files(self) -> FilesData:
-        data = await self.form()
-        return FilesData(FormData([(k, v) for k, v in data.multi_items() if isinstance(v, UploadFile)]))
-
-    async def data(self) -> t.Mapping:
-        """
-        Returns a request data.
-
-        Automatically decodes JSON if Content-Type is application/json.
-        """
-        if self.is_json:
-            return await self.json()
-        return await self.form()
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}: {self.method} {self.url}>'

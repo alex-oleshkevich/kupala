@@ -8,10 +8,10 @@ import typing
 import typing as t
 
 if typing.TYPE_CHECKING:
-    from kupala.application import Kupala
+    from kupala.application import App
 
 
-def create_dispatcher(app: Kupala, fn: t.Callable) -> t.Callable:
+def create_dispatcher(app: App, fn: t.Callable) -> t.Callable:
     fn_kwargs = t.get_type_hints(fn)
 
     @functools.wraps(fn)
@@ -32,7 +32,7 @@ def create_dispatcher(app: Kupala, fn: t.Callable) -> t.Callable:
     return dispatcher
 
 
-def wrap_command(app: Kupala, command: t.Union[click.Command, t.Callable]) -> click.Command:
+def wrap_command(app: App, command: t.Union[click.Command, t.Callable]) -> click.Command:
     if isinstance(command, click.Group):
         if not command.callback:
             return command
@@ -52,7 +52,7 @@ def wrap_command(app: Kupala, command: t.Union[click.Command, t.Callable]) -> cl
 
 
 class ConsoleApplication:
-    def __init__(self, app: Kupala, commands: typing.Iterable[click.Command]) -> None:
+    def __init__(self, app: App, commands: typing.Iterable[click.Command]) -> None:
         self.app = app
         self.commands = commands
 

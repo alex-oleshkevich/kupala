@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 
 if typing.TYPE_CHECKING:  # pragma: nocover
-    from kupala.application import Kupala
+    from kupala.application import App
     from kupala.http.requests import Request
 
 _T = typing.TypeVar('_T')
@@ -16,12 +16,12 @@ class InjectionError(Exception):
 
 
 class Injector:
-    def __init__(self, app: Kupala) -> None:
+    def __init__(self, app: App) -> None:
         self.app = app
         self.preferences: dict[typing.Any, typing.Any] = {}
 
     def prefer_for(
-        self, klass: typing.Any, factory_or_instance: typing.Any | typing.Callable[[Kupala], typing.Any]
+        self, klass: typing.Any, factory_or_instance: typing.Any | typing.Callable[[App], typing.Any]
     ) -> None:
         """
         When some types (like protocols) cannot implement `from_app` or
@@ -38,7 +38,7 @@ class Injector:
         self,
         klass: typing.Type[_T],
         *,
-        from_app_factory: typing.Callable[[Kupala], _T] = None,
+        from_app_factory: typing.Callable[[App], _T] = None,
         from_request_factory: typing.Callable[[Request], _T] = None,
     ) -> None:
         """Make `klass` type injectable by adding `from_app` class method to the
@@ -66,7 +66,7 @@ class Injector:
 
 def injectable(
     *,
-    from_app_factory: typing.Callable[[Kupala], _T] = None,
+    from_app_factory: typing.Callable[[App], _T] = None,
     from_request_factory: typing.Callable[[Request], _T] = None,
 ) -> typing.Callable[[typing.Type[_T]], typing.Type[_T]]:
     assert from_app_factory or from_request_factory, 'Either "from_app_factory" or "from_request_factory" must be set.'
@@ -84,7 +84,7 @@ def injectable(
 def make_injectable(
     klass: typing.Type[_T],
     *,
-    from_app_factory: typing.Callable[[Kupala], _T] = None,
+    from_app_factory: typing.Callable[[App], _T] = None,
     from_request_factory: typing.Callable[[Request], _T] = None,
 ) -> None:
     """Convert regular class into app injectable."""

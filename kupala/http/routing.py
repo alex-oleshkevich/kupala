@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import functools
 import inspect
+import os
 import typing as t
-from os import PathLike
 from starlette import routing
 from starlette.routing import compile_path, get_name
 from starlette.staticfiles import StaticFiles
@@ -225,12 +225,12 @@ class Routes(t.Sequence[routing.BaseRoute]):
     def static(
         self,
         path: str,
-        directory: t.Union[str, PathLike[str]] | None = None,
+        directory: t.Union[str, os.PathLike[str]] | None = None,
         *,
         packages: list[str | tuple[str, str]] | None = None,
         html: bool = False,
         check_dir: bool = True,
-        name: str | None = None,
+        name: str = 'static',
         middleware: t.Sequence[Middleware] | None = None,
     ) -> None:
         """Serve static files from local directories."""

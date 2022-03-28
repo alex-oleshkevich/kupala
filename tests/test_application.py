@@ -1,19 +1,22 @@
 from pathlib import Path
 
+from kupala.contracts import TemplateRenderer
 from kupala.http.responses import Response
 from kupala.http.routing import Route
 from tests.conftest import TestAppFactory
 
 
-def test_application_renders(test_app_factory: TestAppFactory, tmpdir: Path) -> None:
-    with open(tmpdir / 'index.html', 'w') as f:
+def test_application_renders(
+    test_app_factory: TestAppFactory, jinja_renderer: TemplateRenderer, jinja_template_path: Path
+) -> None:
+    with open(jinja_template_path / 'index.html', 'w') as f:
         f.write('<html>{{ key }}</html>')
-    app = test_app_factory(template_dir=tmpdir)
+    app = test_app_factory(renderer=jinja_renderer)
     assert app.render('index.html') == '<html></html>'
     assert app.render('index.html', {'key': 'value'}) == '<html>value</html>'
 
 
-def test_application_url_for(test_app_factory: TestAppFactory, tmpdir: Path) -> None:
+def test_application_url_for(test_app_factory: TestAppFactory) -> None:
     def view() -> Response:
         return Response('')
 

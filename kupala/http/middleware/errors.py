@@ -544,8 +544,14 @@ class ServerErrorMiddleware:
         )
 
     def generate_locals_for_frame(self, frame: inspect.FrameInfo) -> str:
+        def format_value(var_value: typing.Any) -> str:
+            try:
+                return pformat(var_value, indent=2)
+            except Exception as ex:
+                return str(ex)
+
         return "".join(
-            LOCALS_ROW_TEMPLATE.format(name=var_name, value=html.escape(pformat(var_value, indent=2)))
+            LOCALS_ROW_TEMPLATE.format(name=var_name, value=html.escape(format_value(var_value)))
             for var_name, var_value in frame.frame.f_locals.items()
         )
 

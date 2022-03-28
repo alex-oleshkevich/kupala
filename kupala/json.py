@@ -23,6 +23,7 @@ _type_to_encoder: dict[type, typing.Callable] = {
     collections.abc.KeysView: list,
     collections.abc.ValuesView: list,
     decimal.Decimal: str,
+    bytes: lambda x: x.decode(),
     LazyProxy: str,
     enum.Enum: lambda x: x.value,
 }
