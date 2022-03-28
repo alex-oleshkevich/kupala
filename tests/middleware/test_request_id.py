@@ -19,7 +19,9 @@ async def test_generates_request_id(test_app_factory: TestAppFactory, routes: Ro
     )
 
     client = TestClient(app)
-    assert len(client.get('/').text) == 32
+    response = client.get('/')
+    assert len(response.text) == 32
+    assert response.headers['x-request-id'] == response.text
 
 
 @pytest.mark.asyncio
