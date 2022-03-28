@@ -116,7 +116,6 @@ class RedirectResponse(Response, responses.RedirectResponse):
         status_code: int = 302,
         headers: dict = None,
         *,
-        capture_input: bool = False,
         flash_message: str = None,
         flash_category: str = "info",
         path_name: str = None,
@@ -132,7 +131,6 @@ class RedirectResponse(Response, responses.RedirectResponse):
         self._flash_message_category = flash_category
         self._path_name = path_name
         self._path_params = path_params
-        self._capture_input = capture_input
 
         assert url or path_name, 'Either "url" or "path_name" argument must be passed.'
 
@@ -142,23 +140,11 @@ class RedirectResponse(Response, responses.RedirectResponse):
         self._flash_message_category = category
         return self
 
-    def with_error(self: RT, message: str, capture_input: bool = True) -> RT:
-        response = self.flash(message, category='error')
-        if capture_input:
-            response = self.with_input()
-        return response
+    def with_error(self: RT, message: str) -> RT:
+        return self.flash(message, category='error')
 
     def with_success(self: RT, message: str) -> RT:
         return self.flash(message, category='success')
-
-    def with_input(self: RT) -> RT:
-        """
-        Redirect with form input data.
-
-        Uploaded files will be removed from data.
-        """
-        self._capture_input = True
-        return self
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if self._flash_message and 'flash_messages' in scope:
@@ -170,9 +156,6 @@ class RedirectResponse(Response, responses.RedirectResponse):
             url = self._url
 
         self.headers["location"] = quote(str(url), safe=":/%#?=@[]!$&'()*+,;")
-
-        if 'session' in scope and self._capture_input:
-            await scope['request'].remember_form_data()
 
         return await super().__call__(scope, receive, send)
 
@@ -188,7 +171,6 @@ class GoBackResponse(RedirectResponse):
         request: Request,
         flash_message: str = None,
         flash_category: str = 'info',
-        capture_input: bool = False,
         status_code: int = 302,
     ) -> None:
         redirect_to = request.headers.get('referer', '/')
@@ -198,7 +180,6 @@ class GoBackResponse(RedirectResponse):
         super().__init__(
             redirect_to,
             status_code=status_code,
-            capture_input=capture_input,
             flash_message=flash_message,
             flash_category=flash_category,
         )

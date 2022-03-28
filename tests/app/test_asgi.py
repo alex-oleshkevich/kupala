@@ -4,22 +4,20 @@ from kupala.http import Routes
 from kupala.http.middleware import Middleware
 from kupala.http.requests import Request
 from kupala.http.responses import Response
-from kupala.testclient import TestClient
-from tests.conftest import TestAppFactory
+from tests.conftest import TestClientFactory
 
 
-def test_routes(test_app_factory: TestAppFactory, routes: Routes) -> None:
+def test_routes(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view() -> Response:
         return Response('ok')
 
     routes.add('/', view)
-    app = test_app_factory(routes=routes)
+    client = test_client_factory(routes=routes)
 
-    client = TestClient(app)
     assert client.get('/').text == 'ok'
 
 
-def test_middleware(test_app_factory: TestAppFactory, routes: Routes) -> None:
+def test_middleware(test_client_factory: TestClientFactory, routes: Routes) -> None:
     class TestMiddleware:
         def __init__(self, app: ASGIApp) -> None:
             self.app = app
@@ -32,7 +30,6 @@ def test_middleware(test_app_factory: TestAppFactory, routes: Routes) -> None:
         return Response(request.scope['key'])
 
     routes.add('/', view)
-    app = test_app_factory(middleware=[Middleware(TestMiddleware)], routes=routes)
+    client = test_client_factory(middleware=[Middleware(TestMiddleware)], routes=routes)
 
-    client = TestClient(app)
     assert client.get('/').text == 'value'

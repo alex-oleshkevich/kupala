@@ -3,6 +3,7 @@ import os
 import pathlib
 import pytest
 import typing
+from starlette.types import ASGIApp
 
 from kupala.application import App
 from kupala.contracts import TemplateRenderer
@@ -11,18 +12,29 @@ from kupala.http.middleware import Middleware
 from kupala.storages.storages import LocalStorage, Storage
 from kupala.templating import JinjaRenderer
 from kupala.testclient import TestClient
+from tests.utils import FormatRenderer
 
 
 class TestAppFactory(typing.Protocol):  # pragma: nocover
     def __call__(
-        self, middleware: list[Middleware] | None = None, routes: Routes | None = None, **kwargs: typing.Any
+        self,
+        debug: bool = True,
+        middleware: list[Middleware] | None = None,
+        routes: Routes | None = None,
+        **kwargs: typing.Any,
     ) -> App:
         ...
 
 
 class TestClientFactory(typing.Protocol):  # pragma: nocover
     def __call__(
-        self, middleware: list[Middleware] | None = None, routes: Routes | None = None, **kwargs: typing.Any
+        self,
+        debug: bool = True,
+        middleware: list[Middleware] | None = None,
+        routes: Routes | None = None,
+        raise_server_exceptions: bool = True,
+        app: ASGIApp | None = None,
+        **kwargs: typing.Any,
     ) -> TestClient:
         ...
 
@@ -48,10 +60,14 @@ def test_app_factory() -> TestAppFactory:
 
 @pytest.fixture
 def test_client_factory(test_app_factory: TestAppFactory) -> TestClientFactory:
-    def factory(*args: typing.Any, **kwargs: typing.Any) -> TestClient:
-        return TestClient(test_app_factory(*args, **kwargs))
+    def factory(**kwargs: typing.Any) -> TestClient:
+        kwargs.setdefault('app', test_app_factory(**kwargs))
+        kwargs.setdefault('raise_server_exceptions', True)
+        app = kwargs['app']
+        raise_server_exceptions = kwargs['raise_server_exceptions']
+        return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
-    return factory
+    return typing.cast(TestClientFactory, factory)
 
 
 @pytest.fixture
@@ -77,3 +93,8 @@ def jinja_env(jinja_template_path: str) -> jinja2.Environment:
 @pytest.fixture()
 def jinja_renderer(jinja_env: jinja2.Environment) -> TemplateRenderer:
     return JinjaRenderer(jinja_env)
+
+
+@pytest.fixture()
+def format_renderer() -> TemplateRenderer:
+    return FormatRenderer()

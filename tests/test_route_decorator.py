@@ -1,26 +1,17 @@
+import pytest
 import typing
 from imia import BearerAuthenticator, InMemoryProvider
-from starlette.testclient import TestClient
+from starlette.exceptions import HTTPException
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.application import Kupala
 from kupala.authentication import BaseUser
+from kupala.http import NotAuthenticated, PermissionDenied
 from kupala.http.dispatching import route
 from kupala.http.middleware import AuthenticationMiddleware, Middleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse, PlainTextResponse
-from kupala.http.routing import Route
-from tests.utils import FormatRenderer
-
-
-@route()
-async def action_config_view(request: Request) -> JSONResponse:
-    return JSONResponse({'method': request.method})
-
-
-@route(['get', 'post'])
-async def action_config_methods_view(request: Request) -> JSONResponse:
-    return JSONResponse({'method': request.method})
+from kupala.http.routing import Routes
+from tests.conftest import TestClientFactory
 
 
 class SampleMiddleware:
@@ -32,55 +23,59 @@ class SampleMiddleware:
         return await self.app(scope, receive, send)
 
 
-@route(middleware=[Middleware(SampleMiddleware)])
-async def action_config_middleware_view(request: Request) -> JSONResponse:
-    return JSONResponse({'called': request.scope['called']})
+def test_action_config(test_client_factory: TestClientFactory, routes: Routes) -> None:
+    @route()
+    async def view(request: Request) -> JSONResponse:
+        return JSONResponse({'method': request.method})
 
-
-app = Kupala(
-    routes=[
-        Route("/action-config", action_config_view),
-        Route("/action-config-methods", action_config_methods_view),
-        Route("/action-config-middleware", action_config_middleware_view),
-    ],
-    renderer=FormatRenderer(),
-)
-client = TestClient(app)
-
-
-def test_action_config() -> None:
-    response = client.get("/action-config")
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
+    response = client.get("/")
     assert response.json() == {'method': 'GET'}
 
 
-def test_action_config_methods() -> None:
-    response = client.get("/action-config-methods")
+def test_action_config_methods(test_client_factory: TestClientFactory, routes: Routes) -> None:
+    @route(['get', 'post'])
+    async def view(request: Request) -> JSONResponse:
+        return JSONResponse({'method': request.method})
+
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
+
+    response = client.get("/")
     assert response.json() == {'method': 'GET'}
 
-    response = client.post("/action-config-methods")
+    response = client.post("/")
     assert response.json() == {'method': 'POST'}
 
 
-def test_action_config_middleware() -> None:
-    response = client.get("/action-config-middleware")
+def test_action_config_middleware(test_client_factory: TestClientFactory, routes: Routes) -> None:
+    @route(middleware=[Middleware(SampleMiddleware)])
+    async def view(request: Request) -> JSONResponse:
+        return JSONResponse({'called': request.scope['called']})
+
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
+
+    response = client.get("/")
     assert response.json() == {'called': True}
 
 
-def test_route_overrides_action_config_methods() -> None:
+def test_route_overrides_action_config_methods(test_client_factory: TestClientFactory, routes: Routes) -> None:
     """Methods defined by action_config() have higher precedence."""
 
     @route(methods=['post'])
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    app = Kupala()
-    app.routes.add('/', view, methods=['get'])
-    client = TestClient(app)
+    routes.add('/', view, methods=['get'])
+    client = test_client_factory(routes=routes)
     assert client.get('/').status_code == 200
-    assert client.post('/').status_code == 405
+    with pytest.raises(HTTPException):
+        assert client.post('/').status_code == 405
 
 
-def test_route_overrides_action_config_middleware() -> None:
+def test_route_overrides_action_config_middleware(test_client_factory: TestClientFactory, routes: Routes) -> None:
     """Methods defined by action_config() have higher precedence."""
 
     def set_one(app: ASGIApp) -> ASGIApp:
@@ -101,23 +96,25 @@ def test_route_overrides_action_config_middleware() -> None:
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.scope['used'])
 
-    app = Kupala()
-    app.routes.add('/', view, middleware=[Middleware(set_one)])
-    client = TestClient(app)
+    routes.add('/', view, middleware=[Middleware(set_one)])
+    client = test_client_factory(routes=routes)
+
     assert client.get('/').text == 'one'
 
 
-def test_view_allows_unauthenticated_access() -> None:
+def test_view_allows_unauthenticated_access(test_client_factory: TestClientFactory, routes: Routes) -> None:
     @route(is_authenticated=False)
     def view() -> JSONResponse:
         return JSONResponse([])
 
-    app = Kupala(routes=[Route('/', view)])
-    client = TestClient(app)
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
     assert client.get('/').status_code == 200
 
 
-def test_when_view_requires_authentication_authenticated_user_can_access_page() -> None:
+def test_when_view_requires_authentication_authenticated_user_can_access_page(
+    test_client_factory: TestClientFactory, routes: Routes
+) -> None:
     @route(is_authenticated=True)
     def view() -> JSONResponse:
         return JSONResponse([])
@@ -136,33 +133,37 @@ def test_when_view_requires_authentication_authenticated_user_can_access_page() 
             pass
 
     user_provider = InMemoryProvider({'root': User()})
-    app = Kupala(
-        routes=[Route('/', view)],
+    routes.add('/', view)
+    client = test_client_factory(
+        routes=routes,
         middleware=[
             Middleware(AuthenticationMiddleware, authenticators=[BearerAuthenticator(user_provider)]),
         ],
     )
-    client = TestClient(app)
+
     assert client.get('/', headers={'authorization': 'Bearer root'}).status_code == 200
 
 
-def test_when_view_requires_authentication_unauthenticated_user_cannoe_access_page() -> None:
+def test_when_view_requires_authentication_unauthenticated_user_cannoe_access_page(
+    test_client_factory: TestClientFactory, routes: Routes
+) -> None:
     @route(is_authenticated=True)
     def view() -> JSONResponse:
         return JSONResponse([])
 
     user_provider = InMemoryProvider({})
-    app = Kupala(
-        routes=[Route('/', view)],
+    routes.add('/', view)
+    client = test_client_factory(
+        routes=routes,
         middleware=[
             Middleware(AuthenticationMiddleware, authenticators=[BearerAuthenticator(user_provider)]),
         ],
     )
-    client = TestClient(app)
-    assert client.get('/').status_code == 401
+    with pytest.raises(NotAuthenticated):
+        assert client.get('/').status_code == 401
 
 
-def test_access_when_user_has_permission() -> None:
+def test_access_when_user_has_permission(test_client_factory: TestClientFactory, routes: Routes) -> None:
     @route(permission='admin')
     def view() -> JSONResponse:
         return JSONResponse([])
@@ -184,12 +185,14 @@ def test_access_when_user_has_permission() -> None:
             pass
 
     user_provider = InMemoryProvider({'admin': User(scopes=['admin']), 'user': User(scopes=['user'])})
-    app = Kupala(
-        routes=[Route('/', view)],
+    routes.add('/', view)
+    client = test_client_factory(
+        routes=routes,
         middleware=[
             Middleware(AuthenticationMiddleware, authenticators=[BearerAuthenticator(user_provider)]),
         ],
     )
-    client = TestClient(app)
+
     assert client.get('/', headers={'authorization': 'Bearer admin'}).status_code == 200
-    assert client.get('/', headers={'authorization': 'Bearer user'}).status_code == 403
+    with pytest.raises(PermissionDenied):
+        assert client.get('/', headers={'authorization': 'Bearer user'}).status_code == 403

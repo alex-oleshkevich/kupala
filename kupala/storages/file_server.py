@@ -6,7 +6,7 @@ from kupala.storages.storages import Storage
 
 
 class FileServer:
-    def __init__(self, storage: str, as_attachment: bool = True) -> None:
+    def __init__(self, storage: Storage, as_attachment: bool = True) -> None:
         self.storage = storage
         self.as_attachment = as_attachment
 
@@ -20,14 +20,11 @@ class FileServer:
         if scope["method"] not in ("GET", "HEAD"):
             return PlainTextResponse("Method Not Allowed", status_code=405)
 
-        url = await self.get_disk(scope).url(path)
+        url = await self.storage.url(path)
         if url.startswith('http'):
             return RedirectResponse(url, 307)
-        path = self.get_disk(scope).abspath(path)
+        path = self.storage.abspath(path)
         return FileResponse(path, inline=not self.as_attachment)
 
     def get_path(self, scope: Scope) -> str:
         return os.path.normpath(os.path.join(*scope["path"].split("/")))
-
-    def get_disk(self, scope: Scope) -> Storage:
-        return scope['app'].storages.get(self.storage)

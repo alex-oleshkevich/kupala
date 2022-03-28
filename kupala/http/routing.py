@@ -13,6 +13,7 @@ from kupala.http.dispatching import dispatch_endpoint
 from kupala.http.middleware import Middleware
 from kupala.http.responses import RedirectResponse
 from kupala.storages.file_server import FileServer
+from kupala.storages.storages import Storage
 from kupala.utils import import_string
 
 
@@ -245,7 +246,7 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         self,
         path: str,
         *,
-        storage: str,
+        storage: Storage,
         name: str = None,
         middleware: typing.Sequence[Middleware] = None,
         inline: bool = False,

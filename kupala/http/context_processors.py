@@ -12,8 +12,6 @@ def standard_processors(request: Request) -> dict[str, typing.Any]:
         'url': request.url_for,
         'static': request.static_url,
         'flash_messages': flash(request),
-        'form_errors': request.form_errors,
-        'old_input': request.old_input,
         'csrf_token': get_csrf_token(request),
         'csrf_input': get_csrf_input(request),
     }

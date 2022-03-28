@@ -5,26 +5,13 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as BaseHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from kupala.exceptions import ValidationError
 from kupala.http.exceptions import HTTPException
 from kupala.http.requests import Request
-from kupala.http.responses import GoBackResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
+from kupala.http.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
 E = typing.TypeVar('E', bound=Exception)
 ErrorHandler = typing.Callable[[Request, E], typing.Any]
 _renderer = jinja2.Environment(loader=jinja2.PackageLoader(__name__.split('.')[0]))
-
-
-async def default_validation_error_handler(request: Request, exc: ValidationError) -> Response:
-    if request.wants_json:
-        return JSONResponse({'message': exc.message, 'errors': exc.errors}, 400)
-
-    await request.remember_form_data()
-    request.set_form_errors(dict(exc.errors or {}))
-    response = GoBackResponse(request)
-    if exc.message:
-        response = response.with_error(exc.message)
-    return response
 
 
 async def default_http_error_handler(request: Request, exc: HTTPException) -> Response:

@@ -13,7 +13,7 @@ from .exceptions import (
     UnsupportedMediaType,
 )
 from .middleware.exception import ErrorHandler
-from .requests import Cookies, FilesData, FormData, FormErrors, Headers, OldFormInput, QueryParams, Request, UploadFile
+from .requests import Cookies, FilesData, FormData, Headers, QueryParams, Request, UploadFile
 from .response_factories import response
 from .responses import (
     EmptyResponse,
@@ -31,9 +31,7 @@ from .websockets import WebSocket
 
 __all__ = [
     'route',
-    'OldFormInput',
     'FormData',
-    'FormErrors',
     'QueryParams',
     'UploadFile',
     'FilesData',

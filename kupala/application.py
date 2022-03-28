@@ -228,10 +228,6 @@ class Kupala:
         # ASGI app instance
         self._asgi_app: ASGIHandler | None = None
 
-        if static_dir:
-            self.storages.add_local('static', static_dir)
-            self.routes.files('/static', storage='static', name='static')
-
     @property
     def storages(self) -> StorageManager:
         return self.state.storages

@@ -4,12 +4,12 @@ import pytest
 import typing
 from unittest import mock
 
-from kupala.application import Kupala
+from kupala.application import App
 from kupala.di import InjectionError
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
-from kupala.http.routing import Route
-from kupala.testclient import TestClient
+from kupala.http.routing import Routes
+from tests.conftest import TestClientFactory
 
 
 class _RequestInjectable:
@@ -26,13 +26,13 @@ class _AsyncRequestInjectable:
 
 class _AppInjectable:
     @classmethod
-    def from_app(cls, app: Kupala) -> _AppInjectable:
+    def from_app(cls, app: App) -> _AppInjectable:
         return cls()
 
 
 class _AsyncAppInjectable:
     @classmethod
-    async def from_app(cls, app: Kupala) -> _AsyncAppInjectable:
+    async def from_app(cls, app: App) -> _AsyncAppInjectable:
         return cls()
 
 
@@ -72,29 +72,29 @@ class _InjectableAsyncContextManager:
             yield instance
 
 
-def test_injects_from_request() -> None:
+def test_injects_from_request(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(injectable: _RequestInjectable) -> JSONResponse:
         return JSONResponse(injectable.__class__.__name__)
 
-    app = Kupala(routes=[Route("/", view)])
-    client = TestClient(app)
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
 
     response = client.get("/")
     assert response.json() == '_RequestInjectable'
 
 
-def test_injects_from_request_async() -> None:
+def test_injects_from_request_async(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(injectable: _AsyncRequestInjectable) -> JSONResponse:
         return JSONResponse(injectable.__class__.__name__)
 
-    app = Kupala(routes=[Route("/", view)])
-    client = TestClient(app)
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
 
     response = client.get("/")
     assert response.json() == '_AsyncRequestInjectable'
 
 
-def test_injectable_generators() -> None:
+def test_injectable_generators(test_client_factory: TestClientFactory, routes: Routes) -> None:
     instance: _InjectableContextManager | None = None
 
     def view(injectable: _InjectableContextManager) -> JSONResponse:
@@ -102,8 +102,8 @@ def test_injectable_generators() -> None:
         instance = injectable
         return JSONResponse(injectable.__class__.__name__)
 
-    app = Kupala(routes=[Route("/", view)])
-    client = TestClient(app)
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
 
     response = client.get("/")
     assert response.json() == '_InjectableContextManager'
@@ -112,7 +112,7 @@ def test_injectable_generators() -> None:
     instance.exit_spy.assert_called_once()
 
 
-def test_injectable_async_generators() -> None:
+def test_injectable_async_generators(test_client_factory: TestClientFactory, routes: Routes) -> None:
     instance: _InjectableAsyncContextManager | None = None
 
     def view(injectable: _InjectableAsyncContextManager) -> JSONResponse:
@@ -120,8 +120,8 @@ def test_injectable_async_generators() -> None:
         instance = injectable
         return JSONResponse(injectable.__class__.__name__)
 
-    app = Kupala(routes=[Route("/", view)])
-    client = TestClient(app)
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
 
     response = client.get("/")
     assert response.json() == '_InjectableAsyncContextManager'
@@ -130,57 +130,57 @@ def test_injectable_async_generators() -> None:
     instance.exit_spy.assert_called_once()
 
 
-def test_injects_from_app() -> None:
+def test_injects_from_app(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(injectable: _AppInjectable) -> JSONResponse:
         return JSONResponse(injectable.__class__.__name__)
 
-    app = Kupala(routes=[Route("/", view)])
-    client = TestClient(app)
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
 
     response = client.get("/")
     assert response.json() == '_AppInjectable'
 
 
-def test_injects_from_app_async() -> None:
+def test_injects_from_app_async(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(injectable: _AsyncAppInjectable) -> JSONResponse:
         return JSONResponse(injectable.__class__.__name__)
 
-    app = Kupala(routes=[Route("/", view)])
-    client = TestClient(app)
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
 
     response = client.get("/")
     assert response.json() == '_AsyncAppInjectable'
 
 
-def test_injects_default_raises() -> None:
+def test_injects_default_raises(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(injectable: str) -> JSONResponse:
         return JSONResponse(injectable)
 
-    app = Kupala(routes=[Route("/", view)])
-    client = TestClient(app)
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
 
     with pytest.raises(InjectionError):
         response = client.get("/")
         assert response.json() is None
 
 
-def test_injects_default_null() -> None:
+def test_injects_default_null(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(injectable: str = None) -> JSONResponse:
         return JSONResponse(injectable)
 
-    app = Kupala(routes=[Route("/", view)])
-    client = TestClient(app)
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
 
     response = client.get("/")
     assert response.json() is None
 
 
-def test_injects_default_non_null() -> None:
+def test_injects_default_non_null(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(injectable: str = 'default') -> JSONResponse:
         return JSONResponse(injectable)
 
-    app = Kupala(routes=[Route("/", view)])
-    client = TestClient(app)
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
 
     response = client.get("/")
     assert response.json() == 'default'

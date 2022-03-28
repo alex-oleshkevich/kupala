@@ -19,70 +19,6 @@ if typing.TYPE_CHECKING:
     from kupala.application import App
 
 
-class OldFormInput(typing.Mapping):
-    def __init__(self, data: dict) -> None:
-        self._data = data
-
-    def get(self, key: str, default: typing.Any = None) -> typing.Any:
-        return self._data.get(key, default)
-
-    def to_json(self) -> dict:
-        return self._data
-
-    def __getitem__(self, item: str) -> typing.Any:
-        return self._data[item]
-
-    def __len__(self) -> int:
-        return len(self._data)
-
-    def __iter__(self) -> typing.Iterator[tuple[str, typing.Any]]:
-        return iter(self._data)
-
-    def __contains__(self, item: object) -> bool:
-        return item in self._data
-
-    def __repr__(self) -> str:
-        return f'<OldFormInput: data={self._data}>'
-
-    __call__ = get
-
-
-class FormErrors(typing.Mapping):
-    def __init__(self, errors: typing.Mapping[str, list[str]]) -> None:
-        self.field_errors = errors
-
-    def get(self, key: str, default: typing.Any = None) -> list[str] | None:
-        return self.field_errors.get(key, default)
-
-    def to_json(self) -> dict:
-        return {
-            'field_errors': self.field_errors,
-        }
-
-    def keys(self) -> typing.KeysView[str]:
-        return self.field_errors.keys()
-
-    def __bool__(self) -> bool:
-        return bool(self.field_errors)
-
-    def __getitem__(self, item: str) -> list[str]:
-        return self.field_errors[item]
-
-    def __contains__(self, item: object) -> bool:
-        return item in self.field_errors
-
-    def __iter__(self) -> typing.Iterator:
-        return iter(self.field_errors)
-
-    def __len__(self) -> int:
-        return len(self.field_errors)
-
-    def __repr__(self) -> str:
-        return f'<FormErrors: field_errors={self.field_errors}>'
-
-    __call__ = get
-
-
 class QueryParams(requests.QueryParams):
     def get_bool(self, key: str, default: bool = None) -> bool | None:
         value = self.get(key, None)
@@ -243,46 +179,6 @@ class Request(requests.Request):
     @property
     def headers(self) -> Headers:
         return Headers(super().headers)
-
-    @property
-    def old_input(self) -> OldFormInput:
-        """
-        Get previous form input.
-
-        This value does not include uploaded files.
-        """
-        if '_form_old_input' not in self.scope:
-            old_form_input = OldFormInput({})
-            if 'session' in self.scope:
-                old_form_input = OldFormInput(self.session.pop('_form_old_input', {}))
-            self.scope['_form_old_input'] = old_form_input
-        return self.scope['_form_old_input']
-
-    async def remember_form_data(self) -> None:
-        """Flush current form data into session so it can be used on the next
-        page to render form errors."""
-        if 'session' in self.scope:
-            data = await self.form()
-            self.session['_form_old_input'] = {k: v for k, v in data.items() if not isinstance(v, ds.UploadFile)}
-
-    @property
-    def form_errors(self) -> FormErrors:
-        """Get form errors generated on the previous page."""
-        if '_form_error' not in self.scope:
-            form_error = FormErrors({})
-            if 'session' in self.scope:
-                form_error = FormErrors(self.session.pop('_form_field_errors', {}))
-            self.scope['_form_error'] = form_error
-        return self.scope['_form_error']
-
-    def set_form_errors(self, field_errors: dict = None) -> None:
-        """
-        Flush form error message and form field errors into session.
-
-        This data can be later retrieved via `request.form_errors` attribute.
-        """
-        if 'session' in self.scope:
-            self.session['_form_field_errors'] = field_errors or {}
 
     @property
     def is_submitted(self) -> bool:
