@@ -5,24 +5,23 @@ import click
 import functools
 import inspect
 import typing
-import typing as t
 
 if typing.TYPE_CHECKING:
     from kupala.application import App
 
 
-def create_dispatcher(app: App, fn: t.Callable) -> t.Callable:
-    fn_kwargs = t.get_type_hints(fn)
+def create_dispatcher(app: App, fn: typing.Callable) -> typing.Callable:
+    fn_kwargs = typing.get_type_hints(fn)
 
     @functools.wraps(fn)
-    def dispatcher(**kwargs: t.Any) -> t.Any:
+    def dispatcher(**kwargs: typing.Any) -> typing.Any:
         for name, class_name in fn_kwargs.items():
             if hasattr(class_name, 'from_app'):
                 kwargs[name] = class_name.from_app(app)
 
         if inspect.iscoroutinefunction(fn):
 
-            async def async_dispatcher() -> t.Any:
+            async def async_dispatcher() -> typing.Any:
                 return await fn(**kwargs)
 
             return anyio.run(async_dispatcher)
@@ -32,7 +31,7 @@ def create_dispatcher(app: App, fn: t.Callable) -> t.Callable:
     return dispatcher
 
 
-def wrap_command(app: App, command: t.Union[click.Command, t.Callable]) -> click.Command:
+def wrap_command(app: App, command: click.Command | typing.Callable) -> click.Command:
     if isinstance(command, click.Group):
         if not command.callback:
             return command

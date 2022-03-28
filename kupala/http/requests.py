@@ -5,7 +5,6 @@ import os
 import pathlib
 import re
 import typing
-import typing as t
 import uuid
 from babel.core import Locale
 from imia import AnonymousUser, LoginState, UserLike, UserToken
@@ -20,23 +19,23 @@ if typing.TYPE_CHECKING:
     from kupala.application import App
 
 
-class OldFormInput(t.Mapping):
+class OldFormInput(typing.Mapping):
     def __init__(self, data: dict) -> None:
         self._data = data
 
-    def get(self, key: str, default: t.Any = None) -> t.Any:
+    def get(self, key: str, default: typing.Any = None) -> typing.Any:
         return self._data.get(key, default)
 
     def to_json(self) -> dict:
         return self._data
 
-    def __getitem__(self, item: str) -> t.Any:
+    def __getitem__(self, item: str) -> typing.Any:
         return self._data[item]
 
     def __len__(self) -> int:
         return len(self._data)
 
-    def __iter__(self) -> t.Iterator[t.Tuple[str, t.Any]]:
+    def __iter__(self) -> typing.Iterator[tuple[str, typing.Any]]:
         return iter(self._data)
 
     def __contains__(self, item: object) -> bool:
@@ -48,11 +47,11 @@ class OldFormInput(t.Mapping):
     __call__ = get
 
 
-class FormErrors(t.Mapping):
-    def __init__(self, errors: t.Mapping[str, list[str]]) -> None:
+class FormErrors(typing.Mapping):
+    def __init__(self, errors: typing.Mapping[str, list[str]]) -> None:
         self.field_errors = errors
 
-    def get(self, key: str, default: t.Any = None) -> t.Optional[list[str]]:
+    def get(self, key: str, default: typing.Any = None) -> list[str] | None:
         return self.field_errors.get(key, default)
 
     def to_json(self) -> dict:
@@ -60,7 +59,7 @@ class FormErrors(t.Mapping):
             'field_errors': self.field_errors,
         }
 
-    def keys(self) -> t.KeysView[str]:
+    def keys(self) -> typing.KeysView[str]:
         return self.field_errors.keys()
 
     def __bool__(self) -> bool:
@@ -72,7 +71,7 @@ class FormErrors(t.Mapping):
     def __contains__(self, item: object) -> bool:
         return item in self.field_errors
 
-    def __iter__(self) -> t.Iterator:
+    def __iter__(self) -> typing.Iterator:
         return iter(self.field_errors)
 
     def __len__(self) -> int:
@@ -85,17 +84,17 @@ class FormErrors(t.Mapping):
 
 
 class QueryParams(requests.QueryParams):
-    def get_bool(self, key: str, default: bool = None) -> t.Optional[bool]:
+    def get_bool(self, key: str, default: bool = None) -> bool | None:
         value = self.get(key, None)
         return value.lower() in ['t', 'true', 'yes', 'on', '1'] if value is not None else default
 
-    def get_list(self, key: str, subcast: t.Callable = None) -> list[str]:
+    def get_list(self, key: str, subcast: typing.Callable = None) -> list[str]:
         items = self.getlist(key)
         if subcast:
             return list(map(subcast, items))
         return items
 
-    def get_int(self, key: str, default: int = None) -> t.Optional[int]:
+    def get_int(self, key: str, default: int = None) -> typing.Optional[int]:
         value: str = self.get(key, None)
         return int(value) if value is not None and value.isnumeric() else default
 
@@ -113,7 +112,7 @@ class UploadFile(ds.UploadFile):
             content_type=upload_file.content_type,
         )
 
-    async def save(self, storage: Storage, directory: t.Union[str, os.PathLike], filename: str | None = None) -> str:
+    async def save(self, storage: Storage, directory: str | os.PathLike, filename: str | None = None) -> str:
         uploaded_filename = pathlib.Path(self.filename)
         extension = pathlib.Path(uploaded_filename).suffix
         base_name = os.path.basename(uploaded_filename).replace(extension, '')
@@ -128,7 +127,7 @@ class UploadFile(ds.UploadFile):
         return file_path
 
     async def read(self, size: int = -1) -> bytes:
-        return t.cast(bytes, await super().read(size))
+        return typing.cast(bytes, await super().read(size))
 
     async def read_string(self, size: int = -1, encoding: str = 'utf8', errors: str = 'strict') -> str:
         return (await self.read(size)).decode(encoding, errors)
@@ -138,11 +137,11 @@ class FilesData:
     def __init__(self, files: FormData) -> None:
         self._files = files
 
-    def get(self, key: str, default: t.Any = None) -> t.Optional[UploadFile]:
+    def get(self, key: str, default: typing.Any = None) -> UploadFile | None:
         return self._files.get(key, default)
 
     def getlist(self, key: str) -> list[UploadFile]:
-        return t.cast(list[UploadFile], self._files.getlist(key))
+        return typing.cast(list[UploadFile], self._files.getlist(key))
 
 
 class Cookies(dict):
@@ -286,17 +285,10 @@ class Request(requests.Request):
             self.session['_form_field_errors'] = field_errors or {}
 
     @property
-    def data(self) -> FormData | FilesData | typing.Mapping:
-        assert 'body_params' in self.scope, 'RequestParserMiddleware must be installed to access form data.'
-        return self.scope['body_params']
+    def is_submitted(self) -> bool:
+        return self.method.lower() in ['post', 'put', 'patch', 'delete']
 
-    @property
-    def files(self) -> FilesData:
-        if isinstance(self.data, FormData):
-            return FilesData(FormData([(k, v) for k, v in self.data.multi_items() if isinstance(v, UploadFile)]))
-        return FilesData(FormData())
-
-    def url_matches(self, *patterns: t.Union[str, t.Pattern]) -> bool:
+    def url_matches(self, *patterns: str | typing.Pattern) -> bool:
         for pattern in patterns:
             if pattern == self.url.path:
                 return True
@@ -304,7 +296,7 @@ class Request(requests.Request):
                 return True
         return False
 
-    def full_url_matches(self, *patterns: t.Union[str, t.Pattern]) -> bool:
+    def full_url_matches(self, *patterns: str | typing.Pattern) -> bool:
         for pattern in patterns:
             if pattern == str(self.url):
                 return True
@@ -318,6 +310,29 @@ class Request(requests.Request):
 
     def url_for(self, name: str, **path_params: typing.Any) -> str:
         return self.app.url_for(name, **path_params)
+
+    async def form(self) -> FormData:
+        data = await super().form()
+        return FormData(
+            [
+                (k, UploadFile.from_base_upload_file(v) if isinstance(v, ds.UploadFile) else v)
+                for k, v in data.multi_items()
+            ]
+        )
+
+    async def files(self) -> FilesData:
+        data = await self.form()
+        return FilesData(FormData([(k, v) for k, v in data.multi_items() if isinstance(v, UploadFile)]))
+
+    async def data(self) -> typing.Mapping:
+        """
+        Returns a request data.
+
+        Automatically decodes JSON if Content-Type is application/json.
+        """
+        if self.is_json:
+            return await self.json()
+        return await self.form()
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}: {self.method} {self.url}>'

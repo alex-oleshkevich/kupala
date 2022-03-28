@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import abc
 import enum
 import logging
-import typing as t
+import typing
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from kupala.http.requests import Request
@@ -38,12 +38,12 @@ class FlashBag:
     def __init__(self, messages: list[FlashMessage] = None):
         self._messages: list[FlashMessage] = messages or []
 
-    def add(self, message: str, category: t.Union[MessageCategory, str]) -> None:
+    def add(self, message: str, category: MessageCategory | str) -> None:
         if isinstance(category, MessageCategory):
             category = category.value
         self._messages.append(FlashMessage(category, message))
 
-    def get_by_category(self, category: t.Union[MessageCategory, str]) -> list[FlashMessage]:
+    def get_by_category(self, category: MessageCategory | str) -> list[FlashMessage]:
         if isinstance(category, MessageCategory):
             category = category.value
 
@@ -66,7 +66,7 @@ class FlashBag:
     def error(self, message: str) -> None:
         self.add(message, MessageCategory.ERROR)
 
-    def all(self) -> t.List[FlashMessage]:
+    def all(self) -> list[FlashMessage]:
         return self._messages
 
     def consume(self) -> list[FlashMessage]:
@@ -81,7 +81,7 @@ class FlashBag:
     def __len__(self) -> int:
         return len(self._messages)
 
-    def __iter__(self) -> t.Iterator[FlashMessage]:
+    def __iter__(self) -> typing.Iterator[FlashMessage]:
         return iter(self.consume())
 
     def __bool__(self) -> bool:
@@ -111,13 +111,13 @@ class SessionStorage(MessageStorage):
         scope['session'][SESSION_KEY] = jsonify(bag.all())
 
 
-_storage_map: t.Dict[str, t.Type[MessageStorage]] = {
+_storage_map: dict[str, typing.Type[MessageStorage]] = {
     'session': SessionStorage,
 }
 
 
 class FlashMessagesMiddleware:
-    def __init__(self, app: ASGIApp, storage: t.Union[MessageStorage, t.Literal["session"]] = 'session') -> None:
+    def __init__(self, app: ASGIApp, storage: MessageStorage | typing.Literal["session"] = 'session') -> None:
         self.app = app
         if isinstance(storage, str):
             storage_class = _storage_map[storage]

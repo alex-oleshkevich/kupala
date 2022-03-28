@@ -1,4 +1,4 @@
-import typing as t
+import typing
 
 
 class KupalaError(Exception):
@@ -11,7 +11,7 @@ class ValidationError(KupalaError):
     def __init__(
         self,
         message: str = None,
-        errors: t.Mapping[str, list[str]] = None,
+        errors: typing.Mapping[str, list[str]] = None,
     ) -> None:
         super().__init__(message)
         self.message = message

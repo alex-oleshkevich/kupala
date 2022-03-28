@@ -1,5 +1,7 @@
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.http import Request
+
 BODY_PARAM = '_method'
 
 
@@ -12,10 +14,9 @@ class MethodOverrideMiddleware:
             return await self.app(scope, receive, send)
 
         if scope['method'] == 'POST':
-            assert (
-                'body_params' in scope
-            ), 'MethodOverrideMiddleware depends on RequestParserMiddleware which is not installed.'
-            override = scope.get('body_params', {}).get(BODY_PARAM, '')
+            request = Request(scope, receive)
+            form_data = await request.form()
+            override = form_data.get(BODY_PARAM, '')
             if override:
                 scope['original_method'] = scope['method']
                 scope['method'] = override.upper()

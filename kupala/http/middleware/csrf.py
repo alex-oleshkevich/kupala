@@ -2,7 +2,6 @@ import hashlib
 import hmac
 import os
 import typing
-import typing as t
 from itsdangerous import BadData, SignatureExpired, URLSafeTimedSerializer
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -67,15 +66,15 @@ def validate_csrf_token(
 
 
 class CSRFMiddleware:
-    exclude_urls: t.Optional[t.Iterable[str]] = None
-    safe_methods: t.Iterable[str] = ['get', 'head', 'options']
+    exclude_urls: typing.Iterable[str] | None = None
+    safe_methods: typing.Iterable[str] = ['get', 'head', 'options']
 
     def __init__(
         self,
         app: ASGIApp,
         secret_key: str,
         salt: str = '_csrf_',
-        exclude_urls: t.Iterable[str] = None,
+        exclude_urls: typing.Iterable[str] | None = None,
         max_age: int = 3600,
     ):
         self.app = app
@@ -89,7 +88,7 @@ class CSRFMiddleware:
             raise CSRFError('CsrfMiddleware requires SessionMiddleware.')
 
         await scope['session'].load()
-        request = scope['request']
+        request = Request(scope, receive, send)
         if CSRF_SESSION_KEY not in request.session:
             token = get_generate_random()
             csrf_token = generate_token(self._secret_key, token)
@@ -117,7 +116,7 @@ class CSRFMiddleware:
         from_headers = request.headers.get(CSRF_HEADER)
         from_query = request.query_params.get(CSRF_QUERY_PARAM)
         from_form_data = None
-        if request.method.lower() in ['post', 'put', 'patch', 'delete']:
+        if request.is_submitted:
             form_data = await request.form()
             from_form_data = form_data.get(CSRF_POST_FIELD)
         return from_query or from_form_data or from_headers
@@ -132,7 +131,7 @@ class CSRFMiddleware:
         )
 
 
-def get_csrf_token(request: Request) -> t.Optional[str]:
+def get_csrf_token(request: Request) -> str | None:
     return request.state.csrf_timed_token if hasattr(request.state, 'csrf_timed_token') else None
 
 

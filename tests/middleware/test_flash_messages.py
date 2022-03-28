@@ -1,8 +1,8 @@
 import pytest
-import typing as t
+import typing
 from starsessions import SessionMiddleware
 
-from kupala.application import Kupala
+from kupala.http import Routes
 from kupala.http.middleware import Middleware
 from kupala.http.middleware.flash_messages import (
     FlashBag,
@@ -13,11 +13,13 @@ from kupala.http.middleware.flash_messages import (
 )
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
-from kupala.testclient import TestClient
+from tests.conftest import TestClientFactory
 
 
 @pytest.mark.parametrize('storage', ['session'])
-def test_flash_messages(storage: t.Literal['session']) -> None:
+def test_flash_messages(
+    storage: typing.Literal['session'], test_client_factory: TestClientFactory, routes: Routes
+) -> None:
     def set_view(request: Request) -> JSONResponse:
         flash(request).success('This is a message.')
         return JSONResponse({})
@@ -26,16 +28,15 @@ def test_flash_messages(storage: t.Literal['session']) -> None:
         bag = flash(request)
         return JSONResponse({'messages': list(bag)})
 
-    app = Kupala(
+    routes.add('/set', set_view, methods=['post'])
+    routes.add('/get', get_view)
+    client = test_client_factory(
+        routes=routes,
         middleware=[
             Middleware(SessionMiddleware, secret_key='key!', autoload=True),
             Middleware(FlashMessagesMiddleware, storage=storage),
-        ]
+        ],
     )
-    app.routes.add('/set', set_view, methods=['post'])
-    app.routes.add('/get', get_view)
-
-    client = TestClient(app)
     client.post('/set')
 
     response = client.get('/get')
@@ -46,11 +47,12 @@ def test_flash_messages(storage: t.Literal['session']) -> None:
     assert response.json()['messages'] == []
 
 
-def test_flash_messages_session_storages_requires_session() -> None:
-    app = Kupala()
+def test_flash_messages_session_storages_requires_session(
+    test_client_factory: TestClientFactory, routes: Routes
+) -> None:
+    client = test_client_factory(middleware=[Middleware(FlashMessagesMiddleware, storage='session')])
 
     with pytest.raises(KeyError) as ex:
-        client = TestClient(FlashMessagesMiddleware(app, storage='session'))
         client.get('/')
     assert ex.value.args[0] == 'Sessions are disabled. Flash messages depend on SessionMiddleware.'
 

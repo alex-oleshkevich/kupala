@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import math
-import typing as t
+import typing
 
-M = t.TypeVar('M')
+M = typing.TypeVar('M')
 
 
-class Page(t.Generic[M]):
-    def __init__(self, rows: t.Sequence[M], total_rows: int, page: int, page_size: int) -> None:
+class Page(typing.Generic[M]):
+    def __init__(self, rows: typing.Sequence[M], total_rows: int, page: int, page_size: int) -> None:
         self.rows = rows
         self.total_rows = total_rows
         self.page = page
@@ -68,7 +68,7 @@ class Page(t.Generic[M]):
 
     def iter_pages(
         self, left_edge: int = 3, left_current: int = 3, right_current: int = 3, right_edge: int = 3
-    ) -> t.Generator[t.Optional[int], None, None]:
+    ) -> typing.Generator[int | None, None, None]:
         last = 0
         for number in range(1, self.total_pages + 1):
             if (
@@ -81,7 +81,7 @@ class Page(t.Generic[M]):
                 yield number
                 last = number
 
-    def __iter__(self) -> t.Iterator[M]:
+    def __iter__(self) -> typing.Iterator[M]:
         return iter(self.rows)
 
     def __next__(self) -> M:

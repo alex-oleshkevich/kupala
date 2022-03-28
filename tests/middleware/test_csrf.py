@@ -1,9 +1,8 @@
 import pytest
 from itsdangerous import URLSafeTimedSerializer
-from starlette.testclient import TestClient
 from starsessions import SessionMiddleware
 
-from kupala.application import Kupala
+from kupala.http import Routes
 from kupala.http.exceptions import PermissionDenied
 from kupala.http.middleware import Middleware
 from kupala.http.middleware.csrf import (
@@ -18,6 +17,7 @@ from kupala.http.middleware.csrf import (
 )
 from kupala.http.requests import Request
 from kupala.http.responses import PlainTextResponse
+from tests.conftest import TestClientFactory
 
 
 @pytest.fixture()
@@ -65,25 +65,30 @@ def test_validate_csrf_token_mismatch(csrf_token: str, csrf_timed_token: str) ->
     assert str(ex.value) == 'CSRF tokens do not match.'
 
 
-def test_middleware_needs_session() -> None:
-    app = Kupala()
-    app.middleware.use(CSRFMiddleware, secret_key='secret')
+def test_middleware_needs_session(test_client_factory: TestClientFactory, routes: Routes) -> None:
+    client = test_client_factory(
+        middleware=[
+            Middleware(CSRFMiddleware, secret_key='secret'),
+        ]
+    )
     with pytest.raises(CSRFError) as ex:
-        client = TestClient(app)
         client.get('/')
     assert str(ex.value) == 'CsrfMiddleware requires SessionMiddleware.'
 
 
-def test_middleware_checks_access() -> None:
+def test_middleware_checks_access(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
 
-    app = Kupala()
-    app.middleware.use(SessionMiddleware, secret_key='key!', autoload=True)
-    app.middleware.use(CSRFMiddleware, secret_key='key!')
-    app.routes.add('/', view, methods=['post', 'get', 'head', 'put', 'delete', 'patch', 'options'])
+    routes.add('/', view, methods=['post', 'get', 'head', 'put', 'delete', 'patch', 'options'])
+    client = test_client_factory(
+        routes=routes,
+        middleware=[
+            Middleware(SessionMiddleware, secret_key='key!'),
+            Middleware(CSRFMiddleware, secret_key='key!'),
+        ],
+    )
 
-    client = TestClient(app)
     assert client.get('/').status_code == 200
     assert client.head('/').status_code == 200
     response = client.options('/')
@@ -120,21 +125,20 @@ def test_middleware_checks_access() -> None:
     assert client.delete('/', headers={'x-csrf-token': token}).status_code == 200
 
 
-def test_middleware_allow_from_whitelist() -> None:
+def test_middleware_allow_from_whitelist(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
 
-    app = Kupala(
+    routes.add('/', view, methods=['post', 'options'])
+    routes.add('/login', view, methods=['post'])
+    client = test_client_factory(
+        routes=routes,
         middleware=[
             Middleware(SessionMiddleware, secret_key='secret'),
             Middleware(CSRFMiddleware, secret_key='secret', exclude_urls=[r'/login']),
-        ]
+        ],
     )
 
-    app.routes.add('/', view, methods=['post', 'options'])
-    app.routes.add('/login', view, methods=['post'])
-
-    client = TestClient(app)
     response = client.options('/')
     assert response.status_code == 200
     token = response.text
@@ -143,33 +147,32 @@ def test_middleware_allow_from_whitelist() -> None:
     assert client.post('/login').status_code == 200
 
 
-def test_middleware_allow_from_whitelist_using_full_url() -> None:
+def test_middleware_allow_from_whitelist_using_full_url(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
 
-    app = Kupala(
+    routes.add('/', view, methods=['post'])
+    client = test_client_factory(
+        routes=routes,
         middleware=[
             Middleware(SessionMiddleware, secret_key='secret', autoload=True),
             Middleware(CSRFMiddleware, secret_key='secret', exclude_urls=['http://testserver/']),
-        ]
+        ],
     )
-    app.routes.add('/', view, methods=['post'])
 
-    client = TestClient(app)
     assert client.post('/').status_code == 200
 
 
-def test_middleware_injects_template_context() -> None:
+def test_middleware_injects_template_context(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
 
-    app = Kupala(
+    routes.add('/', view, methods=['post'])
+    client = test_client_factory(
+        routes=routes,
         middleware=[
             Middleware(SessionMiddleware, secret_key='secret', autoload=True),
             Middleware(CSRFMiddleware, secret_key='secret', exclude_urls=['http://testserver/']),
-        ]
+        ],
     )
-    app.routes.add('/', view, methods=['post'])
-
-    client = TestClient(app)
     assert client.post('/').status_code == 200

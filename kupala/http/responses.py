@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-import typing as t
+import typing
 import urllib.parse
 from starlette import responses
 from starlette.background import BackgroundTask
@@ -28,12 +28,12 @@ class HTMLResponse(Response, responses.HTMLResponse):
 class JSONResponse(Response, responses.JSONResponse):
     def __init__(
         self,
-        content: t.Any,
+        content: typing.Any,
         status_code: int = 200,
         headers: dict = None,
         indent: int = None,
-        default: t.Callable[[t.Any], t.Any] = None,
-        encoder_class: t.Type[JSONEncoder] = None,
+        default: typing.Callable[[typing.Any], typing.Any] = None,
+        encoder_class: typing.Type[JSONEncoder] = None,
     ):
         self._indent = indent
         self._encoder_class = encoder_class
@@ -42,7 +42,7 @@ class JSONResponse(Response, responses.JSONResponse):
 
         super().__init__(content, status_code, headers)
 
-    def render(self, content: t.Any) -> bytes:
+    def render(self, content: typing.Any) -> bytes:
         return json.dumps(
             json.jsonify(content),
             ensure_ascii=False,
@@ -57,7 +57,7 @@ class JSONResponse(Response, responses.JSONResponse):
 class FileResponse(Response, responses.FileResponse):
     def __init__(
         self,
-        path: t.Union[str, os.PathLike[str]],
+        path: str | os.PathLike[str],
         status_code: int = 200,
         headers: dict = None,
         media_type: str = None,
@@ -87,7 +87,7 @@ class FileResponse(Response, responses.FileResponse):
 class StreamingResponse(Response, responses.StreamingResponse):
     def __init__(
         self,
-        content: t.Any,
+        content: typing.Any,
         status_code: int = 200,
         headers: dict = None,
         media_type: str = None,
@@ -106,7 +106,7 @@ class StreamingResponse(Response, responses.StreamingResponse):
         )
 
 
-RT = t.TypeVar('RT', bound='RedirectResponse')
+RT = typing.TypeVar('RT', bound='RedirectResponse')
 
 
 class RedirectResponse(Response, responses.RedirectResponse):
@@ -124,7 +124,7 @@ class RedirectResponse(Response, responses.RedirectResponse):
     ):
         self.status_code = status_code
         self.body = b''
-        self.background: t.Optional[BackgroundTask] = None
+        self.background: BackgroundTask | None = None
         self.init_headers(headers)
 
         self._url = url
@@ -158,7 +158,6 @@ class RedirectResponse(Response, responses.RedirectResponse):
         Uploaded files will be removed from data.
         """
         self._capture_input = True
-        # self._input_data = {k: v for k, v in input_data.items() if not isinstance(v, UploadFile)}
         return self
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:

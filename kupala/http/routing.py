@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 import inspect
 import os
-import typing as t
+import typing
 from starlette import routing
 from starlette.routing import compile_path, get_name
 from starlette.staticfiles import StaticFiles
@@ -16,13 +16,13 @@ from kupala.storages.file_server import FileServer
 from kupala.utils import import_string
 
 
-def apply_middleware(app: t.Callable, middleware: t.Sequence[Middleware]) -> ASGIApp:
+def apply_middleware(app: typing.Callable, middleware: typing.Sequence[Middleware]) -> ASGIApp:
     for mw in reversed(middleware):
         app = mw.wrap(app)
     return app
 
 
-def request_response(func: t.Callable) -> ASGIApp:
+def request_response(func: typing.Callable) -> ASGIApp:
     """Takes a function or coroutine `func(request) -> response` and returns an
     ASGI application."""
 
@@ -38,10 +38,10 @@ class Mount(routing.Mount):
         self,
         path: str,
         app: ASGIApp = None,
-        routes: t.Sequence[routing.BaseRoute] = None,
+        routes: typing.Sequence[routing.BaseRoute] = None,
         name: str = None,
         *,
-        middleware: t.Sequence[Middleware] = None,
+        middleware: typing.Sequence[Middleware] = None,
     ) -> None:
         assert path == "" or path.startswith("/"), "Routed paths must start with '/'"
         assert app is not None or routes is not None, "Either 'app=...', or 'routes=' must be specified"
@@ -64,7 +64,9 @@ class Mount(routing.Mount):
 
 
 class Host(routing.Host):
-    def __init__(self, host: str, app: ASGIApp, name: str = None, *, middleware: t.Sequence[Middleware] = None) -> None:
+    def __init__(
+        self, host: str, app: ASGIApp, name: str = None, *, middleware: typing.Sequence[Middleware] = None
+    ) -> None:
         self.host = host
         self.app = app
         self.name = name
@@ -88,12 +90,12 @@ class Route(routing.Route):
     def __init__(
         self,
         path: str,
-        endpoint: t.Callable,
+        endpoint: typing.Callable,
         *,
         name: str = None,
         include_in_schema: bool = True,
         methods: list[str] | None = None,
-        middleware: t.Sequence[Middleware] = None,
+        middleware: typing.Sequence[Middleware] = None,
     ) -> None:
         assert path.startswith("/"), "Routed paths must start with '/'"
         self.path = path
@@ -116,7 +118,7 @@ class Route(routing.Route):
             self.app = endpoint
 
         if middleware:
-            self.app = apply_middleware(t.cast(t.Callable, self.app), middleware)
+            self.app = apply_middleware(typing.cast(typing.Callable, self.app), middleware)
 
         self.methods = {method.upper() for method in methods}
         if "GET" in self.methods:
@@ -134,7 +136,7 @@ class WebSocketRoute(routing.WebSocketRoute):
 
 class _RouteAdapter:
     _routes: Routes
-    _base_app: t.Optional[ASGIApp]
+    _base_app: ASGIApp | None
 
     def _create_base_asgi_app(self) -> ASGIApp:
         raise NotImplementedError()
@@ -143,10 +145,10 @@ class _RouteAdapter:
         self._base_app = None  # force app recreate when routes change
         return self._routes
 
-    def __exit__(self, *args: t.Any) -> None:
+    def __exit__(self, *args: typing.Any) -> None:
         pass
 
-    def __getattr__(self, item: str) -> t.Any:
+    def __getattr__(self, item: str) -> typing.Any:
         try:
             return getattr(self._base_app, item)
         except AttributeError:
@@ -158,16 +160,16 @@ class HostRoutes(_RouteAdapter):
     def __init__(
         self,
         host: str,
-        routes: t.Union[list[routing.BaseRoute], Routes] = None,
+        routes: list[routing.BaseRoute] | Routes | None = None,
         name: str = None,
-        middleware: t.Sequence[Middleware] = None,
+        middleware: typing.Sequence[Middleware] = None,
     ) -> None:
         self._host = host
         self._name = name
         self._routes = Routes(routes)
         self._middleware = middleware or []
-        self._wrapped_app: t.Optional[ASGIApp] = None
-        self._base_app: t.Optional[Host] = None
+        self._wrapped_app: ASGIApp | None = None
+        self._base_app: Host | None = None
 
     def _create_base_asgi_app(self) -> ASGIApp:
         return Host(host=self._host, app=Router(routes=self._routes), name=self._name, middleware=self._middleware)
@@ -177,34 +179,34 @@ class GroupRoutes(_RouteAdapter):
     def __init__(
         self,
         prefix: str,
-        routes: t.Union[list[routing.BaseRoute], Routes] = None,
+        routes: list[routing.BaseRoute] | Routes | None = None,
         name: str = None,
-        middleware: t.Sequence[Middleware] = None,
+        middleware: typing.Sequence[Middleware] = None,
     ) -> None:
         self._name = name
         self._prefix = prefix
         self._routes = Routes(routes)
         self._middleware = middleware or []
-        self._wrapped_app: t.Optional[ASGIApp] = None
-        self._base_app: t.Optional[Mount] = None
+        self._wrapped_app: ASGIApp | None = None
+        self._base_app: Mount | None = None
 
     def _create_base_asgi_app(self) -> ASGIApp:
         return Mount(path=self._prefix, routes=self._routes, name=self._name, middleware=self._middleware)
 
 
-class Routes(t.Sequence[routing.BaseRoute]):
-    def __init__(self, routes: t.Iterable[routing.BaseRoute] = None) -> None:
+class Routes(typing.Sequence[routing.BaseRoute]):
+    def __init__(self, routes: typing.Iterable[routing.BaseRoute] = None) -> None:
         self._routes: list[routing.BaseRoute] = list(routes or [])
 
     def add(
         self,
         path: str,
-        endpoint: t.Callable,
+        endpoint: typing.Callable,
         *,
         methods: list[str] = None,
         name: str = None,
         include_in_schema: bool = True,
-        middleware: t.Sequence[Middleware] = None,
+        middleware: typing.Sequence[Middleware] = None,
     ) -> None:
         route = Route(
             path,
@@ -216,22 +218,24 @@ class Routes(t.Sequence[routing.BaseRoute]):
         )
         self._routes.append(route)
 
-    def websocket(self, path: str, endpoint: t.Callable, *, name: str = None) -> None:
+    def websocket(self, path: str, endpoint: typing.Callable, *, name: str = None) -> None:
         self._routes.append(WebSocketRoute(path, endpoint, name=name))
 
-    def mount(self, path: str, app: ASGIApp, *, name: str = None, middleware: t.Sequence[Middleware] = None) -> None:
+    def mount(
+        self, path: str, app: ASGIApp, *, name: str = None, middleware: typing.Sequence[Middleware] = None
+    ) -> None:
         self._routes.append(Mount(path, app, name=name, middleware=middleware))
 
     def static(
         self,
         path: str,
-        directory: t.Union[str, os.PathLike[str]] | None = None,
+        directory: str | os.PathLike[str] | None = None,
         *,
         packages: list[str | tuple[str, str]] | None = None,
         html: bool = False,
         check_dir: bool = True,
         name: str = 'static',
-        middleware: t.Sequence[Middleware] | None = None,
+        middleware: typing.Sequence[Middleware] | None = None,
     ) -> None:
         """Serve static files from local directories."""
         app = StaticFiles(directory=directory, packages=packages, html=html, check_dir=check_dir)
@@ -243,7 +247,7 @@ class Routes(t.Sequence[routing.BaseRoute]):
         *,
         storage: str,
         name: str = None,
-        middleware: t.Sequence[Middleware] = None,
+        middleware: typing.Sequence[Middleware] = None,
         inline: bool = False,
     ) -> None:
         """Serve file uploads from disk."""
@@ -253,25 +257,25 @@ class Routes(t.Sequence[routing.BaseRoute]):
     def host(
         self,
         host: str,
-        routes: t.Union[Routes, list[routing.BaseRoute]] = None,
+        routes: Routes | list[routing.BaseRoute] | None = None,
         *,
         name: str = None,
-        middleware: t.Sequence[Middleware] = None,
+        middleware: typing.Sequence[Middleware] = None,
     ) -> HostRoutes:
         app = HostRoutes(host, routes, name, middleware)
-        self._routes.append(t.cast(routing.Host, app))
+        self._routes.append(typing.cast(routing.Host, app))
         return app
 
     def group(
         self,
         prefix: str,
-        routes: t.Union[Routes, list[routing.BaseRoute]] = None,
+        routes: Routes | list[routing.BaseRoute] | None = None,
         *,
         name: str = None,
-        middleware: t.Sequence[Middleware] = None,
+        middleware: typing.Sequence[Middleware] = None,
     ) -> GroupRoutes:
         app = GroupRoutes(prefix, routes, name, middleware)
-        self._routes.append(t.cast(routing.Mount, app))
+        self._routes.append(typing.cast(routing.Mount, app))
         return app
 
     def redirect(self, path: str, destination: str, status_code: int = 307, headers: dict = None) -> None:
@@ -281,10 +285,10 @@ class Routes(t.Sequence[routing.BaseRoute]):
         )
 
     def include(
-        self, iterable_or_module: t.Union[t.Iterable[routing.BaseRoute], str], callback: str = 'configure'
+        self, iterable_or_module: typing.Iterable[routing.BaseRoute] | str, callback: str = 'configure'
     ) -> None:
         """Include routes."""
-        IncludeRoutesCallback = t.Callable[[Routes], None]
+        IncludeRoutesCallback = typing.Callable[[Routes], None]
         if isinstance(iterable_or_module, str):
             if ':' not in iterable_or_module:
                 iterable_or_module += ':' + callback
@@ -293,15 +297,15 @@ class Routes(t.Sequence[routing.BaseRoute]):
         else:
             self._routes.extend(list(iterable_or_module))
 
-    def __iter__(self) -> t.Iterator[routing.BaseRoute]:
+    def __iter__(self) -> typing.Iterator[routing.BaseRoute]:
         return iter(self._routes)
 
     def __len__(self) -> int:
         return len(self._routes)
 
-    def __getitem__(self, item: t.Any) -> t.Any:  # pragma: nocover
+    def __getitem__(self, item: typing.Any) -> typing.Any:  # pragma: nocover
         """Added to implement Sequence protocol."""
         raise NotImplementedError
 
-    def __contains__(self, route: object) -> t.Any:  # pragma: nocover
+    def __contains__(self, route: object) -> typing.Any:  # pragma: nocover
         raise NotImplementedError

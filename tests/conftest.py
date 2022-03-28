@@ -7,12 +7,23 @@ import typing
 from kupala.application import App
 from kupala.contracts import TemplateRenderer
 from kupala.http import Routes
+from kupala.http.middleware import Middleware
 from kupala.storages.storages import LocalStorage, Storage
 from kupala.templating import JinjaRenderer
+from kupala.testclient import TestClient
 
 
 class TestAppFactory(typing.Protocol):  # pragma: nocover
-    def __call__(self, *args: typing.Any, **kwargs: typing.Any) -> App:
+    def __call__(
+        self, middleware: list[Middleware] | None = None, routes: Routes | None = None, **kwargs: typing.Any
+    ) -> App:
+        ...
+
+
+class TestClientFactory(typing.Protocol):  # pragma: nocover
+    def __call__(
+        self, middleware: list[Middleware] | None = None, routes: Routes | None = None, **kwargs: typing.Any
+    ) -> TestClient:
         ...
 
 
@@ -31,6 +42,14 @@ def test_app_factory() -> TestAppFactory:
                 renderer._env.globals['static'] = app.static_url
 
         return app
+
+    return factory
+
+
+@pytest.fixture
+def test_client_factory(test_app_factory: TestAppFactory) -> TestClientFactory:
+    def factory(*args: typing.Any, **kwargs: typing.Any) -> TestClient:
+        return TestClient(test_app_factory(*args, **kwargs))
 
     return factory
 

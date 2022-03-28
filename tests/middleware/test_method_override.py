@@ -3,7 +3,6 @@ import pytest
 from kupala.http import PlainTextResponse, Request, Routes
 from kupala.http.middleware import Middleware
 from kupala.http.middleware.method_override import MethodOverrideMiddleware
-from kupala.http.middleware.request_parser import RequestParserMiddleware
 from kupala.testclient import TestClient
 from tests.conftest import TestAppFactory
 
@@ -15,7 +14,7 @@ async def test_overrides_method(test_app_factory: TestAppFactory, routes: Routes
 
     routes.add('/', view, methods=['DELETE'])
     app = test_app_factory(
-        middleware=[Middleware(RequestParserMiddleware, parsers=['urlencoded']), Middleware(MethodOverrideMiddleware)],
+        middleware=[Middleware(MethodOverrideMiddleware)],
         routes=routes,
     )
 
@@ -30,7 +29,7 @@ async def test_bypass_read_methods(test_app_factory: TestAppFactory, routes: Rou
 
     routes.add('/', view, methods=['GET'])
     app = test_app_factory(
-        middleware=[Middleware(RequestParserMiddleware, parsers=['urlencoded']), Middleware(MethodOverrideMiddleware)],
+        middleware=[Middleware(MethodOverrideMiddleware)],
         routes=routes,
     )
 

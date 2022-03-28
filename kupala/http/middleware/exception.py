@@ -1,6 +1,6 @@
 import inspect
 import jinja2
-import typing as t
+import typing
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as BaseHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -10,8 +10,8 @@ from kupala.http.exceptions import HTTPException
 from kupala.http.requests import Request
 from kupala.http.responses import GoBackResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
 
-E = t.TypeVar('E', bound=Exception)
-ErrorHandler = t.Callable[[Request, E], t.Any]
+E = typing.TypeVar('E', bound=Exception)
+ErrorHandler = typing.Callable[[Request, E], typing.Any]
 _renderer = jinja2.Environment(loader=jinja2.PackageLoader(__name__.split('.')[0]))
 
 
@@ -54,7 +54,7 @@ class ErrorHandlers:
     def __init__(self, handlers: dict) -> None:
         self.handlers: dict = {**_default_error_handlers, **handlers}
 
-    def get_for_exception(self, exc: Exception) -> t.Optional[ErrorHandler]:
+    def get_for_exception(self, exc: Exception) -> ErrorHandler | None:
         class_name = type(exc)
         status_code = exc.status_code if isinstance(exc, BaseHTTPException) else 0
         if status_code in self.handlers:
@@ -68,7 +68,7 @@ class ErrorHandlers:
 
 
 class ExceptionMiddleware:
-    def __init__(self, app: ASGIApp, handlers: t.Dict[t.Union[int, t.Type[Exception]], ErrorHandler]) -> None:
+    def __init__(self, app: ASGIApp, handlers: dict[int | typing.Type[Exception], ErrorHandler]) -> None:
         self.app = app
         self.handlers = ErrorHandlers(handlers)
 

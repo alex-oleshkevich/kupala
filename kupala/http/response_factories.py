@@ -1,4 +1,4 @@
-import typing as t
+import typing
 from json import JSONEncoder
 from pathlib import Path
 
@@ -25,10 +25,10 @@ class ResponseFactory:
 
     def json(
         self,
-        data: t.Any,
-        default: t.Callable[[t.Any], t.Any] = None,
+        data: typing.Any,
+        default: typing.Callable[[typing.Any], typing.Any] = None,
         indent: int = None,
-        encoder_class: t.Type[JSONEncoder] = None,
+        encoder_class: typing.Type[JSONEncoder] = None,
     ) -> JSONResponse:
         return JSONResponse(
             data,
@@ -47,7 +47,7 @@ class ResponseFactory:
 
     def stream(
         self,
-        content: t.Any,
+        content: typing.Any,
         file_name: str = 'data.bin',
         content_type: str = 'application/octet-stream',
         inline: bool = False,
@@ -100,7 +100,7 @@ class ResponseFactory:
 
     def send_file(
         self,
-        path: t.Union[str, Path],
+        path: str | Path,
         file_name: str,
         content_type: str = 'application/octet-stream',
         inline: bool = False,
@@ -117,7 +117,9 @@ class ResponseFactory:
     def empty(self) -> EmptyResponse:
         return EmptyResponse(headers=self.headers)
 
-    def template(self, template_name: str, context: t.Dict = None, media_type: str = 'text/html') -> TemplateResponse:
+    def template(
+        self, template_name: str, context: dict | None = None, media_type: str = 'text/html'
+    ) -> TemplateResponse:
         return TemplateResponse(
             template_name=template_name,
             context=context,

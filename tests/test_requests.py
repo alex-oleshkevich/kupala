@@ -3,14 +3,11 @@ import pytest
 import typing as t
 from imia import AnonymousUser, LoginState, UserToken
 
-from kupala.http.middleware import Middleware
-from kupala.http.middleware.request_parser import RequestParserMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
 from kupala.http.routing import Routes
 from kupala.storages.storages import Storage
-from kupala.testclient import TestClient
-from tests.conftest import TestAppFactory
+from tests.conftest import TestClientFactory
 
 
 @pytest.fixture()
@@ -196,8 +193,9 @@ def test_query_params() -> None:
     assert request.query_params.get_int('enable') is None
 
 
-def test_file_uploads(test_app_factory: TestAppFactory, routes: Routes) -> None:
+def test_file_uploads(test_client_factory: TestClientFactory, routes: Routes) -> None:
     async def upload_view(request: Request) -> JSONResponse:
+        files = await request.files()
         return JSONResponse(
             [
                 {
@@ -205,16 +203,12 @@ def test_file_uploads(test_app_factory: TestAppFactory, routes: Routes) -> None:
                     'content': await file.read_string(),
                     'content-type': file.content_type,
                 }
-                for file in request.files.getlist('files')
+                for file in files.getlist('files')
             ]
         )
 
     routes.add('/', upload_view, methods=['post'])
-    app = test_app_factory(
-        routes=routes,
-        middleware=[Middleware(RequestParserMiddleware, parsers=['json', 'multipart', 'urlencoded'])],
-    )
-    client = TestClient(app)
+    client = test_client_factory(routes=routes)
 
     file1 = io.BytesIO('праўда'.encode())
     file2 = io.StringIO('file2')
@@ -234,9 +228,10 @@ def test_file_uploads(test_app_factory: TestAppFactory, routes: Routes) -> None:
 
 
 @pytest.mark.asyncio
-async def test_file_upload_store(test_app_factory: TestAppFactory, routes: Routes, storage: Storage) -> None:
+async def test_file_upload_store(test_client_factory: TestClientFactory, routes: Routes, storage: Storage) -> None:
     async def upload_view(request: Request) -> JSONResponse:
-        file = request.files.get('file')
+        files = await request.files()
+        file = files.get('file')
         filename = ''
         if file:
             filename = await file.save(storage, 'newfile.txt')
@@ -244,12 +239,7 @@ async def test_file_upload_store(test_app_factory: TestAppFactory, routes: Route
         return JSONResponse(filename)
 
     routes.add('/', upload_view, methods=['post'])
-    app = test_app_factory(
-        routes=routes,
-        middleware=[Middleware(RequestParserMiddleware, parsers=['json', 'multipart', 'urlencoded'])],
-    )
-
-    client = TestClient(app)
+    client = test_client_factory(routes=routes)
 
     file1 = io.BytesIO(b'content')
     response = client.post(
@@ -267,22 +257,19 @@ async def test_file_upload_store(test_app_factory: TestAppFactory, routes: Route
 
 @pytest.mark.asyncio
 async def test_file_upload_store_without_filename(
-    test_app_factory: TestAppFactory, routes: Routes, storage: Storage
+    test_client_factory: TestClientFactory, routes: Routes, storage: Storage
 ) -> None:
     async def upload_view(request: Request) -> JSONResponse:
         filename = ''
-        file = request.files.get('file')
+        files = await request.files()
+        file = files.get('file')
         if file:
             filename = await file.save(storage, 'uploads')
 
         return JSONResponse(filename)
 
     routes.add('/', upload_view, methods=['post'])
-    app = test_app_factory(
-        routes=routes,
-        middleware=[Middleware(RequestParserMiddleware, parsers=['json', 'multipart', 'urlencoded'])],
-    )
-    client = TestClient(app)
+    client = test_client_factory(routes=routes)
 
     file1 = io.BytesIO(b'content')
     response = client.post(
@@ -311,19 +298,15 @@ def test_request_headers(form_request: Request) -> None:
 
 
 @pytest.mark.asyncio
-async def test_request_data(test_app_factory: TestAppFactory, routes: Routes) -> None:
-    def json_view(request: Request) -> JSONResponse:
-        return JSONResponse(request.data)  # type: ignore
+async def test_request_data(test_client_factory: TestClientFactory, routes: Routes) -> None:
+    async def json_view(request: Request) -> JSONResponse:
+        return JSONResponse(await request.data())  # type: ignore
 
-    def form_view(request: Request) -> JSONResponse:
-        return JSONResponse(dict(request.data))  # type: ignore
+    async def form_view(request: Request) -> JSONResponse:
+        return JSONResponse(dict(await request.data()))  # type: ignore
 
     routes.add('/json', json_view, methods=['post'])
     routes.add('/form', form_view, methods=['post'])
-    app = test_app_factory(
-        routes=routes,
-        middleware=[Middleware(RequestParserMiddleware, parsers=['json', 'multipart', 'urlencoded'])],
-    )
-    client = TestClient(app)
+    client = test_client_factory(routes=routes)
     assert client.post('/json', json={'data': 'content'}).json() == {'data': 'content'}
     assert client.post('/form', data={'data': 'content'}).json() == {'data': 'content'}
