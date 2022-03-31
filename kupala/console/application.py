@@ -6,6 +6,8 @@ import functools
 import inspect
 import typing
 
+from kupala.di import get_app_injection_factory
+
 if typing.TYPE_CHECKING:
     from kupala.application import App
 
@@ -16,8 +18,8 @@ def create_dispatcher(app: App, fn: typing.Callable) -> typing.Callable:
     @functools.wraps(fn)
     def dispatcher(**kwargs: typing.Any) -> typing.Any:
         for name, class_name in fn_kwargs.items():
-            if hasattr(class_name, 'from_app'):
-                kwargs[name] = class_name.from_app(app)
+            if injection_factory := get_app_injection_factory(class_name):
+                kwargs[name] = injection_factory(app)
 
         if inspect.iscoroutinefunction(fn):
 
