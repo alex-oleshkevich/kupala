@@ -268,3 +268,9 @@ def test_choices_dict() -> None:
         {'value': 2, 'label': 'two'},
         {'value': 3, 'label': 'three'},
     ]
+
+
+def test_iter_resets_counter() -> None:
+    collection = Collection([1, 2, 3])
+    assert list(collection) == [1, 2, 3]
+    assert list(collection) == [1, 2, 3]

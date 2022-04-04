@@ -148,7 +148,7 @@ class Collection(typing.Generic[E]):
         return len(self.items)
 
     def __iter__(self) -> Collection[E]:
-        return self
+        return Collection(self.items)
 
     def __contains__(self, item: E) -> bool:
         return item in self.items
