@@ -62,6 +62,7 @@ pre {
 
 .exception {
     font-size: 1.5rem;
+    margin-top: 0.625rem;
     color: var(--red);
 }
 
@@ -174,7 +175,7 @@ summary {
 dl {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    align-items: center;
+    align-items: start;
     margin: 0;
     padding: 4px;
     border-top: 1px solid var(--gray-lighter);

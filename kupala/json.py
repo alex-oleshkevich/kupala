@@ -9,6 +9,7 @@ import json
 import typing
 import uuid
 from babel.support import LazyProxy
+from pydantic import BaseModel
 
 JSONEncoder = json.JSONEncoder
 
@@ -26,6 +27,7 @@ _type_to_encoder: dict[type, typing.Callable] = {
     bytes: lambda x: x.decode(),
     LazyProxy: str,
     enum.Enum: lambda x: x.value,
+    BaseModel: lambda x: x.dict(),
 }
 
 
