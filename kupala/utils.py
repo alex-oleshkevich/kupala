@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib
 import inspect
-import os.path
 import re
 import typing
 from starlette.concurrency import run_in_threadpool
@@ -25,15 +24,6 @@ def import_string(path: str, package: str = None) -> typing.Any:
     if attr:
         return getattr(module_instance, attr)
     return module_instance
-
-
-def resolve_path(path: typing.Union[str, os.PathLike]) -> str:
-    path = str(path)
-    if not path.startswith('@'):
-        return os.path.abspath(path)
-    package_name, _, package_path = path.replace('@', '').partition(os.sep)
-    package_spec = importlib.import_module(package_name)
-    return os.path.join(str(os.path.dirname(str(package_spec.__file__))), package_path)
 
 
 async def run_async(fn: typing.Callable, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:

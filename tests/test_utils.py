@@ -1,18 +1,8 @@
 import os
-import pathlib
 import pytest
 import typing
 
-from kupala.utils import camel_to_snake, import_string, resolve_path, run_async, to_string_list
-
-
-def test_resolve_path(tmp_path: pathlib.Path) -> None:
-    assert os.path.dirname(os.__file__) in resolve_path('@os')
-    assert 'kupala/requests' in resolve_path('@kupala/requests')
-    assert 'kupala/templates/errors/http_error.html' in resolve_path('@kupala/templates/errors/http_error.html')
-    assert __file__ in resolve_path(__file__)
-
-    assert str(tmp_path) in resolve_path(tmp_path)
+from kupala.utils import camel_to_snake, import_string, run_async, to_string_list
 
 
 def test_import_string() -> None:
