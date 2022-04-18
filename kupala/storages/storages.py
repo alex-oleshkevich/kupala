@@ -11,7 +11,7 @@ from kupala.di import injectable
 
 @injectable(from_app_factory=lambda app: app.state.storages.default)
 class Storage(BaseStorage):  # pragma: nocover
-    async def url(self, path: str | os.PathLike) -> str:
+    def url(self, path: str | os.PathLike) -> str:
         raise NotImplementedError()
 
     def abspath(self, path: str | os.PathLike) -> str:
@@ -24,7 +24,7 @@ class LocalStorage(Storage):
         self.prefix = prefix
         super().__init__(driver=LocalFsDriver(base_dir=base_dir))
 
-    async def url(self, path: str | os.PathLike) -> str:
+    def url(self, path: str | os.PathLike) -> str:
         return f'{self.prefix}{path}'
 
     def abspath(self, path: str | os.PathLike) -> str:
@@ -40,16 +40,8 @@ class S3Storage(Storage):
         self.driver = S3Driver(**kwargs)
         super().__init__(self.driver)
 
-    async def url(self, path: str | os.PathLike) -> str:
-        if self.prefix:
-            return f'{self.prefix}{path}'
-
-        async with self.driver.session.client('s3', endpoint_url=self.driver.endpoint_url) as client:
-            return await client.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': self.driver.bucket, 'Key': path},
-                ExpiresIn=self.link_ttl,
-            )
+    def url(self, path: str | os.PathLike) -> str:
+        return f'{self.prefix}{path}'
 
     def abspath(self, path: str | os.PathLike) -> str:
         return ''

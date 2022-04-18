@@ -50,7 +50,7 @@ def test_file_server_redirects_for_drivers_returning_urls(
     test_client_factory: TestClientFactory, routes: Routes
 ) -> None:
     class S3Storage(Storage):
-        async def url(self, path: str | os.PathLike) -> str:
+        def url(self, path: str | os.PathLike) -> str:
             return 'https://example.com'
 
     routes.mount('/media', FileServer(storage=S3Storage(MemoryDriver()), as_attachment=False))

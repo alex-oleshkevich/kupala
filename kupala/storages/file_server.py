@@ -20,7 +20,7 @@ class FileServer:
         if scope["method"] not in ("GET", "HEAD"):
             return PlainTextResponse("Method Not Allowed", status_code=405)
 
-        url = await self.storage.url(path)
+        url = self.storage.url(path)
         if url.startswith('http'):
             return RedirectResponse(url, 307)
         path = self.storage.abspath(path)
