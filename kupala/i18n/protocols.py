@@ -8,6 +8,13 @@ class HasPreferredLanguage(typing.Protocol):  # pragma: nocover
         ...
 
 
+class HasTimezone(typing.Protocol):  # pragma: nocover
+    """Defines an object that can provide a timezone."""
+
+    def get_timezone(self) -> str | None:
+        ...
+
+
 class Translator:  # pragma: nocover
     def gettext(self, msg: str, **variables: typing.Any) -> str:
         ...

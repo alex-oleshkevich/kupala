@@ -9,18 +9,8 @@ from .formatters import (
     format_time,
     format_timedelta,
 )
-from .helpers import (
-    get_language,
-    get_locale,
-    get_timezone,
-    remember_current_language,
-    set_locale,
-    set_timezone,
-    switch_locale,
-    switch_timezone,
-    to_user_timezone,
-    to_utc,
-)
+from .helpers import get_language, get_locale, remember_current_language, set_locale, switch_locale
+from .timezone import get_timezone, set_timezone, switch_timezone, to_user_timezone, to_utc
 from .translator import gettext_lazy
 
 _ = gettext_lazy
@@ -31,11 +21,6 @@ __all__ = [
     'set_locale',
     'switch_locale',
     'get_language',
-    'get_timezone',
-    'set_timezone',
-    'switch_timezone',
-    'to_utc',
-    'to_user_timezone',
     'remember_current_language',
     'format_currency',
     'format_time',
@@ -46,5 +31,10 @@ __all__ = [
     'format_interval',
     'format_timedelta',
     'format_percent',
+    "set_timezone",
+    "get_timezone",
+    "switch_timezone",
+    "to_utc",
+    "to_user_timezone",
     '_',
 ]

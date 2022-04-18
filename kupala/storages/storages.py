@@ -19,26 +19,31 @@ class Storage(BaseStorage):  # pragma: nocover
 
 
 class LocalStorage(Storage):
-    def __init__(self, base_dir: str | os.PathLike) -> None:
+    def __init__(self, base_dir: str | os.PathLike, prefix: str = '') -> None:
         self.base_dir = base_dir
+        self.prefix = prefix
         super().__init__(driver=LocalFsDriver(base_dir=base_dir))
 
     async def url(self, path: str | os.PathLike) -> str:
-        return str(path)
+        return f'{self.prefix}{path}'
 
     def abspath(self, path: str | os.PathLike) -> str:
         return str(pathlib.Path(self.base_dir) / path)
 
 
 class S3Storage(Storage):
-    def __init__(self, link_ttl: int = 300, **kwargs: typing.Any) -> None:
+    def __init__(self, prefix: str = '', link_ttl: int = 300, **kwargs: typing.Any) -> None:
         from deesk.drivers.s3 import S3Driver
 
+        self.prefix = prefix
         self.link_ttl = link_ttl
         self.driver = S3Driver(**kwargs)
         super().__init__(self.driver)
 
     async def url(self, path: str | os.PathLike) -> str:
+        if self.prefix:
+            return f'{self.prefix}{path}'
+
         async with self.driver.session.client('s3', endpoint_url=self.driver.endpoint_url) as client:
             return await client.generate_presigned_url(
                 'get_object',
