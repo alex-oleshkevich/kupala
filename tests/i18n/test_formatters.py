@@ -2,7 +2,7 @@ import datetime
 import pytest
 import typing
 
-from kupala.i18n import switch_timezone
+from kupala.i18n import switch_locale, switch_timezone
 from kupala.i18n.formatters import (
     format_currency,
     format_date,
@@ -14,7 +14,6 @@ from kupala.i18n.formatters import (
     format_time,
     format_timedelta,
 )
-from kupala.i18n.helpers import switch_locale
 
 christmas = datetime.datetime(2022, 12, 25, 12, 30, 59)
 

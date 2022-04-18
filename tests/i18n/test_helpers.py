@@ -4,7 +4,8 @@ from kupala.application import Kupala
 from kupala.http.middleware import LocaleMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
-from kupala.i18n.helpers import get_language, get_locale, remember_current_language, set_locale, switch_locale
+from kupala.i18n import get_locale, set_locale, switch_locale
+from kupala.i18n.language import get_language, remember_current_language
 from kupala.testclient import TestClient
 
 

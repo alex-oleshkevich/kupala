@@ -4,7 +4,7 @@ from functools import lru_cache
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from kupala.http.requests import Request
-from kupala.i18n.helpers import set_locale
+from kupala.i18n import set_locale
 from kupala.i18n.protocols import HasPreferredLanguage
 
 

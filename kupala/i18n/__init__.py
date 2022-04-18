@@ -9,7 +9,8 @@ from .formatters import (
     format_time,
     format_timedelta,
 )
-from .helpers import get_language, get_locale, remember_current_language, set_locale, switch_locale
+from .language import get_language, remember_current_language
+from .locale import get_locale, set_locale, switch_locale
 from .timezone import get_timezone, set_timezone, switch_timezone, to_user_timezone, to_utc
 from .translator import gettext_lazy
 

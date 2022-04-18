@@ -7,7 +7,7 @@ import datetime
 import typing
 from babel import dates, numbers
 
-from kupala.i18n.helpers import get_locale
+from kupala.i18n.locale import get_locale
 from kupala.i18n.timezone import get_timezone, to_user_timezone
 
 _DateTimeFormats = typing.Literal['short', 'medium', 'long', 'full']

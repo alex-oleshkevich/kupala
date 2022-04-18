@@ -2,7 +2,7 @@ import os
 import typing
 from babel.support import LazyProxy, NullTranslations, Translations
 
-from kupala.i18n.helpers import get_locale
+from kupala.i18n.locale import get_locale
 
 
 class Translator:

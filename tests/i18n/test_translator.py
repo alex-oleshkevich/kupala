@@ -1,6 +1,6 @@
 import pathlib
 
-from kupala.i18n.helpers import switch_locale
+from kupala.i18n import switch_locale
 from kupala.i18n.translator import Translator
 
 LOCALE_DIR = pathlib.Path(__file__).parent / 'locales'
