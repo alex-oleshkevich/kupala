@@ -315,7 +315,7 @@ HEADER_TEMPLATE = """
     <div>
         <b class="exception-class">{exception_class}</b> at {method} {path}
     </div>
-    <div class="exception text-red">{message}</div>
+    <pre class="exception text-red">{message}</pre>
 </header>
 """
 
