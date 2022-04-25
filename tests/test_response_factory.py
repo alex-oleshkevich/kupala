@@ -146,6 +146,19 @@ def test_json_indents(test_client_factory: TestClientFactory, routes: Routes) ->
     )
 
 
+def test_json_error(test_client_factory: TestClientFactory, routes: Routes) -> None:
+    def view(request: Request) -> Response:
+        return response(request).json_error(message='Error', errors={'field': ['error1', 'error2']}, code='errcode')
+
+    routes.add('/', view)
+    client = test_client_factory(routes=routes)
+    assert client.get('/').json() == {
+        'message': 'Error',
+        'errors': {'field': ['error1', 'error2']},
+        'code': 'errcode',
+    }
+
+
 def test_redirect(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(request: Request) -> Response:
         return response(request).redirect('/about')
