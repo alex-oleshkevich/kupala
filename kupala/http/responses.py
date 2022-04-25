@@ -12,9 +12,34 @@ from kupala import json
 from kupala.http.requests import Request
 from kupala.json import JSONEncoder
 
+_RT = typing.TypeVar('_RT', bound='Response')
+
 
 class Response(responses.Response):
-    pass
+    def set_cookie(
+        self: _RT,
+        key: str,
+        value: str = "",
+        max_age: int = None,
+        expires: int = None,
+        path: str = "/",
+        domain: str = None,
+        secure: bool = False,
+        httponly: bool = False,
+        samesite: str = "lax",
+    ) -> _RT:
+        super().set_cookie(
+            key=key,
+            value=value,
+            max_age=max_age,
+            expires=expires,
+            path=path,
+            domain=domain,
+            secure=secure,
+            httponly=httponly,
+            samesite=samesite,
+        )
+        return self
 
 
 class PlainTextResponse(Response, responses.PlainTextResponse):
