@@ -30,10 +30,10 @@ class JSONResponse(Response, responses.JSONResponse):
         self,
         content: typing.Any,
         status_code: int = 200,
-        headers: dict = None,
-        indent: int = None,
-        default: typing.Callable[[typing.Any], typing.Any] = None,
-        encoder_class: typing.Type[JSONEncoder] = None,
+        headers: dict | None = None,
+        indent: int = 4,
+        default: typing.Callable[[typing.Any], typing.Any] | None = None,
+        encoder_class: typing.Type[JSONEncoder] | None = None,
     ):
         self._indent = indent
         self._encoder_class = encoder_class
@@ -59,9 +59,9 @@ class FileResponse(Response, responses.FileResponse):
         self,
         path: str | os.PathLike[str],
         status_code: int = 200,
-        headers: dict = None,
-        media_type: str = None,
-        file_name: str = None,
+        headers: dict | None = None,
+        media_type: str | None = None,
+        file_name: str | None = None,
         inline: bool = False,
     ):
         headers = headers or {}
@@ -89,9 +89,9 @@ class StreamingResponse(Response, responses.StreamingResponse):
         self,
         content: typing.Any,
         status_code: int = 200,
-        headers: dict = None,
-        media_type: str = None,
-        file_name: str = None,
+        headers: dict | None = None,
+        media_type: str | None = None,
+        file_name: str | None = None,
         inline: bool = False,
     ):
         disposition = "inline" if inline else "attachment"
@@ -112,14 +112,14 @@ RT = typing.TypeVar('RT', bound='RedirectResponse')
 class RedirectResponse(Response, responses.RedirectResponse):
     def __init__(
         self,
-        url: str = None,
+        url: str | None = None,
         status_code: int = 302,
-        headers: dict = None,
+        headers: dict | None = None,
         *,
-        flash_message: str = None,
+        flash_message: str | None = None,
         flash_category: str = "info",
-        path_name: str = None,
-        path_params: dict = None,
+        path_name: str | None = None,
+        path_params: dict | None = None,
     ):
         self.status_code = status_code
         self.body = b''
@@ -161,7 +161,7 @@ class RedirectResponse(Response, responses.RedirectResponse):
 
 
 class EmptyResponse(Response):
-    def __init__(self, headers: dict = None) -> None:
+    def __init__(self, headers: dict | None = None) -> None:
         super().__init__(b'', status_code=204, headers=headers)
 
 
@@ -169,7 +169,7 @@ class GoBackResponse(RedirectResponse):
     def __init__(
         self,
         request: Request,
-        flash_message: str = None,
+        flash_message: str | None = None,
         flash_category: str = 'info',
         status_code: int = 302,
     ) -> None:
@@ -182,4 +182,27 @@ class GoBackResponse(RedirectResponse):
             status_code=status_code,
             flash_message=flash_message,
             flash_category=flash_category,
+        )
+
+
+class JSONErrorResponse(JSONResponse):
+    def __init__(
+        self,
+        message: str,
+        errors: dict[str, list[str]] | None = None,
+        code: str = '',
+        status_code: int = 200,
+        headers: dict | None = None,
+        indent: int = 4,
+        default: typing.Callable[[typing.Any], typing.Any] | None = None,
+        encoder_class: typing.Type[JSONEncoder] | None = None,
+    ) -> None:
+        errors = errors or {}
+        super().__init__(
+            {'message': message, 'errors': errors, 'code': code},
+            status_code=status_code,
+            headers=headers,
+            indent=indent,
+            default=default,
+            encoder_class=encoder_class,
         )

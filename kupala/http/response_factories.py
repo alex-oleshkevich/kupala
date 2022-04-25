@@ -10,6 +10,7 @@ from .responses import (
     FileResponse,
     GoBackResponse,
     HTMLResponse,
+    JSONErrorResponse,
     JSONResponse,
     PlainTextResponse,
     RedirectResponse,
@@ -18,7 +19,7 @@ from .responses import (
 
 
 class ResponseFactory:
-    def __init__(self, request: Request, status_code: int = 200, headers: dict = None) -> None:
+    def __init__(self, request: Request, status_code: int = 200, headers: dict | None = None) -> None:
         self.request = request
         self.status_code = status_code
         self.headers = headers
@@ -26,12 +27,32 @@ class ResponseFactory:
     def json(
         self,
         data: typing.Any,
-        default: typing.Callable[[typing.Any], typing.Any] = None,
-        indent: int = None,
-        encoder_class: typing.Type[JSONEncoder] = None,
+        default: typing.Callable[[typing.Any], typing.Any] | None = None,
+        indent: int = 4,
+        encoder_class: typing.Type[JSONEncoder] | None = None,
     ) -> JSONResponse:
         return JSONResponse(
             data,
+            status_code=self.status_code,
+            headers=self.headers,
+            default=default,
+            indent=indent,
+            encoder_class=encoder_class,
+        )
+
+    def json_error(
+        self,
+        message: str,
+        errors: dict[str, list[str]] | None = None,
+        code: str = '',
+        default: typing.Callable[[typing.Any], typing.Any] | None = None,
+        indent: int = 4,
+        encoder_class: typing.Type[JSONEncoder] | None = None,
+    ) -> JSONResponse:
+        return JSONErrorResponse(
+            message=message,
+            errors=errors,
+            code=code,
             status_code=self.status_code,
             headers=self.headers,
             default=default,
@@ -63,13 +84,13 @@ class ResponseFactory:
 
     def redirect(
         self,
-        url: str = None,
+        url: str | None = None,
         status_code: int = 302,
         *,
-        flash_message: str = None,
+        flash_message: str | None = None,
         flash_category: str = "info",
-        path_name: str = None,
-        path_params: dict = None,
+        path_name: str | None = None,
+        path_params: dict | None = None,
     ) -> RedirectResponse:
         return RedirectResponse(
             url=url,
@@ -84,7 +105,7 @@ class ResponseFactory:
     def back(
         self,
         status_code: int = 302,
-        flash_message: str = None,
+        flash_message: str | None = None,
         flash_category: str = "info",
     ) -> RedirectResponse:
         return GoBackResponse(
@@ -125,5 +146,5 @@ class ResponseFactory:
         )
 
 
-def response(request: Request, status_code: int = 200, headers: dict = None) -> ResponseFactory:
+def response(request: Request, status_code: int = 200, headers: dict | None = None) -> ResponseFactory:
     return ResponseFactory(request, status_code, headers)
