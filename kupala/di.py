@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import typing
 
 if typing.TYPE_CHECKING:  # pragma: nocover
@@ -107,3 +108,57 @@ def get_app_injection_factory(klass: typing.Type) -> typing.Callable[[typing.Any
     This factory can create new instances from app instance.
     """
     return getattr(klass, 'from_app', getattr(klass, _FACTORY_ATTR, None))
+
+
+_SERVICE = typing.TypeVar('_SERVICE')
+
+
+class ServiceFactory(typing.Generic[_SERVICE], typing.Protocol):
+    def __call__(self, registry: InjectionRegistry) -> _SERVICE:
+        ...
+
+
+class Binding:
+    def resolve(self, registry: InjectionRegistry) -> typing.Any:
+        raise NotImplementedError()
+
+
+class FactoryBinding(Binding):
+    def __init__(self, factory: ServiceFactory, cache: bool = False) -> None:
+        self._factory = factory
+        self._cache = cache
+        self._cached_instance = None
+        self._is_generator = inspect.isgeneratorfunction(factory)
+        self._is_async_generator = inspect.isasyncgenfunction(factory)
+
+    def resolve(self, registry: InjectionRegistry) -> typing.Any:
+        if self._cache:
+            if not self._cached_instance:
+                self._cached_instance = self._instantiate(registry)
+            return self._cached_instance
+
+        return self._instantiate(registry)
+
+    def _instantiate(self, registry: InjectionRegistry) -> typing.Any:
+        return self._factory(registry)
+
+
+class InstanceBinding(Binding):
+    def __init__(self, instance: typing.Any) -> None:
+        self.instance = instance
+
+    def resolve(self, registry: InjectionRegistry) -> typing.Any:
+        return self.instance
+
+
+class InjectionRegistry:
+    def __init__(self, bindings: typing.Mapping[typing.Any, Binding] | None = None) -> None:
+        self._bindings = dict(bindings or {})
+
+    @typing.overload
+    def resolve(self, service: typing.Type[_SERVICE]) -> _SERVICE:
+        ...
+
+    def resolve(self, service: typing.Any) -> typing.Any:
+        binding = self._bindings[service]
+        return binding.resolve(self)
