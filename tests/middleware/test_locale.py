@@ -148,7 +148,7 @@ def test_locale_middleware_fallback_language() -> None:
     alternate variant that may satisfy the client."""
     app = Kupala(
         routes=[Route('/', view)],
-        middleware=[Middleware(LocaleMiddleware, languages=['be_BY'], fallback='pl_PL')],
+        middleware=[Middleware(LocaleMiddleware, languages=['be_BY'], default_locale='pl_PL')],
     )
     client = TestClient(app)
     assert client.get('/?lang=ru_RU').json() == ['pl', 'PL']

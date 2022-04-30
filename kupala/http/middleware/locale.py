@@ -55,7 +55,7 @@ class LocaleMiddleware:
         self,
         app: ASGIApp,
         languages: list[str] = None,
-        fallback: str = 'en_US',
+        default_locale: str = 'en_US',
         query_param_name: str = "lang",
         cookie_name: str = "language",
         path_param: str = "_locale",
@@ -63,7 +63,7 @@ class LocaleMiddleware:
     ) -> None:
         self.app = app
         self.languages = {x.lower().replace('-', '_') for x in (languages or ["en"])}
-        self.fallback_language = fallback
+        self.default_locale = default_locale
         self.query_param_name = query_param_name
         self.cookie_name = cookie_name
         self.path_param = path_param
@@ -77,7 +77,7 @@ class LocaleMiddleware:
 
         locale = self.locale_detector(Request(scope, receive, send))
         if not locale:
-            locale = Locale.parse(self.fallback_language)
+            locale = Locale.parse(self.default_locale)
         set_locale(locale)
         scope["locale"] = locale
         scope['language'] = locale.language
@@ -85,7 +85,7 @@ class LocaleMiddleware:
         await self.app(scope, receive, send_wrapper)
 
     def detect_locale(self, request: Request) -> Locale:
-        lang = self.fallback_language
+        lang = self.default_locale
         if detected_lang := _get_language_from_query(request, self.query_param_name):
             lang = detected_lang
         elif detected_lang := _get_language_from_user(request):
@@ -95,7 +95,7 @@ class LocaleMiddleware:
         elif detected_lang := _get_language_from_header(request, self.languages):
             lang = detected_lang
 
-        variant = self.find_variant(lang) or self.fallback_language
+        variant = self.find_variant(lang) or self.default_locale
         return Locale.parse(variant)
 
     def find_variant(self, locale: str) -> str | None:
