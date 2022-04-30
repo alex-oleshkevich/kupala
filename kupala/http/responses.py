@@ -16,7 +16,7 @@ _RT = typing.TypeVar('_RT', bound='Response')
 
 
 class Response(responses.Response):
-    def set_cookie(
+    def set_cookie(  # type: ignore[override]
         self: _RT,
         key: str,
         value: str = "",

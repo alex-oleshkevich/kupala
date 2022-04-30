@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import abc
 import inspect
 import typing
 
@@ -110,15 +111,15 @@ def get_app_injection_factory(klass: typing.Type) -> typing.Callable[[typing.Any
     return getattr(klass, 'from_app', getattr(klass, _FACTORY_ATTR, None))
 
 
-_SERVICE = typing.TypeVar('_SERVICE')
+_SERVICE = typing.TypeVar('_SERVICE', covariant=True)
 
 
-class ServiceFactory(typing.Generic[_SERVICE], typing.Protocol):
+class ServiceFactory(typing.Protocol[_SERVICE]):
     def __call__(self, registry: InjectionRegistry) -> _SERVICE:
         ...
 
 
-class Binding:
+class Binding(abc.ABC):
     def resolve(self, registry: InjectionRegistry) -> typing.Any:
         raise NotImplementedError()
 
@@ -151,14 +152,40 @@ class InstanceBinding(Binding):
         return self.instance
 
 
+class InjectionPlan:
+    def __init__(
+        self, registry: InjectionRegistry, fn: typing.Callable, bindings: dict[typing.Hashable, Binding]
+    ) -> None:
+        self._registry = registry
+        self._injections = bindings
+        self._fn = fn
+
+
 class InjectionRegistry:
     def __init__(self, bindings: typing.Mapping[typing.Any, Binding] | None = None) -> None:
         self._bindings = dict(bindings or {})
+
+    def add_instance(self, key: typing.Hashable, instance: typing.Any) -> None:
+        self._bindings[key] = InstanceBinding(instance)
+
+    def add_factory(self, key: typing.Hashable, factory: ServiceFactory, cache: bool = False) -> None:
+        self._bindings[key] = FactoryBinding(factory, cache)
 
     @typing.overload
     def resolve(self, service: typing.Type[_SERVICE]) -> _SERVICE:
         ...
 
+    @typing.overload
+    def resolve(self, service: typing.Any) -> typing.Any:
+        ...
+
     def resolve(self, service: typing.Any) -> typing.Any:
         binding = self._bindings[service]
         return binding.resolve(self)
+
+    def create_injection_plan(self, fn: typing.Callable) -> InjectionPlan:
+        bindings: dict[typing.Hashable, Binding] = {}
+        args = typing.get_type_hints(fn)
+        for arg_name, arg_type in args.items():
+            bindings[arg_name] = self._bindings[arg_type]
+        return InjectionPlan(self, fn, bindings)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-import typing
 
 from kupala.application import App
 from kupala.di import InjectionError, injectable
@@ -10,27 +9,6 @@ from kupala.http.requests import Request
 from kupala.http.responses import PlainTextResponse
 from kupala.testclient import TestClient
 from tests.conftest import TestAppFactory
-
-
-def test_prefer_for_instance(test_app_factory: TestAppFactory) -> None:
-    class SomeProtocol(typing.Protocol):
-        ...
-
-    app = test_app_factory()
-    app.di.prefer_for(SomeProtocol, 'value')
-    assert app.di.make(SomeProtocol) == 'value'
-
-
-def test_prefer_for_factory(test_app_factory: TestAppFactory) -> None:
-    class SomeProtocol(typing.Protocol):
-        ...
-
-    class Implementation:
-        pass
-
-    app = test_app_factory()
-    app.di.prefer_for(SomeProtocol, lambda app: Implementation())
-    assert isinstance(app.di.make(SomeProtocol), Implementation)
 
 
 def test_to_injectable(test_app_factory: TestAppFactory) -> None:

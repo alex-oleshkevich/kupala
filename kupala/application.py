@@ -17,7 +17,7 @@ from kupala import json
 from kupala.cache import CacheManager
 from kupala.console.application import ConsoleApplication
 from kupala.contracts import TemplateRenderer
-from kupala.di import Injector
+from kupala.di import InjectionRegistry, Injector
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.http.asgi import ASGIHandler
 from kupala.http.context_processors import standard_processors
@@ -72,8 +72,8 @@ class App:
         commands: list[click.Command] | None = None,
         context_processors: list[ContextProcessor] | None = None,
         middleware: list[Middleware] | MiddlewareStack | None = None,
-        injectables: typing.Mapping[typing.Any, Binding] | None = None,
-        request_injectables: typing.Mapping[typing.Any, Binding] | None = None,
+        injection_registry: InjectionRegistry | None = None,
+        request_injection_registry: InjectionRegistry | None = None,
         lifespan_handlers: list[typing.Callable[[App], typing.AsyncContextManager[None]]] = None,
     ) -> None:
         self.secret_key = secret_key
@@ -84,8 +84,8 @@ class App:
         self.state.caches = CacheManager()
         self.state.renderer = renderer
 
-        self._injectables = InjectionRegistry(injectables)
-        self._request_injectables = InjectionRegistry(request_injectables)
+        self._injectables = injection_registry
+        self._request_injectables = request_injection_registry
 
         self._router = Router(routes)
         self._renderer = renderer
