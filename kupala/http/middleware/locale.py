@@ -54,12 +54,12 @@ class LocaleMiddleware:
     def __init__(
         self,
         app: ASGIApp,
-        languages: list[str] = None,
+        languages: list[str] | None = None,
         default_locale: str = 'en_US',
         query_param_name: str = "lang",
         cookie_name: str = "language",
         path_param: str = "_locale",
-        locale_detector: typing.Callable[[Request], typing.Optional[Locale]] = None,
+        locale_detector: typing.Callable[[Request], Locale | None] = None,
     ) -> None:
         self.app = app
         self.languages = {x.lower().replace('-', '_') for x in (languages or ["en"])}
