@@ -19,10 +19,7 @@ class InjectionNotFoundError(InjectionError):
     pass
 
 
-class InjectableFactory(typing.Protocol):
-    def __call__(self, registry: InjectionRegistry) -> typing.Any:
-        ...
-
+InjectableFactory = typing.Callable[['InjectionRegistry'], typing.Any]
 
 Scope = typing.Literal['global', 'request']
 
@@ -93,3 +90,19 @@ class InjectionRegistry:
             raise InjectionAlreadyRegisteredError(
                 f'Injection "{type_name.__class__.__name__}" has been already registered in scope "{scope}".'
             )
+
+    _PS = typing.ParamSpec('_PS')
+    _RT = typing.TypeVar('_RT')
+
+    def injectable(self, type_name: typing.Any) -> typing.Callable[[InjectableFactory], InjectableFactory]:
+        def wrapper(fn: InjectableFactory) -> InjectableFactory:
+            self.register(type_name, fn)
+            return fn
+
+        return wrapper
+
+    # def request_injectable(self, type_name: typing.Type[_T]):
+    #     def wrapper(fn: _T):
+    #         self.register_for_request(type_name, fn)
+    #
+    #     return wrapper

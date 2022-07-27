@@ -74,3 +74,13 @@ def test_registry_raises_for_missing_binding() -> None:
 def test_registry_safe_get_should_not_raise() -> None:
     registry = InjectionRegistry()
     assert registry.safe_get(InjectableOne) is None
+
+
+def test_injectable_decorator() -> None:
+    registry = InjectionRegistry()
+
+    @registry.injectable(InjectableOne)
+    def make(_: InjectionRegistry) -> InjectableOne:
+        return InjectableOne()
+
+    assert registry.get(InjectableOne) is not None
