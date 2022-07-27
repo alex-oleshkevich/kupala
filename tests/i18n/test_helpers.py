@@ -1,12 +1,13 @@
 from babel.core import Locale
 
-from kupala.application import Kupala
-from kupala.http.middleware import LocaleMiddleware
+from kupala.http import Route, Routes
+from kupala.http.middleware import LocaleMiddleware, Middleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
 from kupala.i18n import get_locale, set_locale, switch_locale
 from kupala.i18n.language import get_language, remember_current_language
 from kupala.testclient import TestClient
+from tests.conftest import TestAppFactory
 
 
 def test_set_get_locale() -> None:
@@ -31,15 +32,18 @@ def test_get_language() -> None:
     assert get_language() == 'be'
 
 
-def test_remember_language() -> None:
+def test_remember_language(test_app_factory: TestAppFactory) -> None:
     def view(request: Request) -> JSONResponse:
         response = JSONResponse(request.language)
         return remember_current_language(request, response)
 
     set_locale('be')
-    app = Kupala()
-    app.routes.add('/', view)
-    app.middleware.use(LocaleMiddleware, languages=['be', 'pl', 'en'])
+    app = test_app_factory(
+        routes=Routes([Route('/', view)]),
+        middleware=[
+            Middleware(LocaleMiddleware, languages=['be', 'pl', 'en']),
+        ],
+    )
 
     client = TestClient(app)
     response = client.get('/')

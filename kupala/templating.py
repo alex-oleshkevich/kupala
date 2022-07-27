@@ -2,6 +2,7 @@ import jinja2
 import typing
 from starlette.types import Receive, Scope, Send
 
+from kupala.contracts import TemplateRenderer
 from kupala.http.requests import Request
 from kupala.http.responses import Response
 from kupala.utils import run_async
@@ -11,7 +12,7 @@ class RenderError(Exception):
     """Base class for all renderer classes."""
 
 
-class JinjaRenderer:
+class JinjaRenderer(TemplateRenderer):
     def __init__(self, env: jinja2.Environment) -> None:
         self._env = env
 

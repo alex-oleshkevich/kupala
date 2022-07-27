@@ -196,16 +196,16 @@ async def test_exists(backend_factory: typing.Callable[[], typing.Awaitable[Cach
 @pytest.mark.asyncio
 async def test_dummy_cache() -> None:
     backend = DummyCache()
-    assert await backend.get('key') is None
+    assert await backend.get('key') is None  # type: ignore[func-returns-value]
     assert await backend.get_many(['key']) == {}
-    assert await backend.set('key', b'value', 10) is None
-    assert await backend.set_many({}, 10) is None
-    assert await backend.delete('key') is None
-    assert await backend.delete_many(['key']) is None
-    assert await backend.clear() is None
-    assert await backend.increment('counter', 1) is None
-    assert await backend.decrement('counter', 1) is None
-    assert await backend.touch('key', 10) is None
+    assert await backend.set('key', b'value', 10) is None  # type: ignore[func-returns-value]
+    assert await backend.set_many({}, 10) is None  # type: ignore[func-returns-value]
+    assert await backend.delete('key') is None  # type: ignore[func-returns-value]
+    assert await backend.delete_many(['key']) is None  # type: ignore[func-returns-value]
+    assert await backend.clear() is None  # type: ignore[func-returns-value]
+    assert await backend.increment('counter', 1) is None  # type: ignore[func-returns-value]
+    assert await backend.decrement('counter', 1) is None  # type: ignore[func-returns-value]
+    assert await backend.touch('key', 10) is None  # type: ignore[func-returns-value]
     assert await backend.exists('key') is False
 
 

@@ -31,8 +31,8 @@ class QueryParams(requests.QueryParams):
         return items
 
     def get_int(self, key: str, default: int = None) -> typing.Optional[int]:
-        value: str = self.get(key, None)
-        return int(value) if value is not None and value.isnumeric() else default
+        value: str = self.get(key, '')
+        return int(value) if value != '' and value.isnumeric() else default
 
 
 class FormData(requests.FormData):
@@ -74,7 +74,9 @@ class FilesData:
         self._files = files
 
     def get(self, key: str, default: typing.Any = None) -> UploadFile | None:
-        return self._files.get(key, default)
+        value = self._files.get(key, default)
+        assert isinstance(value, UploadFile)
+        return value
 
     def getlist(self, key: str) -> list[UploadFile]:
         return typing.cast(list[UploadFile], self._files.getlist(key))

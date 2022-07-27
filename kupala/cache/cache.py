@@ -9,7 +9,6 @@ from datetime import timedelta
 from kupala.cache.backends import CacheBackend, DummyCache, FileCache, InMemoryCache
 from kupala.cache.compressors import CacheCompressor, NullCompressor
 from kupala.cache.serializers import CacheSerializer, JSONSerializer
-from kupala.di import injectable
 
 
 def _timedelta_to_seconds(delta: timedelta | int) -> int:
@@ -37,7 +36,6 @@ def backend_from_url(url: str) -> CacheBackend:
         raise KeyError(f'Unknown backend: {scheme}://')
 
 
-@injectable(from_app_factory=lambda app: app.caches.default)
 class Cache:
     backend: CacheBackend
 
@@ -138,7 +136,6 @@ class Cache:
         return [self._make_key(key) for key in keys]
 
 
-@injectable(from_app_factory=lambda app: app.state.caches)
 class CacheManager:
     def __init__(self, caches: dict[str, Cache] | None = None, default: str = 'default') -> None:
         self._default_cache_name = default

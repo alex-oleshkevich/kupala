@@ -55,8 +55,14 @@ class ErrorHandlers:
 
 
 class ExceptionMiddleware:
-    def __init__(self, app: ASGIApp, handlers: dict[int | typing.Type[Exception], ErrorHandler]) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        handlers: dict[int | typing.Type[Exception], ErrorHandler],
+        debug: bool = False,
+    ) -> None:
         self.app = app
+        self.debug = debug
         self.handlers = ErrorHandlers(handlers)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -75,6 +81,9 @@ class ExceptionMiddleware:
         try:
             await self.app(scope, receive, sender)
         except Exception as exc:
+            if self.debug:
+                raise
+
             handler = self.handlers.get_for_exception(exc)
             if handler is None:
                 raise exc

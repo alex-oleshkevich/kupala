@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from kupala.contracts import TemplateRenderer
 from kupala.http.requests import Request
 from kupala.http.responses import PlainTextResponse
 from kupala.http.routing import Routes
@@ -23,21 +22,6 @@ def test_staticfiles(test_app_factory: TestAppFactory, tmpdir: Path, routes: Rou
 
     # test asset url generation
     assert app.static_url('main.css') == '/static/main.css'
-
-
-def test_staticfiles_installs_jinja_callback(
-    test_app_factory: TestAppFactory,
-    jinja_renderer: TemplateRenderer,
-    jinja_template_path: Path,
-    routes: Routes,
-) -> None:
-    with open(jinja_template_path / 'index.html', 'w') as f:
-        f.write('{{ static("main.css") }}')
-
-    routes.static('/static', jinja_template_path)
-    app = test_app_factory(renderer=jinja_renderer, routes=routes)
-
-    assert app.render('index.html') == '/static/main.css'
 
 
 def test_request_generates_static_url(test_app_factory: TestAppFactory, tmpdir: Path, routes: Routes) -> None:

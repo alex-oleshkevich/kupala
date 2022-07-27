@@ -4,8 +4,7 @@ import pytest
 import typing
 from unittest import mock
 
-from kupala.application import App
-from kupala.di import InjectionError
+from kupala.di import InjectionError, InjectionRegistry
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
 from kupala.http.routing import Routes
@@ -13,30 +12,30 @@ from tests.conftest import TestClientFactory
 
 
 class _RequestInjectable:
-    @classmethod
-    def from_request(cls, request: Request) -> _RequestInjectable:
-        return cls()
+    pass
+
+
+def make_request_injectable(registry: InjectionRegistry) -> typing.Callable[[Request], _RequestInjectable]:
+    def factory(request: Request) -> _RequestInjectable:
+        return _RequestInjectable()
+
+    return factory
 
 
 class _AsyncRequestInjectable:
-    @classmethod
-    async def from_request(cls, request: Request) -> _AsyncRequestInjectable:
-        return cls()
+    pass
 
 
-class _AppInjectable:
-    @classmethod
-    def from_app(cls, app: App) -> _AppInjectable:
-        return cls()
+def make_async_request_injectable(
+    registry: InjectionRegistry,
+) -> typing.Callable[[Request], typing.Awaitable[_AsyncRequestInjectable]]:
+    async def factory(request: Request) -> _AsyncRequestInjectable:
+        return _AsyncRequestInjectable()
+
+    return factory
 
 
-class _AsyncAppInjectable:
-    @classmethod
-    async def from_app(cls, app: App) -> _AsyncAppInjectable:
-        return cls()
-
-
-class _InjectableContextManager:
+class _RequestInjectableContextManager:
     def __init__(self) -> None:
         self.enter_spy = mock.MagicMock()
         self.exit_spy = mock.MagicMock()
@@ -47,14 +46,19 @@ class _InjectableContextManager:
     def __exit__(self, *args: typing.Any) -> None:
         self.exit_spy()
 
-    @classmethod
-    def from_request(cls, request: Request) -> typing.Generator[_InjectableContextManager, None, None]:
-        instance = cls()
+
+def make_request_injectable_context_manager(
+    registry: InjectionRegistry,
+) -> typing.Callable[[Request], typing.Generator[_RequestInjectableContextManager, None, None]]:
+    def factory(request: Request) -> typing.Generator[_RequestInjectableContextManager, None, None]:
+        instance = _RequestInjectableContextManager()
         with instance:
             yield instance
 
+    return factory
 
-class _InjectableAsyncContextManager:
+
+class _RequestInjectableAsyncContextManager:
     def __init__(self) -> None:
         self.enter_spy = mock.MagicMock()
         self.exit_spy = mock.MagicMock()
@@ -65,11 +69,32 @@ class _InjectableAsyncContextManager:
     async def __aexit__(self, *args: typing.Any) -> None:
         self.exit_spy()
 
-    @classmethod
-    async def from_request(cls, request: Request) -> typing.AsyncGenerator[_InjectableAsyncContextManager, None]:
-        instance = cls()
+
+def make_request_injectable_async_context_manager(
+    registry: InjectionRegistry,
+) -> typing.Callable[[Request], typing.AsyncGenerator[_RequestInjectableAsyncContextManager, None]]:
+    async def factory(request: Request) -> typing.AsyncGenerator[_RequestInjectableAsyncContextManager, None]:
+        instance = _RequestInjectableAsyncContextManager()
         async with instance:
             yield instance
+
+    return factory
+
+
+class _AppInjectable:
+    pass
+
+
+def make_app_injectable(registry: InjectionRegistry) -> _AppInjectable:
+    return _AppInjectable()
+
+
+class _AsyncAppInjectable:
+    pass
+
+
+def make_async_app_injectable(registry: InjectionRegistry) -> _AsyncAppInjectable:
+    return _AsyncAppInjectable()
 
 
 def test_injects_from_request(test_client_factory: TestClientFactory, routes: Routes) -> None:
@@ -78,6 +103,7 @@ def test_injects_from_request(test_client_factory: TestClientFactory, routes: Ro
 
     routes.add('/', view)
     client = test_client_factory(routes=routes)
+    client.app.request_dependencies.register(_RequestInjectable, make_request_injectable)
 
     response = client.get("/")
     assert response.json() == '_RequestInjectable'
@@ -89,42 +115,48 @@ def test_injects_from_request_async(test_client_factory: TestClientFactory, rout
 
     routes.add('/', view)
     client = test_client_factory(routes=routes)
+    client.app.request_dependencies.register(_AsyncRequestInjectable, make_async_request_injectable)
 
     response = client.get("/")
     assert response.json() == '_AsyncRequestInjectable'
 
 
 def test_injectable_generators(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    instance: _InjectableContextManager | None = None
+    instance: _RequestInjectableContextManager | None = None
 
-    def view(injectable: _InjectableContextManager) -> JSONResponse:
+    def view(injectable: _RequestInjectableContextManager) -> JSONResponse:
         nonlocal instance
         instance = injectable
         return JSONResponse(injectable.__class__.__name__)
 
     routes.add('/', view)
     client = test_client_factory(routes=routes)
+    client.app.request_dependencies.register(_RequestInjectableContextManager, make_request_injectable_context_manager)
 
     response = client.get("/")
-    assert response.json() == '_InjectableContextManager'
+    assert response.json() == '_RequestInjectableContextManager'
     assert instance
     instance.enter_spy.assert_called_once()
     instance.exit_spy.assert_called_once()
 
 
 def test_injectable_async_generators(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    instance: _InjectableAsyncContextManager | None = None
+    instance: _RequestInjectableAsyncContextManager | None = None
 
-    def view(injectable: _InjectableAsyncContextManager) -> JSONResponse:
+    def view(injectable: _RequestInjectableAsyncContextManager) -> JSONResponse:
         nonlocal instance
         instance = injectable
         return JSONResponse(injectable.__class__.__name__)
 
     routes.add('/', view)
     client = test_client_factory(routes=routes)
+    client.app.request_dependencies.register(
+        _RequestInjectableAsyncContextManager,
+        make_request_injectable_async_context_manager,
+    )
 
     response = client.get("/")
-    assert response.json() == '_InjectableAsyncContextManager'
+    assert response.json() == '_RequestInjectableAsyncContextManager'
     assert instance
     instance.enter_spy.assert_called_once()
     instance.exit_spy.assert_called_once()
@@ -136,6 +168,7 @@ def test_injects_from_app(test_client_factory: TestClientFactory, routes: Routes
 
     routes.add('/', view)
     client = test_client_factory(routes=routes)
+    client.app.dependencies.register(_AppInjectable, make_app_injectable)
 
     response = client.get("/")
     assert response.json() == '_AppInjectable'
@@ -147,6 +180,7 @@ def test_injects_from_app_async(test_client_factory: TestClientFactory, routes: 
 
     routes.add('/', view)
     client = test_client_factory(routes=routes)
+    client.app.dependencies.register(_AsyncAppInjectable, make_async_app_injectable)
 
     response = client.get("/")
     assert response.json() == '_AsyncAppInjectable'

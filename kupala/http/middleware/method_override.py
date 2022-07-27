@@ -1,3 +1,4 @@
+import typing
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.http import Request
@@ -16,7 +17,7 @@ class MethodOverrideMiddleware:
         if scope['method'] == 'POST':
             request = Request(scope, receive)
             form_data = await request.form()
-            override = form_data.get(BODY_PARAM, '')
+            override = typing.cast(str, form_data.get(BODY_PARAM, ''))
             if override:
                 scope['original_method'] = scope['method']
                 scope['method'] = override.upper()

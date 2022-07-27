@@ -3,6 +3,7 @@ import typing
 from datetime import timedelta
 
 from kupala.application import get_current_application
+from kupala.cache import CacheManager
 
 _PS = typing.ParamSpec('_PS')
 _RT = typing.TypeVar('_RT', bound=typing.Awaitable)
@@ -27,7 +28,7 @@ class cached:
         @functools.wraps(fn)
         async def wrapper(*args: _PS.args, **kwargs: _PS.kwargs) -> _RT:
             app = get_current_application()
-            cache = app.caches.get(self.name)
+            cache = app.dependencies.get(CacheManager).get(self.name)
 
             async def _call_fn() -> _RT:
                 return await fn(*args, **kwargs)

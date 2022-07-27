@@ -34,7 +34,7 @@ def test_format_datetime(
     bel_tz: typing.Generator[None, None, None], bel_locale: typing.Generator[None, None, None]
 ) -> None:
     assert format_datetime(christmas, 'short', False) == '25.12.22, 12:30'
-    assert format_datetime(christmas, 'medium', False) == '25.12.2022, 12:30:59'
+    assert format_datetime(christmas, 'medium', False) == '25 сне 2022 г., 12:30:59'
     assert format_datetime(christmas, 'long', False) == '25 снежня 2022 г. у 12:30:59 UTC'
     assert (
         format_datetime(christmas, 'full', False)
@@ -46,7 +46,7 @@ def test_format_datetime_rebases_timezone(
     bel_tz: typing.Generator[None, None, None], bel_locale: typing.Generator[None, None, None]
 ) -> None:
     assert format_datetime(christmas, 'short', True) == '25.12.22, 15:30'
-    assert format_datetime(christmas, 'medium', True) == '25.12.2022, 15:30:59'
+    assert format_datetime(christmas, 'medium', True) == '25 сне 2022 г., 15:30:59'
     assert format_datetime(christmas, 'long', True) == '25 снежня 2022 г. у 15:30:59 +0300'
     assert format_datetime(christmas, 'full', True) == 'нядзеля, 25 снежня 2022 г. у 15:30:59, Маскоўскі стандартны час'
 
@@ -55,7 +55,7 @@ def test_format_date(
     bel_tz: typing.Generator[None, None, None], bel_locale: typing.Generator[None, None, None]
 ) -> None:
     assert format_date(christmas, 'short') == '25.12.22'
-    assert format_date(christmas, 'medium') == '25.12.2022'
+    assert format_date(christmas, 'medium') == '25 сне 2022 г.'
     assert format_date(christmas, 'long') == '25 снежня 2022 г.'
     assert format_date(christmas, 'full') == 'нядзеля, 25 снежня 2022 г.'
 
@@ -108,16 +108,17 @@ def test_format_interval(
     assert format_interval(datetime.time(8, 15), datetime.time(9, 0), rebase=True) == '08:15:00 – 09:00:00'
 
     assert (
-        format_interval(datetime.date(2022, 1, 1), datetime.date(2022, 2, 1), rebase=False) == '1.01.2022 – 1.02.2022'
+        format_interval(datetime.date(2022, 1, 1), datetime.date(2022, 2, 1), rebase=False)
+        == '1 сту 2022 г. – 1 лют 2022 г.'
     )
     assert (
         format_interval(datetime.datetime(2022, 1, 1, 0, 0, 0), datetime.datetime(2022, 2, 1, 0, 0, 0), rebase=False)
-        == '1.01.2022, 00:00:00 – 1.02.2022, 00:00:00'
+        == '1 сту 2022 г., 00:00:00 – 1 лют 2022 г., 00:00:00'
     )
 
     assert (
         format_interval(datetime.datetime(2022, 1, 1, 0, 0, 0), datetime.datetime(2022, 2, 1, 0, 0, 0), rebase=True)
-        == '1.01.2022, 03:00:00 – 1.02.2022, 03:00:00'
+        == '1 сту 2022 г., 03:00:00 – 1 лют 2022 г., 03:00:00'
     )
 
 

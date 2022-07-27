@@ -6,21 +6,13 @@ import functools
 import inspect
 import typing
 
-from kupala.di import get_app_injection_factory
-
 if typing.TYPE_CHECKING:
     from kupala.application import App
 
 
 def create_dispatcher(app: App, fn: typing.Callable) -> typing.Callable:
-    fn_kwargs = typing.get_type_hints(fn)
-
     @functools.wraps(fn)
     def dispatcher(**kwargs: typing.Any) -> typing.Any:
-        for name, class_name in fn_kwargs.items():
-            if injection_factory := get_app_injection_factory(class_name):
-                kwargs[name] = injection_factory(app)
-
         if inspect.iscoroutinefunction(fn):
 
             async def async_dispatcher() -> typing.Any:

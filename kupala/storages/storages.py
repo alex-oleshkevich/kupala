@@ -6,10 +6,7 @@ import typing
 from deesk.drivers.fs import LocalFsDriver
 from deesk.storage import Storage as BaseStorage
 
-from kupala.di import injectable
 
-
-@injectable(from_app_factory=lambda app: app.state.storages.default)
 class Storage(BaseStorage):  # pragma: nocover
     def url(self, path: str | os.PathLike) -> str:
         raise NotImplementedError()
@@ -47,7 +44,6 @@ class S3Storage(Storage):
         return ''
 
 
-@injectable(from_app_factory=lambda app: app.state.storages)
 class StorageManager:
     def __init__(self, storages: dict[str, Storage] | None = None, default_storage: str | None = None) -> None:
         self._default_storage_name = default_storage or ''

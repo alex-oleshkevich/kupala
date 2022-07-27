@@ -1,111 +1,59 @@
-from __future__ import annotations
-
 import pytest
-import typing
 
-from kupala.application import App
-from kupala.di import InjectionError, injectable
-from kupala.http import Routes
-from kupala.http.requests import Request
-from kupala.http.responses import PlainTextResponse
-from kupala.testclient import TestClient
-from tests.conftest import TestAppFactory
+from kupala.di import InjectionAlreadyRegisteredError, InjectionNotFoundError, InjectionRegistry
 
 
-def test_prefer_for_instance(test_app_factory: TestAppFactory) -> None:
-    class SomeProtocol(typing.Protocol):
-        ...
-
-    app = test_app_factory()
-    app.di.prefer_for(SomeProtocol, 'value')
-    assert app.di.make(SomeProtocol) == 'value'
-
-
-def test_prefer_for_factory(test_app_factory: TestAppFactory) -> None:
-    class SomeProtocol(typing.Protocol):
-        ...
-
-    class Implementation:
-        pass
-
-    app = test_app_factory()
-    app.di.prefer_for(SomeProtocol, lambda app: Implementation())
-    assert isinstance(app.di.make(SomeProtocol), Implementation)
-
-
-def test_to_injectable(test_app_factory: TestAppFactory) -> None:
-    class WannaBeInjectable:
-        pass
-
-    def factory(app: App) -> WannaBeInjectable:
-        return WannaBeInjectable()
-
-    app = test_app_factory()
-    app.di.make_injectable(WannaBeInjectable, from_app_factory=factory)
-    assert isinstance(app.di.make(WannaBeInjectable), WannaBeInjectable)
-
-
-def test_make_raises_for_missing_service(test_app_factory: TestAppFactory) -> None:
-    class WannaBeInjectable:
-        pass
-
-    with pytest.raises(InjectionError):
-        test_app_factory().di.make(WannaBeInjectable)
-
-
-class WannaBeInjectable:
+class InjectableOne:
     pass
 
 
-def test_to_request_injectable(test_app_factory: TestAppFactory, routes: Routes) -> None:
-    if getattr(WannaBeInjectable, 'from_request', None):  # pragma: nocover
-        # fixme: a hack to remove "from_request" attribute from module-level class WannaBeInjectable if present
-        WannaBeInjectable.from_request = None  # type: ignore
-
-    def view(injection: WannaBeInjectable) -> PlainTextResponse:
-        return PlainTextResponse(injection.__class__.__name__)
-
-    routes.add('/', view)
-    app = test_app_factory(routes=routes)
-    app.di.make_injectable(WannaBeInjectable, from_request_factory=lambda r: WannaBeInjectable())
-    client = TestClient(app)
-    assert client.get('/').text == 'WannaBeInjectable'
-
-
-# APP INJECTABLE DECORATOR
-
-
-def _via_injectable_factory(app: App) -> ViaInjectableDecorator:
-    return ViaInjectableDecorator()
-
-
-@injectable(from_app_factory=_via_injectable_factory)
-class ViaInjectableDecorator:
+class CachedInjectable:
     pass
 
 
-def test_injectable_decorator(test_app_factory: TestAppFactory) -> None:
-    app = test_app_factory()
-    assert isinstance(app.di.make(ViaInjectableDecorator), ViaInjectableDecorator)
+def make_injectable_one(registry: InjectionRegistry) -> InjectableOne:
+    return InjectableOne()
 
 
-# REQUEST INJECTABLE DECORATOR
+def make_cached_injectable(registry: InjectionRegistry) -> CachedInjectable:
+    return CachedInjectable()
 
 
-def _via_request_injectable_factory(request: Request) -> ViaRequestInjectableDecorator:
-    return ViaRequestInjectableDecorator()
+@pytest.fixture
+def registry() -> InjectionRegistry:
+    registry = InjectionRegistry()
+    registry.register(InjectableOne, make_injectable_one)
+    registry.register(CachedInjectable, make_cached_injectable, cached=True)
+
+    return registry
 
 
-@injectable(from_request_factory=_via_request_injectable_factory)
-class ViaRequestInjectableDecorator:
-    pass
+def test_registry_resolves_dependency(registry: InjectionRegistry) -> None:
+    instance = registry.get(InjectableOne)
+    instance2 = registry.get(InjectableOne)
+    assert isinstance(instance, InjectableOne)
+    assert instance != instance2
 
 
-def test_request_injectable_decorator(test_app_factory: TestAppFactory, routes: Routes) -> None:
-    def view(injection: ViaRequestInjectableDecorator) -> PlainTextResponse:
-        return PlainTextResponse(injection.__class__.__name__)
+def test_registry_resolves_cached_dependency(registry: InjectionRegistry) -> None:
+    instance = registry.get(CachedInjectable)
+    instance2 = registry.get(CachedInjectable)
+    assert instance == instance2
 
-    routes.add('/', view)
-    app = test_app_factory(routes=routes)
-    client = TestClient(app)
-    assert client.get('/').text == 'ViaRequestInjectableDecorator'
+
+def test_registry_raises_for_duplicate_binding() -> None:
+    with pytest.raises(InjectionAlreadyRegisteredError):
+        registry = InjectionRegistry()
+        registry.register(InjectableOne, make_injectable_one)
+        registry.register(InjectableOne, make_injectable_one)
+
+
+def test_registry_raises_for_missing_binding() -> None:
+    with pytest.raises(InjectionNotFoundError):
+        registry = InjectionRegistry()
+        registry.get(InjectableOne)
+
+
+def test_registry_safe_get_should_not_raise() -> None:
+    registry = InjectionRegistry()
+    assert registry.safe_get(InjectableOne) is None

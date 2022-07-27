@@ -115,10 +115,10 @@ class CSRFMiddleware:
     async def get_csrf_token(self, request: Request) -> str:
         from_headers = request.headers.get(CSRF_HEADER)
         from_query = request.query_params.get(CSRF_QUERY_PARAM)
-        from_form_data = None
+        from_form_data = ''
         if request.is_submitted:
             form_data = await request.form()
-            from_form_data = form_data.get(CSRF_POST_FIELD)
+            from_form_data = typing.cast(str, form_data.get(CSRF_POST_FIELD))
         return from_query or from_form_data or from_headers
 
     def should_check_token(self, request: Request) -> bool:

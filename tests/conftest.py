@@ -7,6 +7,7 @@ from starlette.types import ASGIApp
 
 from kupala.application import App
 from kupala.contracts import TemplateRenderer
+from kupala.di import InjectionRegistry
 from kupala.http import Routes
 from kupala.http.middleware import Middleware
 from kupala.storages.storages import LocalStorage, Storage
@@ -42,17 +43,17 @@ class TestClientFactory(typing.Protocol):  # pragma: nocover
 @pytest.fixture
 def test_app_factory() -> TestAppFactory:
     def factory(*args: typing.Any, **kwargs: typing.Any) -> App:
+        renderer = kwargs.pop('renderer', FormatRenderer())
         kwargs.setdefault('debug', True)
         kwargs.setdefault('app_class', App)
         kwargs.setdefault('routes', Routes())
         kwargs.setdefault('secret_key', 't0pSekRet!')
+        kwargs.setdefault('dependencies', InjectionRegistry())
+        kwargs.setdefault('request_dependencies', InjectionRegistry())
         app_class = kwargs.pop('app_class')
         app = app_class(*args, **kwargs)
 
-        if renderer := kwargs.get('renderer'):
-            if isinstance(renderer, JinjaRenderer):
-                renderer._env.globals['static'] = app.static_url
-
+        app.dependencies.bind(TemplateRenderer, renderer)
         return app
 
     return factory
@@ -61,10 +62,10 @@ def test_app_factory() -> TestAppFactory:
 @pytest.fixture
 def test_client_factory(test_app_factory: TestAppFactory) -> TestClientFactory:
     def factory(**kwargs: typing.Any) -> TestClient:
+        raise_server_exceptions = kwargs.pop('raise_server_exceptions', True)
+
         kwargs.setdefault('app', test_app_factory(**kwargs))
-        kwargs.setdefault('raise_server_exceptions', True)
         app = kwargs['app']
-        raise_server_exceptions = kwargs['raise_server_exceptions']
         return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
     return typing.cast(TestClientFactory, factory)

@@ -6,7 +6,7 @@ from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextma
 from starlette.concurrency import run_in_threadpool
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.di import InjectionError, get_request_injection_factory
+from kupala.di import InjectionError
 from kupala.http import guards as route_guards
 from kupala.http.exceptions import PermissionDenied
 from kupala.http.requests import Request
@@ -98,7 +98,9 @@ async def resolve_injections(
             injections[arg_name] = request.path_params[arg_name]
             continue
 
-        if callback := get_request_injection_factory(arg_type):
+        # handle request injectable arguments
+        if arg_type in request.app.request_dependencies:
+            callback = request.app.request_dependencies.get(arg_type)
             if inspect.isgeneratorfunction(callback):
                 injections[arg_name] = sync_stack.enter_context(contextmanager(callback)(request))
                 continue
@@ -107,14 +109,14 @@ async def resolve_injections(
                 injections[arg_name] = await async_stack.enter_async_context(asynccontextmanager(callback)(request))
                 continue
 
+            # not a generator?
             injections[arg_name] = await run_async(callback, request)
             continue
 
+        # all other endpoint arguments are must be considered as injections
         try:
-            injection = request.app.di.make(arg_type)
-            if inspect.iscoroutine(injection):
-                injection = await injection
-            injections[arg_name] = injection
+            injection = request.app.dependencies.get(arg_type)
+            injections[arg_name] = await injection if inspect.iscoroutine(injection) else injection
         except InjectionError as ex:
             if arg_name in signature.parameters and signature.parameters[arg_name].default != signature.empty:
                 injections[arg_name] = signature.parameters[arg_name].default
