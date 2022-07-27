@@ -19,31 +19,6 @@ from kupala.http.middleware.exception import ErrorHandler, ExceptionMiddleware
 from kupala.http.protocols import ContextProcessor
 from kupala.http.routing import Router, Routes
 
-# def _setup_default_jinja_env(
-#     app: Kupala,
-#     template_dirs: str | os.PathLike | list[str | os.PathLike],
-# ) -> jinja2.Environment:
-#     template_dirs = [template_dirs] if isinstance(template_dirs, (str, os.PathLike)) else template_dirs
-#     loader = jinja2.ChoiceLoader(
-#         [
-#             jinja2.PackageLoader('kupala'),
-#             jinja2.FileSystemLoader(template_dirs),
-#         ]
-#     )
-#     env = jinja2.Environment(loader=loader, extensions=['jinja2.ext.debug'])
-#     env.globals.update(
-#         {
-#             'static': app.static_url,
-#         }
-#     )
-#     env.policies.update(
-#         {
-#             'json.dumps_function': json.dumps,
-#             'json.dumps_kwargs': {"ensure_ascii": False, "sort_keys": True},
-#         }
-#     )
-#     return env
-
 
 class App:
     state: State

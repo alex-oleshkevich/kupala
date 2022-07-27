@@ -19,7 +19,7 @@ class InjectionNotFoundError(InjectionError):
     pass
 
 
-InjectableFactory = typing.Callable[['InjectionRegistry'], typing.Any]
+InjectableFactory = typing.Callable
 
 Scope = typing.Literal['global', 'request']
 
@@ -34,10 +34,19 @@ class Injectable:
     def resolve(self, registry: InjectionRegistry) -> typing.Any:
         if self.cached:
             if not self.instance:
-                self.instance = self.factory(registry)
+                self.instance = self._do_resolve(registry)
             return self.instance
 
-        return self.factory(registry)
+        return self._do_resolve(registry)
+
+    def _do_resolve(self, registry: InjectionRegistry) -> typing.Any:
+        args = typing.get_type_hints(self.factory)
+        injections = {}
+        for arg_name, arg_type in args.items():
+            if arg_name == 'return':
+                continue
+            injections[arg_name] = registry.get(arg_type)
+        return self.factory(**injections)
 
 
 class InjectionRegistry:
@@ -46,6 +55,7 @@ class InjectionRegistry:
             'global': {},
             'request': {},
         }
+        self._scopes['global'][self.__class__] = Injectable(factory=lambda x: None, cached=True, instance=self)
 
     def bind(self, type_name: typing.Type[_T], instance: _T, scope: Scope = 'global') -> None:
         self._ensure_not_exists(type_name, scope)

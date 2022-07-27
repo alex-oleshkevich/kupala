@@ -84,3 +84,35 @@ def test_injectable_decorator() -> None:
         return InjectableOne()
 
     assert registry.get(InjectableOne) is not None
+
+
+class MultiDep:
+    def __init__(self, dep1: InjectableOne, dep2: CachedInjectable) -> None:
+        self.dep1 = dep1
+        self.dep2 = dep2
+
+
+def test_registry_resolve_injects_factory_dependencies() -> None:
+    def make(dep1: InjectableOne, dep2: CachedInjectable) -> MultiDep:
+        return MultiDep(dep1, dep2)
+
+    registry = InjectionRegistry()
+    registry.register(InjectableOne, make_injectable_one, cached=True)
+    registry.register(CachedInjectable, make_cached_injectable, cached=True)
+    registry.register(MultiDep, make, cached=True)
+
+    instance = registry.get(MultiDep)
+    assert instance is not None
+    assert instance.dep1 == registry.get(InjectableOne)
+    assert instance.dep2 == registry.get(CachedInjectable)
+
+
+def test_registry_resolve_injects_factory_without_dependencies() -> None:
+    def make() -> InjectableOne:
+        return InjectableOne()
+
+    registry = InjectionRegistry()
+    registry.register(InjectableOne, make, cached=True)
+
+    instance = registry.get(InjectableOne)
+    assert instance is not None
