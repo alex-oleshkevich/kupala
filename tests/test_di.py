@@ -11,6 +11,10 @@ class CachedInjectable:
     pass
 
 
+class ScopedInjectable:
+    pass
+
+
 def make_injectable_one(registry: InjectionRegistry) -> InjectableOne:
     return InjectableOne()
 
@@ -19,11 +23,16 @@ def make_cached_injectable(registry: InjectionRegistry) -> CachedInjectable:
     return CachedInjectable()
 
 
+def make_scoped_injectable(registry: InjectionRegistry) -> ScopedInjectable:
+    return ScopedInjectable()
+
+
 @pytest.fixture
 def registry() -> InjectionRegistry:
     registry = InjectionRegistry()
     registry.register(InjectableOne, make_injectable_one)
     registry.register(CachedInjectable, make_cached_injectable, cached=True)
+    registry.register_for_request(ScopedInjectable, make_scoped_injectable)
 
     return registry
 
@@ -39,6 +48,14 @@ def test_registry_resolves_cached_dependency(registry: InjectionRegistry) -> Non
     instance = registry.get(CachedInjectable)
     instance2 = registry.get(CachedInjectable)
     assert instance == instance2
+
+
+def test_registry_resolves_scoped_dependency(registry: InjectionRegistry) -> None:
+    instance = registry.get(ScopedInjectable, scope='request')
+    assert instance is not None
+
+    with pytest.raises(InjectionNotFoundError):
+        registry.get(ScopedInjectable)  # attempt to get from global scope
 
 
 def test_registry_raises_for_duplicate_binding() -> None:

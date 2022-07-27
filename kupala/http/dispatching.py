@@ -122,7 +122,7 @@ async def resolve_injections(
                 injections[arg_name] = signature.parameters[arg_name].default
             else:
                 raise InjectionError(
-                    f'Injection "{arg_name}" cannot be processed in {callable_name(endpoint)}.'
+                    f'Injection "{arg_name}" cannot be processed in {callable_name(endpoint)}. ' f'Error: {ex}.'
                 ) from ex
         else:
             continue

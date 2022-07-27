@@ -44,15 +44,15 @@ class Injectable:
 
 
 class InjectionRegistry:
-    def __init__(self, injectables: dict[typing.Type[typing.Any], Injectable] | None = None) -> None:
-        self._injectables: dict[typing.Any, Injectable] = injectables or {}
+    def __init__(self) -> None:
+        self._scopes: dict[str, dict[typing.Any, Injectable]] = {
+            'global': {},
+            'request': {},
+        }
 
-    def bind(self, type_name: typing.Type[_T], instance: _T) -> None:
-        if type_name in self._injectables:
-            raise InjectionAlreadyRegisteredError(
-                f'Injection "{type_name.__class__.__name__}" has been already registered.'
-            )
-        self._injectables[type_name] = Injectable(factory=lambda x: None, cached=True, instance=instance)
+    def bind(self, type_name: typing.Type[_T], instance: _T, scope: Scope = 'global') -> None:
+        self._ensure_not_exists(type_name, scope)
+        self._scopes[scope][type_name] = Injectable(factory=lambda x: None, cached=True, instance=instance)
 
     def register(
         self,
@@ -61,11 +61,8 @@ class InjectionRegistry:
         cached: bool = False,
         scope: Scope = 'global',
     ) -> None:
-        if type_name in self._injectables:
-            raise InjectionAlreadyRegisteredError(
-                f'Injection "{type_name.__class__.__name__}" has been already registered.'
-            )
-        self._injectables[type_name] = Injectable(factory=factory, cached=cached, scope=scope)
+        self._ensure_not_exists(type_name, scope)
+        self._scopes[scope][type_name] = Injectable(factory=factory, cached=cached)
 
     def register_for_request(
         self,
@@ -76,23 +73,23 @@ class InjectionRegistry:
         self.register(type_name, factory, cached, scope='request')
 
     def get(self, type_name: typing.Type[_T], scope: Scope = 'global') -> _T:
-        if type_name not in self._injectables:
-            raise InjectionNotFoundError(f'Dependency "{type_name.__class__.__name__}" is not registered.')
+        if type_name not in self._scopes[scope]:
+            raise InjectionNotFoundError(f'Dependency "{type_name.__name__}" is not registered in scope "{scope}".')
 
-        injectable = self._injectables[type_name]
-        if injectable.scope != scope:
-            raise InjectionError(
-                f'Dependency "{type_name.__class__.__name__}" is not registered for scope "global". '
-                f'It is in "{injectable.scope}" scope.'
-            )
-        return self._injectables[type_name].resolve(self)
+        injectable = self._scopes[scope][type_name]
+        return injectable.resolve(self)
 
-    def safe_get(self, type_name: typing.Type[_T]) -> _T | None:
+    def safe_get(self, type_name: typing.Type[_T], scope: Scope = 'global') -> _T | None:
         try:
-            return self.get(type_name)
+            return self.get(type_name, scope)
         except InjectionNotFoundError:
             return None
 
     def has(self, type_name: typing.Type[_T], scope: Scope = 'global') -> bool:
-        injectable = self._injectables.get(type_name)
-        return injectable is not None and injectable.scope == scope
+        return type_name in self._scopes[scope]
+
+    def _ensure_not_exists(self, type_name: typing.Any, scope: Scope) -> None:
+        if type_name in self._scopes[scope]:
+            raise InjectionAlreadyRegisteredError(
+                f'Injection "{type_name.__class__.__name__}" has been already registered in scope "{scope}".'
+            )
