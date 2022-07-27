@@ -103,7 +103,7 @@ def test_injects_from_request(test_client_factory: TestClientFactory, routes: Ro
 
     routes.add('/', view)
     client = test_client_factory(routes=routes)
-    client.app.request_dependencies.register(_RequestInjectable, make_request_injectable)
+    client.app.dependencies.register_for_request(_RequestInjectable, make_request_injectable)
 
     response = client.get("/")
     assert response.json() == '_RequestInjectable'
@@ -115,7 +115,7 @@ def test_injects_from_request_async(test_client_factory: TestClientFactory, rout
 
     routes.add('/', view)
     client = test_client_factory(routes=routes)
-    client.app.request_dependencies.register(_AsyncRequestInjectable, make_async_request_injectable)
+    client.app.dependencies.register_for_request(_AsyncRequestInjectable, make_async_request_injectable)
 
     response = client.get("/")
     assert response.json() == '_AsyncRequestInjectable'
@@ -131,7 +131,9 @@ def test_injectable_generators(test_client_factory: TestClientFactory, routes: R
 
     routes.add('/', view)
     client = test_client_factory(routes=routes)
-    client.app.request_dependencies.register(_RequestInjectableContextManager, make_request_injectable_context_manager)
+    client.app.dependencies.register_for_request(
+        _RequestInjectableContextManager, make_request_injectable_context_manager
+    )
 
     response = client.get("/")
     assert response.json() == '_RequestInjectableContextManager'
@@ -150,7 +152,7 @@ def test_injectable_async_generators(test_client_factory: TestClientFactory, rou
 
     routes.add('/', view)
     client = test_client_factory(routes=routes)
-    client.app.request_dependencies.register(
+    client.app.dependencies.register_for_request(
         _RequestInjectableAsyncContextManager,
         make_request_injectable_async_context_manager,
     )

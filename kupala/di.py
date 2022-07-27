@@ -24,11 +24,15 @@ class InjectableFactory(typing.Protocol):
         ...
 
 
+Scope = typing.Literal['global', 'request']
+
+
 @dataclasses.dataclass
 class Injectable:
     factory: InjectableFactory
     cached: bool = False
     instance: typing.Any = None
+    scope: Scope = 'global'
 
     def resolve(self, registry: InjectionRegistry) -> typing.Any:
         if self.cached:
@@ -50,16 +54,37 @@ class InjectionRegistry:
             )
         self._injectables[type_name] = Injectable(factory=lambda x: None, cached=True, instance=instance)
 
-    def register(self, type_name: typing.Type[_T], factory: InjectableFactory, cached: bool = False) -> None:
+    def register(
+        self,
+        type_name: typing.Type[_T],
+        factory: InjectableFactory,
+        cached: bool = False,
+        scope: Scope = 'global',
+    ) -> None:
         if type_name in self._injectables:
             raise InjectionAlreadyRegisteredError(
                 f'Injection "{type_name.__class__.__name__}" has been already registered.'
             )
-        self._injectables[type_name] = Injectable(factory=factory, cached=cached)
+        self._injectables[type_name] = Injectable(factory=factory, cached=cached, scope=scope)
 
-    def get(self, type_name: typing.Type[_T]) -> _T:
+    def register_for_request(
+        self,
+        type_name: typing.Type[_T],
+        factory: InjectableFactory,
+        cached: bool = False,
+    ) -> None:
+        self.register(type_name, factory, cached, scope='request')
+
+    def get(self, type_name: typing.Type[_T], scope: Scope = 'global') -> _T:
         if type_name not in self._injectables:
-            raise InjectionNotFoundError(f'Injection "{type_name.__class__.__name__}" is not registered.')
+            raise InjectionNotFoundError(f'Dependency "{type_name.__class__.__name__}" is not registered.')
+
+        injectable = self._injectables[type_name]
+        if injectable.scope != scope:
+            raise InjectionError(
+                f'Dependency "{type_name.__class__.__name__}" is not registered for scope "global". '
+                f'It is in "{injectable.scope}" scope.'
+            )
         return self._injectables[type_name].resolve(self)
 
     def safe_get(self, type_name: typing.Type[_T]) -> _T | None:
@@ -68,5 +93,6 @@ class InjectionRegistry:
         except InjectionNotFoundError:
             return None
 
-    def __contains__(self, type_name: typing.Type[_T]) -> bool:
-        return type_name in self._injectables
+    def has(self, type_name: typing.Type[_T], scope: Scope = 'global') -> bool:
+        injectable = self._injectables.get(type_name)
+        return injectable is not None and injectable.scope == scope

@@ -49,7 +49,6 @@ def test_app_factory() -> TestAppFactory:
         kwargs.setdefault('routes', Routes())
         kwargs.setdefault('secret_key', 't0pSekRet!')
         kwargs.setdefault('dependencies', InjectionRegistry())
-        kwargs.setdefault('request_dependencies', InjectionRegistry())
         app_class = kwargs.pop('app_class')
         app = app_class(*args, **kwargs)
 

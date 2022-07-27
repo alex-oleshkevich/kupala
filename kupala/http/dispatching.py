@@ -99,8 +99,8 @@ async def resolve_injections(
             continue
 
         # handle request injectable arguments
-        if arg_type in request.app.request_dependencies:
-            callback = request.app.request_dependencies.get(arg_type)
+        if request.app.dependencies.has(arg_type, 'request'):
+            callback = request.app.dependencies.get(arg_type, 'request')
             if inspect.isgeneratorfunction(callback):
                 injections[arg_name] = sync_stack.enter_context(contextmanager(callback)(request))
                 continue

@@ -54,7 +54,6 @@ class App:
         secret_key: str,
         routes: Routes,
         dependencies: InjectionRegistry,
-        request_dependencies: InjectionRegistry,
         debug: bool = False,
         commands: list[click.Command] | None = None,
         context_processors: list[ContextProcessor] | None = None,
@@ -75,7 +74,6 @@ class App:
         self.context_processors = context_processors or []
         self.context_processors.append(standard_processors)
         self.dependencies = dependencies
-        self.request_dependencies = request_dependencies
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         started = False
