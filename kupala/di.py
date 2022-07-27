@@ -94,15 +94,13 @@ class InjectionRegistry:
     _PS = typing.ParamSpec('_PS')
     _RT = typing.TypeVar('_RT')
 
-    def injectable(self, type_name: typing.Any) -> typing.Callable[[InjectableFactory], InjectableFactory]:
+    def injectable(
+        self,
+        type_name: typing.Any,
+        scope: Scope = 'global',
+    ) -> typing.Callable[[InjectableFactory], InjectableFactory]:
         def wrapper(fn: InjectableFactory) -> InjectableFactory:
-            self.register(type_name, fn)
+            self.register(type_name, fn, scope=scope)
             return fn
 
         return wrapper
-
-    # def request_injectable(self, type_name: typing.Type[_T]):
-    #     def wrapper(fn: _T):
-    #         self.register_for_request(type_name, fn)
-    #
-    #     return wrapper
