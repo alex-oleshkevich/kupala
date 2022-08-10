@@ -5,6 +5,7 @@ import contextvars as cv
 import traceback
 import typing
 from contextlib import AsyncExitStack
+from starception import StarceptionMiddleware
 from starlette.datastructures import State
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -14,7 +15,6 @@ from kupala.di import InjectionRegistry
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.http.context_processors import standard_processors
 from kupala.http.middleware import Middleware, MiddlewareStack
-from kupala.http.middleware.errors import ServerErrorMiddleware
 from kupala.http.middleware.exception import ErrorHandler, ExceptionMiddleware
 from kupala.http.protocols import ContextProcessor
 from kupala.http.routing import Router, Routes
@@ -28,7 +28,7 @@ class App:
         *,
         secret_key: str,
         routes: Routes,
-        dependencies: InjectionRegistry,
+        dependencies: InjectionRegistry | None = None,
         debug: bool = False,
         commands: list[click.Command] | None = None,
         context_processors: list[ContextProcessor] | None = None,
@@ -48,7 +48,9 @@ class App:
         self._asgi_handler = self._build_middleware()
         self.context_processors = context_processors or []
         self.context_processors.append(standard_processors)
-        self.dependencies = dependencies
+        self.dependencies = dependencies or InjectionRegistry()
+
+        self.dependencies.bind(self.__class__, self)
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         started = False
@@ -95,7 +97,7 @@ class App:
 
     def _build_middleware(self) -> ASGIApp:
         self._middleware.top(ExceptionMiddleware, handlers=self._error_handlers, debug=self.debug)
-        self._middleware.top(ServerErrorMiddleware, debug=self.debug)
+        self._middleware.top(StarceptionMiddleware)
 
         app: ASGIApp = self._router
         for mw in reversed(self._middleware):
