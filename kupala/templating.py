@@ -29,17 +29,22 @@ class TemplateResponse(Response):
         media_type: str = 'text/html',
         headers: dict = None,
     ) -> None:
+        self.body = b''
+        self.status_code = status_code
         self.template_name = template_name
         self.context = dict(context or {})
-
-        super().__init__(b'', status_code, headers, media_type)
+        self.background = None
+        self._passed_headers = headers
+        if media_type is not None:
+            self.media_type = media_type
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         context = self.context
         request = Request(scope, receive, send)
         for processor in request.app.context_processors:
             context.update(await run_async(processor, request))
-        content = request.app.render(self.template_name, context)
+        self.body = request.app.render(self.template_name, context).encode('utf-8')
+        self.init_headers(self._passed_headers)
 
         extensions = request.get("extensions", {})
         if "http.response.template" in extensions:
@@ -50,14 +55,4 @@ class TemplateResponse(Response):
                     "context": context,
                 }
             )
-        await send(
-            {
-                "type": "http.response.start",
-                "status": self.status_code,
-                "headers": self.raw_headers,
-            }
-        )
-        await send({"type": "http.response.body", "body": content.encode()})
-
-        if self.background is not None:
-            await self.background()
+        await super().__call__(scope, receive, send)

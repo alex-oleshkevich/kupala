@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "kupala"
 description = "A modern web framework for Python."
-version = "0.15.1"
+version = "0.15.2"
 authors = ["Alex Oleshkevich <alex.oleshkevich@gmail.com>"]
 license = "MIT"
 readme = "README.md"
@@ -39,7 +39,7 @@ pydantic = "^1.9"
 aioboto3 = { version = "^9.4", optional = true }
 aioredis = { version = "^2.0", optional = true }
 msgpack = { version = "^1.0", optional = true }
-starception = "^0.3.1"
+starception = "^0.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1"
