@@ -8,4 +8,4 @@ def view(request: Request) -> JSONResponse:
 
 
 def configure(routes: Routes) -> None:
-    routes.add('/callback-included', view)
+    routes.add("/callback-included", view)

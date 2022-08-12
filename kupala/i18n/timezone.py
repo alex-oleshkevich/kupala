@@ -44,3 +44,9 @@ def to_utc(dt: datetime.datetime) -> datetime.datetime:
     if dt.tzinfo is None:
         dt = get_timezone().localize(dt)
     return dt.astimezone(UTC).replace(tzinfo=None)
+
+
+def now() -> datetime.datetime:
+    """Get current time in user timezone."""
+    _now = datetime.datetime.utcnow()
+    return to_user_timezone(_now)

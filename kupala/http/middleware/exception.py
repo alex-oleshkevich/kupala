@@ -9,26 +9,26 @@ from kupala.http.exceptions import HTTPException
 from kupala.http.requests import Request
 from kupala.http.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
-E = typing.TypeVar('E', bound=Exception)
+E = typing.TypeVar("E", bound=Exception)
 ErrorHandler = typing.Callable[[Request, E], typing.Any]
-_renderer = jinja2.Environment(loader=jinja2.PackageLoader(__name__.split('.')[0]))
+_renderer = jinja2.Environment(loader=jinja2.PackageLoader(__name__.split(".")[0]))
 
 
 async def default_http_error_handler(request: Request, exc: HTTPException) -> Response:
     if request.wants_json:
-        message = getattr(exc, 'message', getattr(exc, 'detail'))
-        data = {'message': message, 'errors': getattr(exc, 'errors', {})}
+        message = getattr(exc, "message", getattr(exc, "detail"))
+        data = {"message": message, "errors": getattr(exc, "errors", {})}
         if request.app.debug:
-            exception_type = f'{exc.__class__.__module__}.{exc.__class__.__qualname__}'
-            data['exception_type'] = exception_type
-            data['exception'] = repr(exc)
+            exception_type = f"{exc.__class__.__module__}.{exc.__class__.__qualname__}"
+            data["exception_type"] = exception_type
+            data["exception"] = repr(exc)
         return JSONResponse(data, status_code=exc.status_code)
     elif request.app.debug:
         if exc.status_code in {204, 304}:
             return Response(b"", status_code=exc.status_code)
         return PlainTextResponse(exc.detail, status_code=exc.status_code)
     else:
-        content = _renderer.get_template('errors/http_error.html').render({'request': request, 'exc': exc})
+        content = _renderer.get_template("errors/http_error.html").render({"request": request, "exc": exc})
         return HTMLResponse(content, status_code=exc.status_code)
 
 
@@ -66,7 +66,7 @@ class ExceptionMiddleware:
         self.handlers = ErrorHandlers(handlers)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope['type'] != 'http':
+        if scope["type"] != "http":
             return await self.app(scope, receive, send)
 
         response_started = False

@@ -24,10 +24,10 @@ class User(BaseUser):
         pass
 
     def get_scopes(self) -> list[str]:
-        return ['users.edit']
+        return ["users.edit"]
 
 
-provider = InMemoryProvider({'1': User()})
+provider = InMemoryProvider({"1": User()})
 
 
 def sync_guard(request: Request) -> bool:
@@ -47,7 +47,7 @@ def test_sync_guards(test_client_factory: TestClientFactory, routes: Routes) -> 
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
 
     with pytest.raises(PermissionDenied):
@@ -59,7 +59,7 @@ def test_async_guards(test_client_factory: TestClientFactory, routes: Routes) ->
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
 
     with pytest.raises(PermissionDenied):
@@ -71,7 +71,7 @@ def test_exception_guards(test_client_factory: TestClientFactory, routes: Routes
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
 
     with pytest.raises(PageNotFound):
@@ -83,7 +83,7 @@ def test_is_authenticated_guard_allows(test_client_factory: TestClientFactory, r
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(
         routes=routes,
         middleware=[
@@ -91,7 +91,7 @@ def test_is_authenticated_guard_allows(test_client_factory: TestClientFactory, r
         ],
     )
 
-    response = client.get("/", headers={'Authorization': 'Bearer 1'})
+    response = client.get("/", headers={"Authorization": "Bearer 1"})
     assert response.status_code == 200
 
 
@@ -100,7 +100,7 @@ def test_is_authenticated_guard_denies(test_client_factory: TestClientFactory, r
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(
         routes=routes,
         middleware=[
@@ -113,27 +113,27 @@ def test_is_authenticated_guard_denies(test_client_factory: TestClientFactory, r
 
 
 def test_has_permission_guard_allows(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(guards=[has_permission('users.edit')])
+    @route(guards=[has_permission("users.edit")])
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(
         routes=routes,
         middleware=[
             Middleware(AuthenticationMiddleware, authenticators=[BearerAuthenticator(user_provider=provider)]),
         ],
     )
-    response = client.get("/", headers={'Authorization': 'Bearer 1'})
+    response = client.get("/", headers={"Authorization": "Bearer 1"})
     assert response.status_code == 200
 
 
 def test_has_permission_guard_denies(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(guards=[has_permission('users.edit')])
+    @route(guards=[has_permission("users.edit")])
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(
         routes=routes,
         middleware=[

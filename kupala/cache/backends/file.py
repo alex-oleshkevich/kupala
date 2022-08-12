@@ -14,7 +14,7 @@ from kupala.cache.backends import CacheBackend
 
 
 class FileCache(CacheBackend):
-    file_extension: str = '.cache'
+    file_extension: str = ".cache"
 
     def __init__(self, directory: str | os.PathLike) -> None:
         self.directory = str(directory)
@@ -23,10 +23,10 @@ class FileCache(CacheBackend):
         path = self._make_path(key)
         if await run_in_threadpool(os.path.exists, path):
             try:
-                async with await anyio.open_file(path, 'rb') as f:
+                async with await anyio.open_file(path, "rb") as f:
                     contents = pickle.loads(await f.read())
-                    if time.time() < contents.get('expires', 0):
-                        return contents['data']
+                    if time.time() < contents.get("expires", 0):
+                        return contents["data"]
                     else:
                         await self.delete(key)
             except FileNotFoundError:  # pragma: no cover
@@ -48,10 +48,10 @@ class FileCache(CacheBackend):
         await self._mkdir()
         dest_file = self._make_path(key)
         _, tmp_file = await run_in_threadpool(tempfile.mkstemp, dir=self.directory)  # type: ignore[call-arg]
-        async with await anyio.open_file(tmp_file, 'wb') as f:
+        async with await anyio.open_file(tmp_file, "wb") as f:
             moved = False
             try:
-                await f.write(pickle.dumps({'data': value, 'expires': time.time() + ttl}))
+                await f.write(pickle.dumps({"data": value, "expires": time.time() + ttl}))
                 await run_in_threadpool(os.rename, tmp_file, dest_file)
                 moved = True
             finally:
@@ -82,11 +82,11 @@ class FileCache(CacheBackend):
             await run_in_threadpool(os.remove, file_path)
 
     async def increment(self, key: str, step: int) -> None:
-        counter = int(await self.get(key) or b'0') + 1
+        counter = int(await self.get(key) or b"0") + 1
         await self.set(key, str(counter).encode(), 999_999_999)
 
     async def decrement(self, key: str, step: int) -> None:
-        counter = int(await self.get(key) or b'0') - 1
+        counter = int(await self.get(key) or b"0") - 1
         await self.set(key, str(counter).encode(), 999_999_999)
 
     async def touch(self, key: str, delta: int) -> None:
@@ -101,7 +101,7 @@ class FileCache(CacheBackend):
         return os.path.join(self.directory, self._key_to_file(key))
 
     def _key_to_file(self, key: str) -> str:
-        return os.path.join(self.directory, ''.join([hashlib.md5(key.encode()).hexdigest(), self.file_extension]))
+        return os.path.join(self.directory, "".join([hashlib.md5(key.encode()).hexdigest(), self.file_extension]))
 
     async def _mkdir(self) -> None:
         old_umask = os.umask(0o077)

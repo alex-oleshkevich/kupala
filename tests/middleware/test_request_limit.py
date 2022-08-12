@@ -18,51 +18,51 @@ async def test_request_limit_middleware_limits(test_app_factory: TestAppFactory)
 
     async def view(request: Request) -> PlainTextResponse:
         await request.form()
-        return PlainTextResponse('')
+        return PlainTextResponse("")
 
     app = test_app_factory(
-        routes=Routes([Route('/', view, methods=['post'])]),
+        routes=Routes([Route("/", view, methods=["post"])]),
         middleware=[
             Middleware(RequestLimitMiddleware, max_body_size=5),
         ],
     )
 
     client = TestClient(app)
-    assert client.post('/', data={'content': ''}).status_code == 413  # 8 bytes, message + "=" sign
+    assert client.post("/", data={"content": ""}).status_code == 413  # 8 bytes, message + "=" sign
 
 
 @pytest.mark.asyncio
 async def test_request_limit_middleware_allows(test_app_factory: TestAppFactory) -> None:
     async def view(request: Request) -> PlainTextResponse:
         await request.form()
-        return PlainTextResponse('')
+        return PlainTextResponse("")
 
     app = test_app_factory(
-        routes=Routes([Route('/', view, methods=['post'])]),
+        routes=Routes([Route("/", view, methods=["post"])]),
         middleware=[
             Middleware(RequestLimitMiddleware, max_body_size=10),
         ],
     )
 
     client = TestClient(app)
-    assert client.post('/', data={'content': ''}).status_code == 200  # 8 bytes, message + "=" sign
+    assert client.post("/", data={"content": ""}).status_code == 200  # 8 bytes, message + "=" sign
 
 
 @pytest.mark.asyncio
 async def test_disabled_request_limit_middleware(test_app_factory: TestAppFactory) -> None:
     async def view(request: Request) -> PlainTextResponse:
         await request.form()
-        return PlainTextResponse('')
+        return PlainTextResponse("")
 
     app = test_app_factory(
-        routes=Routes([Route('/', view, methods=['post'])]),
+        routes=Routes([Route("/", view, methods=["post"])]),
         middleware=[
             Middleware(RequestLimitMiddleware, max_body_size=None),
         ],
     )
 
     client = TestClient(app)
-    assert client.post('/', data={'content': ''}).status_code == 200  # 8 bytes, message + "=" sign
+    assert client.post("/", data={"content": ""}).status_code == 200  # 8 bytes, message + "=" sign
 
 
 @pytest.mark.asyncio
@@ -75,5 +75,5 @@ async def test_request_limit_middleware_ignores_websockets() -> None:
     app = RequestLimitMiddleware(app, max_body_size=1)
 
     client = TestClient(app)
-    with client.websocket_connect('/') as session:
-        session.send_text('content')
+    with client.websocket_connect("/") as session:
+        session.send_text("content")

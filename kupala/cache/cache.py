@@ -18,22 +18,22 @@ def _timedelta_to_seconds(delta: timedelta | int) -> int:
 
 
 _BACKENDS: dict[str, typing.Type[CacheBackend]] = {
-    'memory': InMemoryCache,
-    'dummy': DummyCache,
-    'file': FileCache,
+    "memory": InMemoryCache,
+    "dummy": DummyCache,
+    "file": FileCache,
 }
 
 
 def backend_from_url(url: str) -> CacheBackend:
     scheme = urllib.parse.urlparse(url).scheme
-    if scheme == 'redis':
+    if scheme == "redis":
         from .backends.redis import RedisCache
 
         return RedisCache.from_url(url)
     try:
         return _BACKENDS[scheme].from_url(url)
     except KeyError:
-        raise KeyError(f'Unknown backend: {scheme}://')
+        raise KeyError(f"Unknown backend: {scheme}://")
 
 
 class Cache:
@@ -44,7 +44,7 @@ class Cache:
         url: str | None = None,
         *,
         backend: CacheBackend | None = None,
-        prefix: str = '',
+        prefix: str = "",
         serializer: CacheSerializer | None = None,  # todo: support literals
         compressor: CacheCompressor | None = None,  # todo: support literals
     ) -> None:
@@ -137,7 +137,7 @@ class Cache:
 
 
 class CacheManager:
-    def __init__(self, caches: dict[str, Cache] | None = None, default: str = 'default') -> None:
+    def __init__(self, caches: dict[str, Cache] | None = None, default: str = "default") -> None:
         self._default_cache_name = default
         self._caches = caches or {}
 
@@ -149,7 +149,7 @@ class CacheManager:
         assert name in self._caches, f'Cache "{name}" is not configured.'
         return self._caches[name]
 
-    def use(self, url: str, name: str = 'default') -> CacheManager:
+    def use(self, url: str, name: str = "default") -> CacheManager:
         self.add(name, Cache(url))
         return self
 
@@ -158,14 +158,14 @@ class CacheManager:
         self._caches[name] = cache
         return self
 
-    def add_in_memory(self, name: str, prefix: str = '') -> CacheManager:
-        return self.add(name, Cache('memory://', prefix=prefix))
+    def add_in_memory(self, name: str, prefix: str = "") -> CacheManager:
+        return self.add(name, Cache("memory://", prefix=prefix))
 
-    def add_redis(self, name: str, redis_dsn: str, prefix: str = '') -> CacheManager:
+    def add_redis(self, name: str, redis_dsn: str, prefix: str = "") -> CacheManager:
         return self.add(name, Cache(url=redis_dsn, prefix=prefix))
 
-    def add_dummy(self, name: str, prefix: str = '') -> CacheManager:
-        return self.add(name, Cache(url='dummy://', prefix=prefix))
+    def add_dummy(self, name: str, prefix: str = "") -> CacheManager:
+        return self.add(name, Cache(url="dummy://", prefix=prefix))
 
-    def add_file(self, name: str, directory: str | os.PathLike, prefix: str = '') -> CacheManager:
+    def add_file(self, name: str, directory: str | os.PathLike, prefix: str = "") -> CacheManager:
         return self.add(name, Cache(backend=FileCache(directory), prefix=prefix))

@@ -15,7 +15,7 @@ class RedisCache(CacheBackend):
         url: str | None = None,
         *,
         redis: aioredis.Redis | None = None,
-        key_prefix: str = '',
+        key_prefix: str = "",
         **redis_kwargs: typing.Any,
     ) -> None:
         assert url or redis, 'Either "url" or "redis" argument must be passed.'
@@ -79,5 +79,5 @@ class RedisCache(CacheBackend):
     @classmethod
     def from_url(cls: typing.Type[RedisCache], url: str) -> RedisCache:
         components = urllib.parse.urlparse(url)
-        key_prefix = urllib.parse.parse_qs(components.query).get('key_prefix', [''])[0]
+        key_prefix = urllib.parse.parse_qs(components.query).get("key_prefix", [""])[0]
         return RedisCache(url, key_prefix=key_prefix)

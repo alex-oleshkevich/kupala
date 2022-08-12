@@ -80,7 +80,7 @@ class FileResponse(Response, responses.FileResponse):
         try:
             await super().__call__(scope, receive, send)
         except (FileNotFoundError, RuntimeError):
-            response = Response('Not Found', status_code=404)
+            response = Response("Not Found", status_code=404)
             await response(scope, receive, send)
 
 
@@ -106,7 +106,7 @@ class StreamingResponse(Response, responses.StreamingResponse):
         )
 
 
-RT = typing.TypeVar('RT', bound='RedirectResponse')
+RT = typing.TypeVar("RT", bound="RedirectResponse")
 
 
 class RedirectResponse(Response, responses.RedirectResponse):
@@ -122,7 +122,7 @@ class RedirectResponse(Response, responses.RedirectResponse):
         path_params: dict | None = None,
     ):
         self.status_code = status_code
-        self.body = b''
+        self.body = b""
         self.background: BackgroundTask | None = None
         self.init_headers(headers)
 
@@ -134,24 +134,24 @@ class RedirectResponse(Response, responses.RedirectResponse):
 
         assert url or path_name, 'Either "url" or "path_name" argument must be passed.'
 
-    def flash(self: RT, message: str, category: str = 'success') -> RT:
+    def flash(self: RT, message: str, category: str = "success") -> RT:
         """Set a flash message to the response."""
         self._flash_message = message
         self._flash_message_category = category
         return self
 
     def with_error(self: RT, message: str) -> RT:
-        return self.flash(message, category='error')
+        return self.flash(message, category="error")
 
     def with_success(self: RT, message: str) -> RT:
-        return self.flash(message, category='success')
+        return self.flash(message, category="success")
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if self._flash_message and 'flash_messages' in scope:
-            scope['flash_messages'].add(self._flash_message, self._flash_message_category)
+        if self._flash_message and "flash_messages" in scope:
+            scope["flash_messages"].add(self._flash_message, self._flash_message_category)
 
         if self._path_name:
-            url = scope['request'].url_for(self._path_name, **(self._path_params or {}))
+            url = scope["request"].url_for(self._path_name, **(self._path_params or {}))
         else:
             url = self._url
 
@@ -162,7 +162,7 @@ class RedirectResponse(Response, responses.RedirectResponse):
 
 class EmptyResponse(Response):
     def __init__(self, headers: dict | None = None) -> None:
-        super().__init__(b'', status_code=204, headers=headers)
+        super().__init__(b"", status_code=204, headers=headers)
 
 
 class GoBackResponse(RedirectResponse):
@@ -170,13 +170,13 @@ class GoBackResponse(RedirectResponse):
         self,
         request: Request,
         flash_message: str | None = None,
-        flash_category: str = 'info',
+        flash_category: str = "info",
         status_code: int = 302,
     ) -> None:
-        redirect_to = request.headers.get('referer', '/')
+        redirect_to = request.headers.get("referer", "/")
         current_origin = request.url.netloc
         if current_origin not in redirect_to:
-            redirect_to = '/'
+            redirect_to = "/"
         super().__init__(
             redirect_to,
             status_code=status_code,
@@ -190,7 +190,7 @@ class JSONErrorResponse(JSONResponse):
         self,
         message: str,
         errors: dict[str, list[str]] | None = None,
-        code: str = '',
+        code: str = "",
         status_code: int = 200,
         headers: dict | None = None,
         indent: int = 4,
@@ -199,7 +199,7 @@ class JSONErrorResponse(JSONResponse):
     ) -> None:
         errors = errors or {}
         super().__init__(
-            {'message': message, 'errors': errors, 'code': code},
+            {"message": message, "errors": errors, "code": code},
             status_code=status_code,
             headers=headers,
             indent=indent,

@@ -26,10 +26,10 @@ class TemplateResponse(Response):
         template_name: str,
         context: typing.Mapping[str, typing.Any] = None,
         status_code: int = 200,
-        media_type: str = 'text/html',
+        media_type: str = "text/html",
         headers: dict = None,
     ) -> None:
-        self.body = b''
+        self.body = b""
         self.status_code = status_code
         self.template_name = template_name
         self.context = dict(context or {})
@@ -43,7 +43,7 @@ class TemplateResponse(Response):
         request = Request(scope, receive, send)
         for processor in request.app.context_processors:
             context.update(await run_async(processor, request))
-        self.body = request.app.render(self.template_name, context).encode('utf-8')
+        self.body = request.app.render(self.template_name, context).encode("utf-8")
         self.init_headers(self._passed_headers)
 
         extensions = request.get("extensions", {})

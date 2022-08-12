@@ -69,10 +69,10 @@ def test_iter_pages() -> None:
 def test_page_repr() -> None:
     rows = [1, 2]
     page = Page(rows, total_rows=2, page=1, page_size=2)
-    assert repr(page) == '<Page: page=1, total_pages=1>'
+    assert repr(page) == "<Page: page=1, total_pages=1>"
 
 
 def test_page_str() -> None:
     rows = [1, 2]
     page = Page(rows, total_rows=2, page=1, page_size=2)
-    assert str(page) == 'Page 1 of 1, rows 1 - 2 of 2.'
+    assert str(page) == "Page 1 of 1, rows 1 - 2 of 2."

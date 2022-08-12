@@ -24,7 +24,7 @@ def route(
     permission: str | None = None,
 ) -> typing.Callable:
     """Use this decorator to configure endpoint parameters."""
-    allowed_methods = methods or ['GET', 'HEAD']
+    allowed_methods = methods or ["GET", "HEAD"]
 
     guards = guards or []
     if is_authenticated:
@@ -34,9 +34,9 @@ def route(
         guards.append(route_guards.has_permission(permission))
 
     def wrapper(fn: typing.Callable) -> typing.Callable:
-        setattr(fn, '__route_methods__', allowed_methods)
-        setattr(fn, '__route_guards__', guards)
-        setattr(fn, '__route_middleware__', middleware)
+        setattr(fn, "__route_methods__", allowed_methods)
+        setattr(fn, "__route_guards__", guards)
+        setattr(fn, "__route_middleware__", middleware)
         return fn
 
     return wrapper
@@ -50,7 +50,7 @@ def detect_request_class(endpoint: typing.Callable) -> typing.Type[Request]:
     default request class returned.
     """
     args = typing.get_type_hints(endpoint)
-    return args.get('request', Request)
+    return args.get("request", Request)
 
 
 async def call_guards(request: Request, guards: typing.Iterable[route_guards.Guard]) -> None:
@@ -65,7 +65,7 @@ async def call_guards(request: Request, guards: typing.Iterable[route_guards.Gua
             result = await result
 
         if result is False:
-            raise PermissionDenied('You are not allowed to access this page.')
+            raise PermissionDenied("You are not allowed to access this page.")
 
 
 async def resolve_injections(
@@ -87,7 +87,7 @@ async def resolve_injections(
     args = typing.get_type_hints(endpoint)
     signature = inspect.signature(endpoint)
     for arg_name, arg_type in args.items():
-        if arg_name == 'return':
+        if arg_name == "return":
             continue
 
         if arg_type == type(request):
@@ -99,8 +99,8 @@ async def resolve_injections(
             continue
 
         # handle request injectable arguments
-        if request.app.dependencies.has(arg_type, 'request'):
-            callback = request.app.dependencies.get(arg_type, 'request')
+        if request.app.dependencies.has(arg_type, "request"):
+            callback = request.app.dependencies.get(arg_type, "request")
             if inspect.isgeneratorfunction(callback):
                 injections[arg_name] = sync_stack.enter_context(contextmanager(callback)(request))
                 continue
@@ -122,7 +122,7 @@ async def resolve_injections(
                 injections[arg_name] = signature.parameters[arg_name].default
             else:
                 raise InjectionError(
-                    f'Injection "{arg_name}" cannot be processed in {callable_name(endpoint)}. ' f'Error: {ex}.'
+                    f'Injection "{arg_name}" cannot be processed in {callable_name(endpoint)}. ' f"Error: {ex}."
                 ) from ex
         else:
             continue
@@ -138,7 +138,7 @@ async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint
     """
     request_class = detect_request_class(endpoint)
     request = request_class(scope, receive, send)
-    await call_guards(request, getattr(endpoint, '__route_guards__', []))
+    await call_guards(request, getattr(endpoint, "__route_guards__", []))
 
     with ExitStack() as sync_stack:
         async with AsyncExitStack() as async_stack:

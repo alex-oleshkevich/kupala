@@ -11,16 +11,16 @@ from kupala.json import jsonify
 
 logger = logging.getLogger(__name__)
 
-SCOPE_KEY = 'flash_messages'
-SESSION_KEY = 'flash_messages'
+SCOPE_KEY = "flash_messages"
+SESSION_KEY = "flash_messages"
 
 
 class MessageCategory(enum.Enum):
-    DEBUG = 'debug'
-    INFO = 'info'
-    SUCCESS = 'success'
-    WARNING = 'warning'
-    ERROR = 'error'
+    DEBUG = "debug"
+    INFO = "info"
+    SUCCESS = "success"
+    WARNING = "warning"
+    ERROR = "error"
 
 
 @dataclass
@@ -100,24 +100,24 @@ class MessageStorage(abc.ABC):  # pragma: nocover
 
 class SessionStorage(MessageStorage):
     def load(self, scope: Scope) -> FlashBag:
-        if 'session' not in scope:
-            raise KeyError('Sessions are disabled. Flash messages depend on SessionMiddleware.')
+        if "session" not in scope:
+            raise KeyError("Sessions are disabled. Flash messages depend on SessionMiddleware.")
 
         return FlashBag(
-            [FlashMessage(message['category'], message['message']) for message in scope['session'].get(SESSION_KEY, [])]
+            [FlashMessage(message["category"], message["message"]) for message in scope["session"].get(SESSION_KEY, [])]
         )
 
     def save(self, scope: Scope, bag: FlashBag) -> None:
-        scope['session'][SESSION_KEY] = jsonify(bag.all())
+        scope["session"][SESSION_KEY] = jsonify(bag.all())
 
 
 _storage_map: dict[str, typing.Type[MessageStorage]] = {
-    'session': SessionStorage,
+    "session": SessionStorage,
 }
 
 
 class FlashMessagesMiddleware:
-    def __init__(self, app: ASGIApp, storage: MessageStorage | typing.Literal["session"] = 'session') -> None:
+    def __init__(self, app: ASGIApp, storage: MessageStorage | typing.Literal["session"] = "session") -> None:
         self.app = app
         if isinstance(storage, str):
             storage_class = _storage_map[storage]
@@ -125,14 +125,14 @@ class FlashMessagesMiddleware:
         self.storage = storage
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope['type'] != 'http':  # pragma: nocover
+        if scope["type"] != "http":  # pragma: nocover
             await self.app(scope, receive, send)
             return
 
         bag = self.storage.load(scope)
 
         async def send_wrapper(message: Message) -> None:
-            if message['type'] == 'http.response.start':
+            if message["type"] == "http.response.start":
                 self.storage.save(scope, bag)
             await send(message)
 
@@ -144,6 +144,6 @@ class FlashMessagesMiddleware:
 def flash(request: Request) -> FlashBag:
     """Get flash messages bag."""
     if SCOPE_KEY not in request.scope:
-        logger.warning('FlashMessagesMiddleware is not installed.')
+        logger.warning("FlashMessagesMiddleware is not installed.")
         return FlashBag([])
     return request.scope[SCOPE_KEY]

@@ -19,60 +19,60 @@ class SampleMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        scope['called'] = True
+        scope["called"] = True
         return await self.app(scope, receive, send)
 
 
 def test_action_config(test_client_factory: TestClientFactory, routes: Routes) -> None:
     @route()
     async def view(request: Request) -> JSONResponse:
-        return JSONResponse({'method': request.method})
+        return JSONResponse({"method": request.method})
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
     response = client.get("/")
-    assert response.json() == {'method': 'GET'}
+    assert response.json() == {"method": "GET"}
 
 
 def test_action_config_methods(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(['get', 'post'])
+    @route(["get", "post"])
     async def view(request: Request) -> JSONResponse:
-        return JSONResponse({'method': request.method})
+        return JSONResponse({"method": request.method})
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
 
     response = client.get("/")
-    assert response.json() == {'method': 'GET'}
+    assert response.json() == {"method": "GET"}
 
     response = client.post("/")
-    assert response.json() == {'method': 'POST'}
+    assert response.json() == {"method": "POST"}
 
 
 def test_action_config_middleware(test_client_factory: TestClientFactory, routes: Routes) -> None:
     @route(middleware=[Middleware(SampleMiddleware)])
     async def view(request: Request) -> JSONResponse:
-        return JSONResponse({'called': request.scope['called']})
+        return JSONResponse({"called": request.scope["called"]})
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
 
     response = client.get("/")
-    assert response.json() == {'called': True}
+    assert response.json() == {"called": True}
 
 
 def test_route_overrides_action_config_methods(test_client_factory: TestClientFactory, routes: Routes) -> None:
     """Methods defined by action_config() have higher precedence."""
 
-    @route(methods=['post'])
+    @route(methods=["post"])
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add('/', view, methods=['get'])
+    routes.add("/", view, methods=["get"])
     client = test_client_factory(routes=routes)
-    assert client.get('/').status_code == 200
+    assert client.get("/").status_code == 200
     with pytest.raises(HTTPException):
-        assert client.post('/').status_code == 405
+        assert client.post("/").status_code == 405
 
 
 def test_route_overrides_action_config_middleware(test_client_factory: TestClientFactory, routes: Routes) -> None:
@@ -80,26 +80,26 @@ def test_route_overrides_action_config_middleware(test_client_factory: TestClien
 
     def set_one(app: ASGIApp) -> ASGIApp:
         async def middleware(scope: Scope, receive: Receive, send: Send) -> None:
-            scope['used'] = 'one'
+            scope["used"] = "one"
             await app(scope, receive, send)
 
         return middleware
 
     def set_two(app: ASGIApp) -> ASGIApp:
         async def middleware(scope: Scope, receive: Receive, send: Send) -> None:
-            scope['used'] = 'two'
+            scope["used"] = "two"
             await app(scope, receive, send)
 
         return middleware
 
     @route(middleware=[Middleware(set_two)])
     def view(request: Request) -> PlainTextResponse:
-        return PlainTextResponse(request.scope['used'])
+        return PlainTextResponse(request.scope["used"])
 
-    routes.add('/', view, middleware=[Middleware(set_one)])
+    routes.add("/", view, middleware=[Middleware(set_one)])
     client = test_client_factory(routes=routes)
 
-    assert client.get('/').text == 'one'
+    assert client.get("/").text == "one"
 
 
 def test_view_allows_unauthenticated_access(test_client_factory: TestClientFactory, routes: Routes) -> None:
@@ -107,9 +107,9 @@ def test_view_allows_unauthenticated_access(test_client_factory: TestClientFacto
     def view() -> JSONResponse:
         return JSONResponse([])
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
-    assert client.get('/').status_code == 200
+    assert client.get("/").status_code == 200
 
 
 def test_when_view_requires_authentication_authenticated_user_can_access_page(
@@ -132,8 +132,8 @@ def test_when_view_requires_authentication_authenticated_user_can_access_page(
         def get_hashed_password(self) -> str:
             pass
 
-    user_provider = InMemoryProvider({'root': User()})
-    routes.add('/', view)
+    user_provider = InMemoryProvider({"root": User()})
+    routes.add("/", view)
     client = test_client_factory(
         routes=routes,
         middleware=[
@@ -141,7 +141,7 @@ def test_when_view_requires_authentication_authenticated_user_can_access_page(
         ],
     )
 
-    assert client.get('/', headers={'authorization': 'Bearer root'}).status_code == 200
+    assert client.get("/", headers={"authorization": "Bearer root"}).status_code == 200
 
 
 def test_when_view_requires_authentication_unauthenticated_user_cannoe_access_page(
@@ -152,7 +152,7 @@ def test_when_view_requires_authentication_unauthenticated_user_cannoe_access_pa
         return JSONResponse([])
 
     user_provider = InMemoryProvider({})
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(
         routes=routes,
         middleware=[
@@ -160,11 +160,11 @@ def test_when_view_requires_authentication_unauthenticated_user_cannoe_access_pa
         ],
     )
     with pytest.raises(NotAuthenticated):
-        assert client.get('/').status_code == 401
+        assert client.get("/").status_code == 401
 
 
 def test_access_when_user_has_permission(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(permission='admin')
+    @route(permission="admin")
     def view() -> JSONResponse:
         return JSONResponse([])
 
@@ -184,8 +184,8 @@ def test_access_when_user_has_permission(test_client_factory: TestClientFactory,
         def get_hashed_password(self) -> str:
             pass
 
-    user_provider = InMemoryProvider({'admin': User(scopes=['admin']), 'user': User(scopes=['user'])})
-    routes.add('/', view)
+    user_provider = InMemoryProvider({"admin": User(scopes=["admin"]), "user": User(scopes=["user"])})
+    routes.add("/", view)
     client = test_client_factory(
         routes=routes,
         middleware=[
@@ -193,6 +193,6 @@ def test_access_when_user_has_permission(test_client_factory: TestClientFactory,
         ],
     )
 
-    assert client.get('/', headers={'authorization': 'Bearer admin'}).status_code == 200
+    assert client.get("/", headers={"authorization": "Bearer admin"}).status_code == 200
     with pytest.raises(PermissionDenied):
-        assert client.get('/', headers={'authorization': 'Bearer user'}).status_code == 403
+        assert client.get("/", headers={"authorization": "Bearer user"}).status_code == 403

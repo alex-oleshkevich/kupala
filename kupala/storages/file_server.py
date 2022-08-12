@@ -21,7 +21,7 @@ class FileServer:
             return PlainTextResponse("Method Not Allowed", status_code=405)
 
         url = self.storage.url(path)
-        if url.startswith('http'):
+        if url.startswith("http"):
             return RedirectResponse(url, 307)
         path = self.storage.abspath(path)
         return FileResponse(path, inline=not self.as_attachment)

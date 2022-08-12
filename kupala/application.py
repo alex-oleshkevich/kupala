@@ -11,13 +11,15 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.console.application import ConsoleApplication
 from kupala.contracts import TemplateRenderer
-from kupala.di import InjectionRegistry
+from kupala.di import InjectionRegistry, Scope as InjectionScope
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.http.context_processors import standard_processors
 from kupala.http.middleware import Middleware, MiddlewareStack
 from kupala.http.middleware.exception import ErrorHandler, ExceptionMiddleware
 from kupala.http.protocols import ContextProcessor
 from kupala.http.routing import Router, Routes
+
+_T = typing.TypeVar("_T")
 
 
 class App:
@@ -59,19 +61,19 @@ class App:
             async with AsyncExitStack() as stack:
                 for hook in self._lifespan_handlers:
                     await stack.enter_async_context(hook(self))
-                await send({'type': 'lifespan.startup.complete'})
+                await send({"type": "lifespan.startup.complete"})
                 started = True
                 await receive()
         except BaseException as ex:
             text = traceback.format_exc()
             if started:
-                await send({'type': 'lifespan.shutdown.failed', 'message': text})
+                await send({"type": "lifespan.shutdown.failed", "message": text})
                 raise ShutdownError(text) from ex
             else:
-                await send({'type': 'lifespan.startup.failed', 'message': text})
+                await send({"type": "lifespan.startup.failed", "message": text})
                 raise StartupError(text) from ex
         else:
-            await send({'type': 'lifespan.shutdown.complete'})
+            await send({"type": "lifespan.shutdown.complete"})
 
     def cli(self) -> int:
         """Run console application."""
@@ -88,7 +90,7 @@ class App:
         """
         return self._router.url_path_for(name, **path_params)
 
-    def static_url(self, path: str, path_name: str = 'static') -> str:
+    def static_url(self, path: str, path_name: str = "static") -> str:
         return self.url_for(path_name, path=path)
 
     def render(self, template_name: str, context: dict[str, typing.Any] | None = None) -> str:
@@ -104,19 +106,22 @@ class App:
             app = mw.wrap(app)
         return app
 
+    def get(self, type_name: typing.Type[_T], scope: InjectionScope = "global") -> _T:
+        return self.dependencies.get(type_name, scope)
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        assert scope['type'] in {'http', 'websocket', 'lifespan'}
-        if scope['type'] == 'lifespan':
+        assert scope["type"] in {"http", "websocket", "lifespan"}
+        if scope["type"] == "lifespan":
             await self.lifespan_handler(scope, receive, send)
             return
 
-        scope['app'] = self
-        scope['state'] = {}
+        scope["app"] = self
+        scope["state"] = {}
         set_current_application(self)
         await self._asgi_handler(scope, receive, send)
 
 
-_current_app: cv.ContextVar[App] = cv.ContextVar('_current_app')
+_current_app: cv.ContextVar[App] = cv.ContextVar("_current_app")
 
 
 def set_current_application(app: App) -> None:

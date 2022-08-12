@@ -13,7 +13,7 @@ def _get_language_from_query(request: Request, query_param: str) -> str | None:
 
 
 def _get_language_from_user(request: Request) -> str | None:
-    if 'auth' in request.scope and hasattr(request.user, "get_preferred_language"):
+    if "auth" in request.scope and hasattr(request.user, "get_preferred_language"):
         language_provider = typing.cast(HasPreferredLanguage, request.user)
         return language_provider.get_preferred_language()
     return None
@@ -41,7 +41,7 @@ def _get_languages_from_header(header: str) -> list[tuple[str, float]]:
 def _get_language_from_header(request: Request, supported: set[str]) -> str | None:
     header = request.headers.get("accept-language", "").lower()
     for lang, _ in _get_languages_from_header(header):
-        lang = lang.lower().replace('-', '_')
+        lang = lang.lower().replace("-", "_")
         if lang == "*":
             break
 
@@ -55,14 +55,14 @@ class LocaleMiddleware:
         self,
         app: ASGIApp,
         languages: list[str] | None = None,
-        default_locale: str = 'en_US',
+        default_locale: str = "en_US",
         query_param_name: str = "lang",
         cookie_name: str = "language",
         path_param: str = "_locale",
         locale_detector: typing.Callable[[Request], Locale | None] = None,
     ) -> None:
         self.app = app
-        self.languages = {x.lower().replace('-', '_') for x in (languages or ["en"])}
+        self.languages = {x.lower().replace("-", "_") for x in (languages or ["en"])}
         self.default_locale = default_locale
         self.query_param_name = query_param_name
         self.cookie_name = cookie_name
@@ -71,8 +71,8 @@ class LocaleMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         async def send_wrapper(message: Message) -> None:
-            if message['type'] == 'http.response.start':
-                message['headers'].append(tuple([b'content-language', scope['language'].encode()]))
+            if message["type"] == "http.response.start":
+                message["headers"].append(tuple([b"content-language", scope["language"].encode()]))
             await send(message)
 
         locale = self.locale_detector(Request(scope, receive, send))
@@ -80,8 +80,8 @@ class LocaleMiddleware:
             locale = Locale.parse(self.default_locale)
         set_locale(locale)
         scope["locale"] = locale
-        scope['language'] = locale.language
-        scope['i18n.cookie_name'] = self.cookie_name
+        scope["language"] = locale.language
+        scope["i18n.cookie_name"] = self.cookie_name
         await self.app(scope, receive, send_wrapper)
 
     def detect_locale(self, request: Request) -> Locale:
@@ -107,10 +107,10 @@ class LocaleMiddleware:
         support only "en_GB" then en_GB to be returned. If no locales match
         request then None returned.
         """
-        from_locale, _ = locale.lower().split('_') if '_' in locale else [locale, '']
+        from_locale, _ = locale.lower().split("_") if "_" in locale else [locale, ""]
         for supported in self.languages:
-            if '_' in supported:
-                language, _ = supported.lower().split('_')
+            if "_" in supported:
+                language, _ = supported.lower().split("_")
                 if language == from_locale:
                     return supported
             elif from_locale.lower() == supported.lower():

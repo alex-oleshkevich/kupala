@@ -18,67 +18,67 @@ def view(request: Request) -> JSONResponse:
 
 def test_locale_middleware_detects_locale_from_query(test_app_factory: TestAppFactory) -> None:
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(LocaleMiddleware, languages=['be_BY'])],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(LocaleMiddleware, languages=["be_BY"])],
     )
     client = TestClient(app)
-    assert client.get('/?lang=be_BY').json() == ['be', 'BY']
+    assert client.get("/?lang=be_BY").json() == ["be", "BY"]
 
 
 def test_locale_middleware_detects_locale_from_query_using_custom_query_param(test_app_factory: TestAppFactory) -> None:
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(LocaleMiddleware, query_param_name='locale', languages=['be_BY'])],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(LocaleMiddleware, query_param_name="locale", languages=["be_BY"])],
     )
     client = TestClient(app)
-    assert client.get('/?locale=be_BY').json() == ['be', 'BY']
+    assert client.get("/?locale=be_BY").json() == ["be", "BY"]
 
 
 def test_locale_middleware_detects_locale_from_cookie(test_app_factory: TestAppFactory) -> None:
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(LocaleMiddleware, languages=['be_BY'])],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(LocaleMiddleware, languages=["be_BY"])],
     )
     client = TestClient(app)
-    assert client.get('/', cookies={'language': 'be_BY'}).json() == ['be', 'BY']
+    assert client.get("/", cookies={"language": "be_BY"}).json() == ["be", "BY"]
 
 
 def test_locale_middleware_detects_locale_from_cookie_using_custom_name(test_app_factory: TestAppFactory) -> None:
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(LocaleMiddleware, cookie_name='lang', languages=['be_BY'])],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(LocaleMiddleware, cookie_name="lang", languages=["be_BY"])],
     )
     client = TestClient(app)
-    assert client.get('/', cookies={'lang': 'be_BY'}).json() == ['be', 'BY']
+    assert client.get("/", cookies={"lang": "be_BY"}).json() == ["be", "BY"]
 
 
 def test_locale_middleware_detects_locale_from_header(test_app_factory: TestAppFactory) -> None:
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(LocaleMiddleware, languages=['be_BY'])],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(LocaleMiddleware, languages=["be_BY"])],
     )
     client = TestClient(app)
     assert client.get(
-        '/', headers={'accept-language': 'en-US,en;q=0.9,ru-BY;q=0.8,ru;q=0.7,be-BY;q=0.6,be;q=0.5,pl;q=0.4,de;q=0.3'}
-    ).json() == ['be', 'BY']
+        "/", headers={"accept-language": "en-US,en;q=0.9,ru-BY;q=0.8,ru;q=0.7,be-BY;q=0.6,be;q=0.5,pl;q=0.4,de;q=0.3"}
+    ).json() == ["be", "BY"]
 
 
 def test_locale_middleware_detects_locale_from_header_with_wildcard(test_app_factory: TestAppFactory) -> None:
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(LocaleMiddleware, languages=['be_BY'])],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(LocaleMiddleware, languages=["be_BY"])],
     )
     client = TestClient(app)
-    assert client.get('/', headers={'accept-language': '*'}).json() == ['en', 'US']
+    assert client.get("/", headers={"accept-language": "*"}).json() == ["en", "US"]
 
 
 def test_locale_middleware_supports_language_shortcuts(test_app_factory: TestAppFactory) -> None:
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(LocaleMiddleware, languages=['be'])],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(LocaleMiddleware, languages=["be"])],
     )
     client = TestClient(app)
-    assert client.get('/?lang=be_BY').json() == ['be', None]
+    assert client.get("/?lang=be_BY").json() == ["be", None]
 
 
 class _User(BaseUser):
@@ -107,63 +107,63 @@ class ForceAuthentication:
         self.language = language
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        scope['auth'] = UserToken(user=_User(language=self.language), state=LoginState.FRESH)
+        scope["auth"] = UserToken(user=_User(language=self.language), state=LoginState.FRESH)
         await self.app(scope, receive, send)
 
 
 def test_locale_middleware_detects_locale_from_user(test_app_factory: TestAppFactory) -> None:
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
+        routes=Routes([Route("/", view)]),
         middleware=[
-            Middleware(ForceAuthentication, language='be_BY'),
-            Middleware(LocaleMiddleware, languages=['be_BY']),
+            Middleware(ForceAuthentication, language="be_BY"),
+            Middleware(LocaleMiddleware, languages=["be_BY"]),
         ],
     )
     client = TestClient(app)
-    assert client.get('/').json() == ['be', 'BY']
+    assert client.get("/").json() == ["be", "BY"]
 
 
 def test_locale_middleware_user_supplies_no_language(test_app_factory: TestAppFactory) -> None:
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(ForceAuthentication, language=None), Middleware(LocaleMiddleware, languages=['be_BY'])],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(ForceAuthentication, language=None), Middleware(LocaleMiddleware, languages=["be_BY"])],
     )
     client = TestClient(app)
-    assert client.get('/').json() == ['en', 'US']
+    assert client.get("/").json() == ["en", "US"]
 
 
 def test_locale_middleware_finds_variant(test_app_factory: TestAppFactory) -> None:
     """If there is no locale exactly matching the requested, try to find
     alternate variant that may satisfy the client."""
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(LocaleMiddleware, languages=['ru_BY'])],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(LocaleMiddleware, languages=["ru_BY"])],
     )
     client = TestClient(app)
-    assert client.get('/?lang=ru_RU').json() == ['ru', 'BY']
+    assert client.get("/?lang=ru_RU").json() == ["ru", "BY"]
 
 
 def test_locale_middleware_fallback_language(test_app_factory: TestAppFactory) -> None:
     """If there is no locale exactly matching the requested, try to find
     alternate variant that may satisfy the client."""
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(LocaleMiddleware, languages=['be_BY'], default_locale='pl_PL')],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(LocaleMiddleware, languages=["be_BY"], default_locale="pl_PL")],
     )
     client = TestClient(app)
-    assert client.get('/?lang=ru_RU').json() == ['pl', 'PL']
+    assert client.get("/?lang=ru_RU").json() == ["pl", "PL"]
 
 
 def test_locale_middleware_use_custom_detector(test_app_factory: TestAppFactory) -> None:
     def detector(request: Request) -> Locale | None:
-        return Locale.parse('be_BY')
+        return Locale.parse("be_BY")
 
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(LocaleMiddleware, languages=['be_BY'], locale_detector=detector)],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(LocaleMiddleware, languages=["be_BY"], locale_detector=detector)],
     )
     client = TestClient(app)
-    assert client.get('/').json() == ['be', 'BY']
+    assert client.get("/").json() == ["be", "BY"]
 
 
 def test_locale_middleware_custom_detector_returns_no_locale(test_app_factory: TestAppFactory) -> None:
@@ -171,8 +171,8 @@ def test_locale_middleware_custom_detector_returns_no_locale(test_app_factory: T
         return None
 
     app = test_app_factory(
-        routes=Routes([Route('/', view)]),
-        middleware=[Middleware(LocaleMiddleware, languages=['be_BY'], locale_detector=detector)],
+        routes=Routes([Route("/", view)]),
+        middleware=[Middleware(LocaleMiddleware, languages=["be_BY"], locale_detector=detector)],
     )
     client = TestClient(app)
-    assert client.get('/').json() == ['en', 'US']
+    assert client.get("/").json() == ["en", "US"]

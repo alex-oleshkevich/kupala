@@ -101,24 +101,24 @@ def test_injects_from_request(test_client_factory: TestClientFactory, routes: Ro
     def view(injectable: _RequestInjectable) -> JSONResponse:
         return JSONResponse(injectable.__class__.__name__)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
     client.app.dependencies.register_for_request(_RequestInjectable, make_request_injectable)
 
     response = client.get("/")
-    assert response.json() == '_RequestInjectable'
+    assert response.json() == "_RequestInjectable"
 
 
 def test_injects_from_request_async(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(injectable: _AsyncRequestInjectable) -> JSONResponse:
         return JSONResponse(injectable.__class__.__name__)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
     client.app.dependencies.register_for_request(_AsyncRequestInjectable, make_async_request_injectable)
 
     response = client.get("/")
-    assert response.json() == '_AsyncRequestInjectable'
+    assert response.json() == "_AsyncRequestInjectable"
 
 
 def test_injectable_generators(test_client_factory: TestClientFactory, routes: Routes) -> None:
@@ -129,14 +129,14 @@ def test_injectable_generators(test_client_factory: TestClientFactory, routes: R
         instance = injectable
         return JSONResponse(injectable.__class__.__name__)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
     client.app.dependencies.register_for_request(
         _RequestInjectableContextManager, make_request_injectable_context_manager
     )
 
     response = client.get("/")
-    assert response.json() == '_RequestInjectableContextManager'
+    assert response.json() == "_RequestInjectableContextManager"
     assert instance
     instance.enter_spy.assert_called_once()
     instance.exit_spy.assert_called_once()
@@ -150,7 +150,7 @@ def test_injectable_async_generators(test_client_factory: TestClientFactory, rou
         instance = injectable
         return JSONResponse(injectable.__class__.__name__)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
     client.app.dependencies.register_for_request(
         _RequestInjectableAsyncContextManager,
@@ -158,7 +158,7 @@ def test_injectable_async_generators(test_client_factory: TestClientFactory, rou
     )
 
     response = client.get("/")
-    assert response.json() == '_RequestInjectableAsyncContextManager'
+    assert response.json() == "_RequestInjectableAsyncContextManager"
     assert instance
     instance.enter_spy.assert_called_once()
     instance.exit_spy.assert_called_once()
@@ -168,31 +168,31 @@ def test_injects_from_app(test_client_factory: TestClientFactory, routes: Routes
     def view(injectable: _AppInjectable) -> JSONResponse:
         return JSONResponse(injectable.__class__.__name__)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
     client.app.dependencies.register(_AppInjectable, make_app_injectable)
 
     response = client.get("/")
-    assert response.json() == '_AppInjectable'
+    assert response.json() == "_AppInjectable"
 
 
 def test_injects_from_app_async(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(injectable: _AsyncAppInjectable) -> JSONResponse:
         return JSONResponse(injectable.__class__.__name__)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
     client.app.dependencies.register(_AsyncAppInjectable, make_async_app_injectable)
 
     response = client.get("/")
-    assert response.json() == '_AsyncAppInjectable'
+    assert response.json() == "_AsyncAppInjectable"
 
 
 def test_injects_default_raises(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(injectable: str) -> JSONResponse:
         return JSONResponse(injectable)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
 
     with pytest.raises(InjectionError):
@@ -204,7 +204,7 @@ def test_injects_default_null(test_client_factory: TestClientFactory, routes: Ro
     def view(injectable: str = None) -> JSONResponse:
         return JSONResponse(injectable)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
 
     response = client.get("/")
@@ -212,11 +212,11 @@ def test_injects_default_null(test_client_factory: TestClientFactory, routes: Ro
 
 
 def test_injects_default_non_null(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    def view(injectable: str = 'default') -> JSONResponse:
+    def view(injectable: str = "default") -> JSONResponse:
         return JSONResponse(injectable)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
 
     response = client.get("/")
-    assert response.json() == 'default'
+    assert response.json() == "default"

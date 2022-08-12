@@ -4,7 +4,7 @@ import functools
 import itertools
 import typing
 
-E = typing.TypeVar('E')
+E = typing.TypeVar("E")
 
 
 def chunked(items: typing.Iterable[E], size: int) -> typing.Generator[list[E], None, None]:
@@ -114,11 +114,11 @@ class Collection(typing.Generic[E]):
 
         return {key(item): item for item in self}
 
-    def choices(self, label_col: str = 'name', value_col: str = 'id') -> list[tuple[typing.Any, typing.Any]]:
+    def choices(self, label_col: str = "name", value_col: str = "id") -> list[tuple[typing.Any, typing.Any]]:
         return [(attribute_reader(item, value_col), attribute_reader(item, label_col)) for item in self]
 
     def choices_dict(
-        self, label_col: str = 'name', value_col: str = 'id', label_key: str = 'label', value_key: str = 'value'
+        self, label_col: str = "name", value_col: str = "id", label_key: str = "label", value_key: str = "value"
     ) -> list[dict[typing.Any, typing.Any]]:
         return [
             {value_key: attribute_reader(item, value_col), label_key: attribute_reader(item, label_col)}

@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import typing
 
-M = typing.TypeVar('M')
+M = typing.TypeVar("M")
 
 
 class Page(typing.Generic[M]):
@@ -101,8 +101,8 @@ class Page(typing.Generic[M]):
 
     def __str__(self) -> str:
         return (
-            f'Page {self.page} of {self.total_pages}, rows {self.start_index} - {self.end_index} of {self.total_rows}.'
+            f"Page {self.page} of {self.total_pages}, rows {self.start_index} - {self.end_index} of {self.total_rows}."
         )
 
     def __repr__(self) -> str:
-        return f'<Page: page={self.page}, total_pages={self.total_pages}>'
+        return f"<Page: page={self.page}, total_pages={self.total_pages}>"

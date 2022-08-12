@@ -49,7 +49,7 @@ class Mount(routing.Mount):
         self.path = path.rstrip("/")
         if app is not None:
             self.app: ASGIApp = app
-            self._routes = getattr(app, 'routes', [])
+            self._routes = getattr(app, "routes", [])
         else:
             self.app = Router(routes=routes)
             self._routes = list(routes or [])
@@ -73,7 +73,7 @@ class Host(routing.Host):
         self.name = name
         self.host_regex, self.host_format, self.param_convertors = compile_path(host)
         self.middleware = middleware
-        self._routes = getattr(app, 'routes', [])
+        self._routes = getattr(app, "routes", [])
 
         if middleware:
             self.app = apply_middleware(self.app, middleware)
@@ -104,8 +104,8 @@ class Route(routing.Route):
         self.name = get_name(endpoint) if name is None else name
         self.include_in_schema = include_in_schema
 
-        methods = methods or getattr(endpoint, '__route_methods__', ['GET', 'HEAD'])
-        middleware = middleware or getattr(endpoint, '__route_middleware__', [])
+        methods = methods or getattr(endpoint, "__route_methods__", ["GET", "HEAD"])
+        middleware = middleware or getattr(endpoint, "__route_middleware__", [])
 
         endpoint_handler = endpoint
         while isinstance(endpoint_handler, functools.partial):
@@ -128,7 +128,7 @@ class Route(routing.Route):
         self.path_regex, self.path_format, self.param_convertors = compile_path(path)
 
     def __repr__(self) -> str:
-        return f'<Route: path={self.path}, methods={self.methods}, name={self.name}>'
+        return f"<Route: path={self.path}, methods={self.methods}, name={self.name}>"
 
 
 class WebSocketRoute(routing.WebSocketRoute):
@@ -235,7 +235,7 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         packages: list[str | tuple[str, str]] | None = None,
         html: bool = False,
         check_dir: bool = True,
-        name: str = 'static',
+        name: str = "static",
         middleware: typing.Sequence[Middleware] | None = None,
     ) -> None:
         """Serve static files from local directories."""
@@ -286,13 +286,13 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         )
 
     def include(
-        self, iterable_or_module: typing.Iterable[routing.BaseRoute] | str, callback: str = 'configure'
+        self, iterable_or_module: typing.Iterable[routing.BaseRoute] | str, callback: str = "configure"
     ) -> None:
         """Include routes."""
         IncludeRoutesCallback = typing.Callable[[Routes], None]
         if isinstance(iterable_or_module, str):
-            if ':' not in iterable_or_module:
-                iterable_or_module += ':' + callback
+            if ":" not in iterable_or_module:
+                iterable_or_module += ":" + callback
             configure_callback: IncludeRoutesCallback = import_string(iterable_or_module)
             configure_callback(self)
         else:

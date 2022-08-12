@@ -27,9 +27,9 @@ class SampleMiddleware:
 
 
 def test_add(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
-    assert client.get('/').status_code == 200
+    assert client.get("/").status_code == 200
 
 
 def test_websocket(test_client_factory: TestClientFactory, routes: Routes) -> None:
@@ -38,7 +38,7 @@ def test_websocket(test_client_factory: TestClientFactory, routes: Routes) -> No
         await websocket.send_text("websocket data")
         await websocket.close(1001)
 
-    routes.websocket('/ws', view)
+    routes.websocket("/ws", view)
     client = test_client_factory(routes=routes)
 
     with client.websocket_connect("/ws") as websocket:
@@ -49,7 +49,7 @@ def test_mount(test_client_factory: TestClientFactory, routes: Routes) -> None:
     async def asgi(scope: Scope, receive: Receive, send: Send) -> None:
         await PlainTextResponse("ok")(scope, receive, send)
 
-    routes.mount('/asgi', asgi)
+    routes.mount("/asgi", asgi)
     client = test_client_factory(routes=routes)
 
     response = client.get("/asgi")
@@ -62,7 +62,7 @@ def test_static(test_client_factory: TestClientFactory, routes: Routes, tmp_path
     with open(styles, "w") as f:
         f.write("body {}")
 
-    routes.static('/static', tmp_path)
+    routes.static("/static", tmp_path)
     client = test_client_factory(routes=routes)
 
     response = client.get("/static/styles.css")
@@ -80,16 +80,16 @@ def test_redirect(test_client_factory: TestClientFactory, routes: Routes) -> Non
 
 def test_host(test_client_factory: TestClientFactory, routes: Routes) -> None:
     with routes.host("api.example.com") as api:
-        api.add("/users", view, name='users')
+        api.add("/users", view, name="users")
 
     client = test_client_factory(routes=routes)
     response = client.get("/users/", headers={"host": "api.example.com"})
     assert response.status_code == 200
-    assert response.text == '/users'
+    assert response.text == "/users"
 
 
 def test_host_with_initial_routes(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    routes.host("api.example.com", routes=[Route('/users', view)])
+    routes.host("api.example.com", routes=[Route("/users", view)])
 
     client = test_client_factory(routes=routes)
     response = client.get("/users/", headers={"host": "api.example.com"})
@@ -99,39 +99,39 @@ def test_host_with_initial_routes(test_client_factory: TestClientFactory, routes
 def test_host_url_generation() -> None:
     routes = Routes()
     with routes.host("api.example.com") as api:
-        api.add("/users", view, name='users')
+        api.add("/users", view, name="users")
     router = Router(routes=routes)
-    assert router.url_path_for('users') == '/users'
+    assert router.url_path_for("users") == "/users"
 
 
 def test_host_with_middleware(test_client_factory: TestClientFactory, routes: Routes) -> None:
     call_stack: list[str] = []
 
     middleware = [
-        Middleware(SampleMiddleware, callback=lambda: call_stack.append('one')),
-        Middleware(SampleMiddleware, callback=lambda: call_stack.append('two')),
+        Middleware(SampleMiddleware, callback=lambda: call_stack.append("one")),
+        Middleware(SampleMiddleware, callback=lambda: call_stack.append("two")),
     ]
     with routes.host("api.example.com", middleware=middleware) as api:
-        api.add("/users", view, name='users')
+        api.add("/users", view, name="users")
 
     client = test_client_factory(routes=routes)
-    assert client.get('/users', headers={"host": "api.example.com"}).status_code == 200
-    assert call_stack == ['one', 'two']  # check middleware call order
+    assert client.get("/users", headers={"host": "api.example.com"}).status_code == 200
+    assert call_stack == ["one", "two"]  # check middleware call order
 
 
 def test_group(test_client_factory: TestClientFactory, routes: Routes) -> None:
     with routes.group("/admin") as admin:
         admin.add("/", view)
-        admin.add("/create", view, name="admin-create", methods=['post'])
+        admin.add("/create", view, name="admin-create", methods=["post"])
 
     client = test_client_factory(routes=routes)
     response = client.get("/admin")
     assert response.status_code == 200
-    assert response.text == '/admin/'
+    assert response.text == "/admin/"
 
     response = client.post("/admin/create")
     assert response.status_code == 200
-    assert response.text == '/admin/create'
+    assert response.text == "/admin/create"
 
 
 def test_group_with_initial_routes(test_client_factory: TestClientFactory, routes: Routes) -> None:
@@ -154,100 +154,100 @@ def test_group_with_initial_routes(test_client_factory: TestClientFactory, route
 def test_group_url_generation() -> None:
     routes = Routes()
     with routes.group("/admin") as admin:
-        admin.add("/users", view, name='admin_users')
-        with admin.group('/category') as category:
-            category.add('/items', view, name='category_items')
+        admin.add("/users", view, name="admin_users")
+        with admin.group("/category") as category:
+            category.add("/items", view, name="category_items")
 
     router = Router(routes=routes)
-    assert router.url_path_for('admin_users') == '/admin/users'
-    assert router.url_path_for('category_items') == '/admin/category/items'
+    assert router.url_path_for("admin_users") == "/admin/users"
+    assert router.url_path_for("category_items") == "/admin/category/items"
 
 
 def test_group_with_middleware(test_client_factory: TestClientFactory, routes: Routes) -> None:
     call_stack: list[str] = []
 
     middleware = [
-        Middleware(SampleMiddleware, callback=lambda: call_stack.append('one')),
-        Middleware(SampleMiddleware, callback=lambda: call_stack.append('two')),
+        Middleware(SampleMiddleware, callback=lambda: call_stack.append("one")),
+        Middleware(SampleMiddleware, callback=lambda: call_stack.append("two")),
     ]
     with routes.group("/admin", middleware=middleware) as api:
-        api.add("/users", view, name='users')
+        api.add("/users", view, name="users")
 
     client = test_client_factory(routes=routes)
-    assert client.get('/admin/users').status_code == 200
-    assert call_stack == ['one', 'two']  # check middleware call order
+    assert client.get("/admin/users").status_code == 200
+    assert call_stack == ["one", "two"]  # check middleware call order
 
 
 def test_group_url_generation_with_middleware() -> None:
     call_stack: list[str] = []
-    middleware = [Middleware(SampleMiddleware, callback=lambda: call_stack.append('one'))]
-    middleware2 = [Middleware(SampleMiddleware, callback=lambda: call_stack.append('two'))]
+    middleware = [Middleware(SampleMiddleware, callback=lambda: call_stack.append("one"))]
+    middleware2 = [Middleware(SampleMiddleware, callback=lambda: call_stack.append("two"))]
 
     routes = Routes()
     with routes.group("/admin", middleware=middleware) as admin:
-        admin.add("/users", view, name='admin_users')
-        with admin.group('/category', middleware=middleware2) as category:
-            category.add('/items', view, name='category_items')
+        admin.add("/users", view, name="admin_users")
+        with admin.group("/category", middleware=middleware2) as category:
+            category.add("/items", view, name="category_items")
 
     router = Router(routes=routes)
-    assert router.url_path_for('admin_users') == '/admin/users'
-    assert router.url_path_for('category_items') == '/admin/category/items'
+    assert router.url_path_for("admin_users") == "/admin/users"
+    assert router.url_path_for("category_items") == "/admin/category/items"
 
 
-@pytest.mark.parametrize('method', ['add'])
+@pytest.mark.parametrize("method", ["add"])
 def test_route_specific_middleware(test_client_factory: TestClientFactory, routes: Routes, method: str) -> None:
     call_stack: list[str] = []
 
     middleware = [
-        Middleware(SampleMiddleware, callback=lambda: call_stack.append('one')),
-        Middleware(SampleMiddleware, callback=lambda: call_stack.append('two')),
+        Middleware(SampleMiddleware, callback=lambda: call_stack.append("one")),
+        Middleware(SampleMiddleware, callback=lambda: call_stack.append("two")),
     ]
 
     fn = getattr(routes, method)
-    if method == 'add':
-        fn('/', view, methods=['GET'], middleware=middleware)
+    if method == "add":
+        fn("/", view, methods=["GET"], middleware=middleware)
     else:
-        fn('/', view, middleware=middleware)
+        fn("/", view, middleware=middleware)
 
     client = test_client_factory(routes=routes)
     client_method_name = method
-    if client_method_name in {'add', 'get_or_post'}:
-        client_method_name = 'get'
+    if client_method_name in {"add", "get_or_post"}:
+        client_method_name = "get"
     client_method = getattr(client, client_method_name)
-    assert client_method('/').status_code == 200
-    assert call_stack == ['one', 'two']  # check middleware call order
+    assert client_method("/").status_code == 200
+    assert call_stack == ["one", "two"]  # check middleware call order
 
 
 def test_sizeable(routes: Routes) -> None:
-    routes.add('/', view)
-    routes.add('/two', view)
+    routes.add("/", view)
+    routes.add("/two", view)
     assert len(routes) == 2
 
 
 def test_iterable(routes: Routes) -> None:
-    routes.add('/', view)
-    routes.add('/two', view)
+    routes.add("/", view)
+    routes.add("/two", view)
     assert len(list(routes)) == 2
 
 
 def test_include_routes_instance(test_client_factory: TestClientFactory, routes: Routes) -> None:
     routes = Routes()
-    routes.add('/included', view)
+    routes.add("/included", view)
 
     routes.include(routes)
     client = test_client_factory(routes=routes)
-    assert client.get('/included').status_code == 200
+    assert client.get("/included").status_code == 200
 
 
 def test_include_routes_list(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    routes_to_include = [Route('/included', view)]
+    routes_to_include = [Route("/included", view)]
 
     routes.include(routes_to_include)
     client = test_client_factory(routes=routes)
-    assert client.get('/included').status_code == 200
+    assert client.get("/included").status_code == 200
 
 
 def test_include_routes_string(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    routes.include('tests.assets.routes')
+    routes.include("tests.assets.routes")
     client = test_client_factory(routes=routes)
-    assert client.get('/callback-included').status_code == 200
+    assert client.get("/callback-included").status_code == 200

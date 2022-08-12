@@ -22,16 +22,16 @@ class RequestLimitMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         total_len = 0
-        if scope['type'] != 'http':
+        if scope["type"] != "http":
             return await self.app(scope, receive, send)
 
         async def receive_wrapper() -> Message:
             message = await receive()
-            if message['type'] != 'http.request' or self.max_body_size is None:
+            if message["type"] != "http.request" or self.max_body_size is None:
                 return message
 
             nonlocal total_len
-            body = message.get('body', b'')
+            body = message.get("body", b"")
             total_len += len(body)
             if total_len > self.max_body_size:
                 raise LargeEntityError()
@@ -40,5 +40,5 @@ class RequestLimitMiddleware:
         try:
             await self.app(scope, receive_wrapper, send)
         except LargeEntityError:
-            response = PlainTextResponse('Entity Too Large', status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+            response = PlainTextResponse("Entity Too Large", status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
             await response(scope, receive, send)

@@ -51,7 +51,7 @@ def test_registry_resolves_cached_dependency(registry: InjectionRegistry) -> Non
 
 
 def test_registry_resolves_scoped_dependency(registry: InjectionRegistry) -> None:
-    instance = registry.get(ScopedInjectable, scope='request')
+    instance = registry.get(ScopedInjectable, scope="request")
     assert instance is not None
 
     with pytest.raises(InjectionNotFoundError):

@@ -9,8 +9,8 @@ serializers = [
 ]
 
 
-@pytest.mark.parametrize('serializer', serializers)
+@pytest.mark.parametrize("serializer", serializers)
 def test_json_serializer(serializer: CacheSerializer) -> None:
-    expected = {'key': 'value'}
+    expected = {"key": "value"}
     serialized = serializer.dumps(expected)
     assert serializer.loads(serialized) == expected

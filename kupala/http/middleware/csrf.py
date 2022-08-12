@@ -8,10 +8,10 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from kupala.http.exceptions import PermissionDenied
 from kupala.http.requests import Request
 
-CSRF_SESSION_KEY = '_csrf_token'
-CSRF_HEADER = 'x-csrf-token'
-CSRF_QUERY_PARAM = 'csrf-token'
-CSRF_POST_FIELD = '_token'
+CSRF_SESSION_KEY = "_csrf_token"
+CSRF_HEADER = "x-csrf-token"
+CSRF_QUERY_PARAM = "csrf-token"
+CSRF_POST_FIELD = "_token"
 
 
 class CSRFError(Exception):
@@ -39,41 +39,41 @@ def get_generate_random(length: int = 64) -> str:
 
 
 def generate_token(secret_key: str, data: str) -> str:
-    return hmac.new(secret_key.encode(), data.encode(), 'sha256').hexdigest()
+    return hmac.new(secret_key.encode(), data.encode(), "sha256").hexdigest()
 
 
 def validate_csrf_token(
     session_token: str,
     timed_token: str,
     secret_key: str,
-    salt: str = '_csrf_',
+    salt: str = "_csrf_",
     max_age: int = None,
 ) -> bool:
     if not timed_token or not session_token:
-        raise TokenMissingError('CSRF token is missing.')
+        raise TokenMissingError("CSRF token is missing.")
 
     try:
         serializer = URLSafeTimedSerializer(secret_key, salt=salt)
         raw_token = serializer.loads(timed_token, max_age=max_age)
     except SignatureExpired:
-        raise TokenExpiredError('CSRF token has expired.')
+        raise TokenExpiredError("CSRF token has expired.")
     except BadData:
-        raise TokenDecodeError('CSRF token is invalid.')
+        raise TokenDecodeError("CSRF token is invalid.")
 
     if not hmac.compare_digest(session_token, raw_token):
-        raise TokenMismatchError('CSRF tokens do not match.')
+        raise TokenMismatchError("CSRF tokens do not match.")
     return True
 
 
 class CSRFMiddleware:
     exclude_urls: typing.Iterable[str] | None = None
-    safe_methods: typing.Iterable[str] = ['get', 'head', 'options']
+    safe_methods: typing.Iterable[str] = ["get", "head", "options"]
 
     def __init__(
         self,
         app: ASGIApp,
         secret_key: str,
-        salt: str = '_csrf_',
+        salt: str = "_csrf_",
         exclude_urls: typing.Iterable[str] | None = None,
         max_age: int = 3600,
     ):
@@ -84,10 +84,10 @@ class CSRFMiddleware:
         self._max_age = max_age
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if 'session' not in scope:
-            raise CSRFError('CsrfMiddleware requires SessionMiddleware.')
+        if "session" not in scope:
+            raise CSRFError("CsrfMiddleware requires SessionMiddleware.")
 
-        await scope['session'].load()
+        await scope["session"].load()
         request = Request(scope, receive, send)
         if CSRF_SESSION_KEY not in request.session:
             token = get_generate_random()
@@ -109,13 +109,13 @@ class CSRFMiddleware:
                     max_age=self._max_age,
                 )
             except CSRFError:
-                raise PermissionDenied('CSRF token is invalid.')
+                raise PermissionDenied("CSRF token is invalid.")
         await self.app(scope, receive, send)
 
     async def get_csrf_token(self, request: Request) -> str:
         from_headers = request.headers.get(CSRF_HEADER)
         from_query = request.query_params.get(CSRF_QUERY_PARAM)
-        from_form_data = ''
+        from_form_data = ""
         if request.is_submitted:
             form_data = await request.form()
             from_form_data = typing.cast(str, form_data.get(CSRF_POST_FIELD))
@@ -132,14 +132,14 @@ class CSRFMiddleware:
 
 
 def get_csrf_token(request: Request) -> str | None:
-    return request.state.csrf_timed_token if hasattr(request.state, 'csrf_timed_token') else None
+    return request.state.csrf_timed_token if hasattr(request.state, "csrf_timed_token") else None
 
 
 def get_csrf_input(request: Request) -> str:
-    token = get_csrf_token(request) or ''
+    token = get_csrf_token(request) or ""
     return f'<input type="hidden" name="{CSRF_POST_FIELD}" value="{token}">'
 
 
 def get_csrf_meta_tag(request: Request) -> str:
-    token = get_csrf_token(request) or ''
+    token = get_csrf_token(request) or ""
     return f'<meta name="{CSRF_QUERY_PARAM}" content="{token}">'

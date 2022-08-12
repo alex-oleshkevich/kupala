@@ -22,7 +22,7 @@ if typing.TYPE_CHECKING:
 class QueryParams(requests.QueryParams):
     def get_bool(self, key: str, default: bool = None) -> bool | None:
         value = self.get(key, None)
-        return value.lower() in ['t', 'true', 'yes', 'on', '1'] if value is not None else default
+        return value.lower() in ["t", "true", "yes", "on", "1"] if value is not None else default
 
     def get_list(self, key: str, subcast: typing.Callable = None) -> list[str]:
         items = self.getlist(key)
@@ -31,8 +31,8 @@ class QueryParams(requests.QueryParams):
         return items
 
     def get_int(self, key: str, default: int = None) -> typing.Optional[int]:
-        value: str = self.get(key, '')
-        return int(value) if value != '' and value.isnumeric() else default
+        value: str = self.get(key, "")
+        return int(value) if value != "" and value.isnumeric() else default
 
 
 class FormData(requests.FormData):
@@ -51,12 +51,12 @@ class UploadFile(ds.UploadFile):
     async def save(self, storage: Storage, directory: str | os.PathLike, filename: str | None = None) -> str:
         uploaded_filename = pathlib.Path(self.filename)
         extension = pathlib.Path(uploaded_filename).suffix
-        base_name = os.path.basename(uploaded_filename).replace(extension, '')
+        base_name = os.path.basename(uploaded_filename).replace(extension, "")
         prefix = str(uuid.uuid4().fields[-1])[:5]
         if not extension:
-            extension = '.' + (mimetypes.guess_extension(self.content_type) or 'bin')
-        extension = extension.lstrip('.')
-        suggested_filename = f'{prefix}_{base_name}.{extension}'
+            extension = "." + (mimetypes.guess_extension(self.content_type) or "bin")
+        extension = extension.lstrip(".")
+        suggested_filename = f"{prefix}_{base_name}.{extension}"
 
         file_path = os.path.join(directory, filename or suggested_filename)
         await storage.put(file_path, await self.read())
@@ -65,7 +65,7 @@ class UploadFile(ds.UploadFile):
     async def read(self, size: int = -1) -> bytes:
         return typing.cast(bytes, await super().read(size))
 
-    async def read_string(self, size: int = -1, encoding: str = 'utf8', errors: str = 'strict') -> str:
+    async def read_string(self, size: int = -1, encoding: str = "utf8", errors: str = "strict") -> str:
         return (await self.read(size)).decode(encoding, errors)
 
 
@@ -92,33 +92,33 @@ class Headers(requests.Headers):
 
 class Request(requests.Request):
     def __new__(cls, scope: Scope, receive: Receive = empty_receive, send: Send = empty_send) -> Request:
-        if 'request' not in scope:
+        if "request" not in scope:
             instance = super().__new__(cls)
             instance.__init__(scope, receive, send)  # type: ignore
-            scope['request'] = instance
-        elif scope['request'].__class__ != cls:
+            scope["request"] = instance
+        elif scope["request"].__class__ != cls:
             # view function uses custom request class
-            request = scope['request']
+            request = scope["request"]
             request.__class__ = cls
-            scope['request'] = request
-        return scope['request']
+            scope["request"] = request
+        return scope["request"]
 
     @property
     def id(self) -> str:
-        assert 'request_id' in self.scope, 'RequestIDMiddleware must be installed to access request.id'
-        return self.scope['request_id']
+        assert "request_id" in self.scope, "RequestIDMiddleware must be installed to access request.id"
+        return self.scope["request_id"]
 
     @property
     def query_params(self) -> QueryParams:
         return QueryParams(super().query_params)
 
     @property
-    def app(self) -> 'App':
-        return self.scope['app']
+    def app(self) -> "App":
+        return self.scope["app"]
 
     @property
     def auth(self) -> UserToken:
-        return self.scope.get('auth', UserToken(user=AnonymousUser(), state=LoginState.ANONYMOUS))
+        return self.scope.get("auth", UserToken(user=AnonymousUser(), state=LoginState.ANONYMOUS))
 
     @property
     def user(self) -> UserLike:
@@ -147,7 +147,7 @@ class Request(requests.Request):
     @property
     def ip(self) -> str:
         """Returns the IP address of user."""
-        assert self.client, 'Client address is unknown.'
+        assert self.client, "Client address is unknown."
         return self.client.host
 
     @property
@@ -161,14 +161,14 @@ class Request(requests.Request):
         return self.method.upper() == "POST"
 
     @property
-    def session(self) -> Session:
+    def session(self) -> Session:  # type: ignore[override]
         assert "session" in self.scope, "SessionMiddleware must be installed to access request.session"
-        return self.scope['session']
+        return self.scope["session"]
 
     @property
     def locale(self) -> Locale:
         assert "locale" in self.scope, "LocaleMiddleware must be installed to access request.locale"
-        return self.scope['locale']
+        return self.scope["locale"]
 
     @property
     def language(self) -> str:
@@ -184,7 +184,7 @@ class Request(requests.Request):
 
     @property
     def is_submitted(self) -> bool:
-        return self.method.lower() in ['post', 'put', 'patch', 'delete']
+        return self.method.lower() in ["post", "put", "patch", "delete"]
 
     def url_matches(self, *patterns: str | typing.Pattern) -> bool:
         for pattern in patterns:
@@ -202,7 +202,7 @@ class Request(requests.Request):
                 return True
         return False
 
-    def static_url(self, path: str, path_name: str = 'static') -> str:
+    def static_url(self, path: str, path_name: str = "static") -> str:
         """Generate a URL to a static file."""
         return self.url_for(path_name, path=path)
 
@@ -233,4 +233,4 @@ class Request(requests.Request):
         return await self.form()
 
     def __repr__(self) -> str:
-        return f'<{self.__class__.__name__}: {self.method} {self.url}>'
+        return f"<{self.__class__.__name__}: {self.method} {self.url}>"

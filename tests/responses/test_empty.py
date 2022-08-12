@@ -8,7 +8,7 @@ def test_empty(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(request: Request) -> EmptyResponse:
         return EmptyResponse()
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
-    response = client.get('/')
+    response = client.get("/")
     assert response.status_code == 204

@@ -36,10 +36,10 @@ def wrap_command(app: App, command: click.Command | typing.Callable) -> click.Co
     elif isinstance(command, click.Command):
         if not command.callback:
             return command
-        command.name = command.name.replace('-command', '') if command.name else command.name
+        command.name = command.name.replace("-command", "") if command.name else command.name
         command.callback = create_dispatcher(app, command.callback)
     else:
-        name = command.__name__.replace('_command', '')
+        name = command.__name__.replace("_command", "")
         return click.Command(name, callback=create_dispatcher(app, command))
     return command
 
@@ -58,7 +58,7 @@ class ConsoleApplication:
         @click.pass_context
         def console_app(ctx: click.Context) -> None:
             ctx.ensure_object(dict)
-            ctx.obj['app'] = self.app
+            ctx.obj["app"] = self.app
 
         for command in self.commands:
             command = wrap_command(self.app, command)

@@ -22,13 +22,13 @@ def test_lifespan(test_app_factory: TestAppFactory, routes: Routes) -> None:
         exit_called = True
 
     def view() -> Response:
-        return Response('content')
+        return Response("content")
 
-    routes.add('/', view)
+    routes.add("/", view)
     app = test_app_factory(lifespan_handlers=[handler], routes=routes)
 
     with TestClient(app) as client:
-        client.get('/')
+        client.get("/")
         assert not exit_called
     assert enter_called
     assert exit_called

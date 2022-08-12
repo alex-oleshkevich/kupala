@@ -16,14 +16,14 @@ def form_request() -> Request:
         "type": "http",
         "method": "POST",
         "scheme": "http",
-        "client": ('0.0.0.0', '8080'),
+        "client": ("0.0.0.0", "8080"),
         "headers": [
             [b"accept", b"text/html"],
             [b"content-type", b"application/x-www-form-urlencoded"],
-            [b'cookie', b'key=value'],
-            [b'x-key', b'1'],
-            [b'x-multi', b'1'],
-            [b'x-multi', b'2'],
+            [b"cookie", b"key=value"],
+            [b"x-key", b"1"],
+            [b"x-multi", b"1"],
+            [b"x-multi", b"2"],
         ],
     }
 
@@ -136,7 +136,7 @@ def test_is_xhr(form_request: Request, xhr_request: Request) -> None:
 
 
 def test_ip(form_request: Request) -> None:
-    assert form_request.ip == '0.0.0.0'
+    assert form_request.ip == "0.0.0.0"
 
 
 def test_url_matches() -> None:
@@ -150,10 +150,10 @@ def test_url_matches() -> None:
             "headers": {},
         }
     )
-    assert request.url_matches(r'/account/login')
-    assert request.url_matches(r'.*ogin')
-    assert request.url_matches(r'/account/*')
-    assert not request.url_matches(r'/admin')
+    assert request.url_matches(r"/account/login")
+    assert request.url_matches(r".*ogin")
+    assert request.url_matches(r"/account/*")
+    assert not request.url_matches(r"/admin")
 
 
 def test_full_url_matches() -> None:
@@ -167,10 +167,10 @@ def test_full_url_matches() -> None:
             "headers": {},
         }
     )
-    assert request.full_url_matches(r'http://example.com')
-    assert request.full_url_matches(r'http://example.com/account/*')
-    assert request.full_url_matches(r'http://example.com/account/login')
-    assert not request.full_url_matches(r'http://another.com/account/login')
+    assert request.full_url_matches(r"http://example.com")
+    assert request.full_url_matches(r"http://example.com/account/*")
+    assert request.full_url_matches(r"http://example.com/account/login")
+    assert not request.full_url_matches(r"http://another.com/account/login")
 
 
 def test_query_params() -> None:
@@ -184,13 +184,13 @@ def test_query_params() -> None:
             "headers": {},
         }
     )
-    assert request.query_params.get('token') == 'TOKEN'
-    assert request.query_params.get_bool('enable') is True
-    assert request.query_params.get_list('items') == ['a', 'b']
-    assert request.query_params.get_list('int', int) == [1, 2]
-    assert request.query_params.get_int('count') == 10
-    assert request.query_params.get_int('count_missing', 42) == 42
-    assert request.query_params.get_int('enable') is None
+    assert request.query_params.get("token") == "TOKEN"
+    assert request.query_params.get_bool("enable") is True
+    assert request.query_params.get_list("items") == ["a", "b"]
+    assert request.query_params.get_list("int", int) == [1, 2]
+    assert request.query_params.get_int("count") == 10
+    assert request.query_params.get_int("count_missing", 42) == 42
+    assert request.query_params.get_int("enable") is None
 
 
 def test_file_uploads(test_client_factory: TestClientFactory, routes: Routes) -> None:
@@ -199,31 +199,31 @@ def test_file_uploads(test_client_factory: TestClientFactory, routes: Routes) ->
         return JSONResponse(
             [
                 {
-                    'filename': file.filename,
-                    'content': await file.read_string(),
-                    'content-type': file.content_type,
+                    "filename": file.filename,
+                    "content": await file.read_string(),
+                    "content-type": file.content_type,
                 }
-                for file in files.getlist('files')
+                for file in files.getlist("files")
             ]
         )
 
-    routes.add('/', upload_view, methods=['post'])
+    routes.add("/", upload_view, methods=["post"])
     client = test_client_factory(routes=routes)
 
-    file1 = io.BytesIO('праўда'.encode())
-    file2 = io.StringIO('file2')
+    file1 = io.BytesIO("праўда".encode())
+    file2 = io.StringIO("file2")
     response = client.post(
-        '/',
-        data={'text': 'data'},
+        "/",
+        data={"text": "data"},
         files=[
-            ('files', ('file1.txt', file1, 'text/plain')),
-            ('files', file2),
+            ("files", ("file1.txt", file1, "text/plain")),
+            ("files", file2),
         ],
     )
     assert response.status_code == 200
     assert response.json() == [
-        {'filename': 'file1.txt', 'content-type': 'text/plain', 'content': 'праўда'},
-        {'filename': 'files', 'content-type': '', 'content': 'file2'},
+        {"filename": "file1.txt", "content-type": "text/plain", "content": "праўда"},
+        {"filename": "files", "content-type": "", "content": "file2"},
     ]
 
 
@@ -231,28 +231,28 @@ def test_file_uploads(test_client_factory: TestClientFactory, routes: Routes) ->
 async def test_file_upload_store(test_client_factory: TestClientFactory, routes: Routes, storage: Storage) -> None:
     async def upload_view(request: Request) -> JSONResponse:
         files = await request.files()
-        file = files.get('file')
-        filename = ''
+        file = files.get("file")
+        filename = ""
         if file:
-            filename = await file.save(storage, 'newfile.txt')
+            filename = await file.save(storage, "newfile.txt")
 
         return JSONResponse(filename)
 
-    routes.add('/', upload_view, methods=['post'])
+    routes.add("/", upload_view, methods=["post"])
     client = test_client_factory(routes=routes)
 
-    file1 = io.BytesIO(b'content')
+    file1 = io.BytesIO(b"content")
     response = client.post(
-        '/',
-        data={'text': 'data'},
-        files=[('file', ('file1.txt', file1, 'text/plain'))],
+        "/",
+        data={"text": "data"},
+        files=[("file", ("file1.txt", file1, "text/plain"))],
     )
     assert response.status_code == 200
     filename = response.json()
 
     assert await storage.exists(filename)
     file = await storage.get(filename)
-    assert await file.read() == b'content'
+    assert await file.read() == b"content"
 
 
 @pytest.mark.asyncio
@@ -260,41 +260,41 @@ async def test_file_upload_store_without_filename(
     test_client_factory: TestClientFactory, routes: Routes, storage: Storage
 ) -> None:
     async def upload_view(request: Request) -> JSONResponse:
-        filename = ''
+        filename = ""
         files = await request.files()
-        file = files.get('file')
+        file = files.get("file")
         if file:
-            filename = await file.save(storage, 'uploads')
+            filename = await file.save(storage, "uploads")
 
         return JSONResponse(filename)
 
-    routes.add('/', upload_view, methods=['post'])
+    routes.add("/", upload_view, methods=["post"])
     client = test_client_factory(routes=routes)
 
-    file1 = io.BytesIO(b'content')
+    file1 = io.BytesIO(b"content")
     response = client.post(
-        '/',
-        data={'text': 'data'},
-        files=[('file', file1)],
+        "/",
+        data={"text": "data"},
+        files=[("file", file1)],
     )
     assert response.status_code == 200
     filename = response.json()
-    assert '.bin' in filename
+    assert ".bin" in filename
     assert await storage.exists(filename)
 
 
 def test_request_auth(form_request: Request) -> None:
-    form_request.scope['auth'] = UserToken(AnonymousUser(), LoginState.ANONYMOUS)
+    form_request.scope["auth"] = UserToken(AnonymousUser(), LoginState.ANONYMOUS)
     assert isinstance(form_request.user, AnonymousUser)
 
 
 def test_request_cookies(form_request: Request) -> None:
-    assert form_request.cookies.get('key') == 'value'
+    assert form_request.cookies.get("key") == "value"
 
 
 def test_request_headers(form_request: Request) -> None:
-    assert form_request.headers.get('x-key') == '1'
-    assert form_request.headers.getlist('x-multi') == ['1', '2']
+    assert form_request.headers.get("x-key") == "1"
+    assert form_request.headers.getlist("x-multi") == ["1", "2"]
 
 
 @pytest.mark.asyncio
@@ -305,8 +305,8 @@ async def test_request_data(test_client_factory: TestClientFactory, routes: Rout
     async def form_view(request: Request) -> JSONResponse:
         return JSONResponse(dict(await request.data()))  # type: ignore
 
-    routes.add('/json', json_view, methods=['post'])
-    routes.add('/form', form_view, methods=['post'])
+    routes.add("/json", json_view, methods=["post"])
+    routes.add("/form", form_view, methods=["post"])
     client = test_client_factory(routes=routes)
-    assert client.post('/json', json={'data': 'content'}).json() == {'data': 'content'}
-    assert client.post('/form', data={'data': 'content'}).json() == {'data': 'content'}
+    assert client.post("/json", json={"data": "content"}).json() == {"data": "content"}
+    assert client.post("/form", data={"data": "content"}).json() == {"data": "content"}

@@ -44,7 +44,7 @@ class ResponseFactory:
         self,
         message: str,
         errors: dict[str, list[str]] | None = None,
-        code: str = '',
+        code: str = "",
         default: typing.Callable[[typing.Any], typing.Any] | None = None,
         indent: int = 4,
         encoder_class: typing.Type[JSONEncoder] | None = None,
@@ -69,8 +69,8 @@ class ResponseFactory:
     def stream(
         self,
         content: typing.Any,
-        file_name: str = 'data.bin',
-        content_type: str = 'application/octet-stream',
+        file_name: str = "data.bin",
+        content_type: str = "application/octet-stream",
         inline: bool = False,
     ) -> StreamingResponse:
         return StreamingResponse(
@@ -119,7 +119,7 @@ class ResponseFactory:
         self,
         path: str | Path,
         file_name: str,
-        content_type: str = 'application/octet-stream',
+        content_type: str = "application/octet-stream",
         inline: bool = False,
     ) -> FileResponse:
         return FileResponse(
@@ -135,7 +135,7 @@ class ResponseFactory:
         return EmptyResponse(headers=self.headers)
 
     def template(
-        self, template_name: str, context: dict | None = None, media_type: str = 'text/html'
+        self, template_name: str, context: dict | None = None, media_type: str = "text/html"
     ) -> TemplateResponse:
         return TemplateResponse(
             template_name=template_name,

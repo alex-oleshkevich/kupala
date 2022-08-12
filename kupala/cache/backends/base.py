@@ -1,7 +1,7 @@
 import abc
 import typing
 
-_T = typing.TypeVar('_T')
+_T = typing.TypeVar("_T")
 
 
 class CacheBackend(abc.ABC):  # pragma: no cover

@@ -12,15 +12,15 @@ from tests.conftest import TestClientFactory
 
 def test_handler_by_status_code(test_client_factory: TestClientFactory, routes: Routes) -> None:
     async def on_403(request: Request, exc: Exception) -> Response:
-        return Response('called')
+        return Response("called")
 
     async def index_view() -> None:
         raise HTTPException(status_code=403)
 
-    routes.add('/', index_view)
+    routes.add("/", index_view)
     client = test_client_factory(routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={403: on_403})])
-    response = client.get('/')
-    assert response.text == 'called'
+    response = client.get("/")
+    assert response.text == "called"
 
 
 def test_handler_by_type(test_client_factory: TestClientFactory, routes: Routes) -> None:
@@ -28,18 +28,18 @@ def test_handler_by_type(test_client_factory: TestClientFactory, routes: Routes)
         pass
 
     async def on_error(request: Request, exc: Exception) -> Response:
-        return Response('called')
+        return Response("called")
 
     async def index_view(request: Request) -> None:
         raise CustomError()
 
-    routes.add('/', index_view)
+    routes.add("/", index_view)
     client = test_client_factory(
         routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={CustomError: on_error})]
     )
 
-    response = client.get('/')
-    assert response.text == 'called'
+    response = client.get("/")
+    assert response.text == "called"
 
 
 def test_sync_handler(test_client_factory: TestClientFactory, routes: Routes) -> None:
@@ -47,17 +47,17 @@ def test_sync_handler(test_client_factory: TestClientFactory, routes: Routes) ->
         pass
 
     def on_error(request: Request, exc: Exception) -> Response:
-        return Response('called')
+        return Response("called")
 
     async def index_view() -> None:
         raise CustomError()
 
-    routes.add('/', index_view)
+    routes.add("/", index_view)
     client = test_client_factory(
         routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={CustomError: on_error})]
     )
-    response = client.get('/')
-    assert response.text == 'called'
+    response = client.get("/")
+    assert response.text == "called"
 
 
 def test_composite_exception(test_client_factory: TestClientFactory, routes: Routes) -> None:
@@ -65,17 +65,17 @@ def test_composite_exception(test_client_factory: TestClientFactory, routes: Rou
         pass
 
     def on_error(request: Request, exc: Exception) -> Response:
-        return Response('called')
+        return Response("called")
 
     async def index_view() -> None:
         raise CustomError()
 
-    routes.add('/', index_view)
+    routes.add("/", index_view)
     client = test_client_factory(
         routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={TypeError: on_error})]
     )
-    response = client.get('/')
-    assert response.text == 'called'
+    response = client.get("/")
+    assert response.text == "called"
 
 
 def test_should_reraise_unhandled_exception(test_client_factory: TestClientFactory, routes: Routes) -> None:
@@ -85,12 +85,12 @@ def test_should_reraise_unhandled_exception(test_client_factory: TestClientFacto
     async def index_view(request: Request) -> None:
         raise CustomError()
 
-    routes.add('/', index_view)
+    routes.add("/", index_view)
     client = test_client_factory(routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={})])
 
     with pytest.raises(CustomError):
-        response = client.get('/')
-        assert response.text == 'called'
+        response = client.get("/")
+        assert response.text == "called"
 
 
 class HandledExcAfterResponse:
@@ -101,7 +101,7 @@ class HandledExcAfterResponse:
 
 
 def test_handled_exc_after_response(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    routes.add('/', HandledExcAfterResponse())
+    routes.add("/", HandledExcAfterResponse())
     client = test_client_factory(routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={})])
 
     with pytest.raises(RuntimeError):
@@ -112,7 +112,7 @@ def test_websocket_should_raise(test_client_factory: TestClientFactory, routes: 
     def raise_runtime_error(request: WebSocket) -> None:
         raise RuntimeError("Oops!")
 
-    routes.websocket('/', raise_runtime_error)
+    routes.websocket("/", raise_runtime_error)
     client = test_client_factory(routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={})])
 
     with pytest.raises(RuntimeError):
@@ -124,74 +124,74 @@ def test_default_http_error_handler(test_client_factory: TestClientFactory, rout
     async def index_view(request: Request) -> None:
         raise HTTPException(status_code=409)
 
-    routes.add('/', index_view)
+    routes.add("/", index_view)
     client = test_client_factory(routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={})])
 
-    response = client.get('/')
+    response = client.get("/")
     assert response.status_code == 409
 
 
 def test_default_error_handler_for_json(test_client_factory: TestClientFactory, routes: Routes) -> None:
     async def view() -> None:
-        raise HTTPException(detail='Ooops', status_code=405)
+        raise HTTPException(detail="Ooops", status_code=405)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(debug=False, routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={})])
 
-    response = client.get('/', headers={'accept': 'application/json'})
+    response = client.get("/", headers={"accept": "application/json"})
     assert response.status_code == 405
-    assert response.headers['content-type'] == 'application/json'
+    assert response.headers["content-type"] == "application/json"
     assert response.json() == {
-        'message': 'Ooops',
-        'errors': {},
+        "message": "Ooops",
+        "errors": {},
     }
 
 
 def test_default_error_handler_for_json_in_debug(test_client_factory: TestClientFactory, routes: Routes) -> None:
     async def view() -> None:
-        raise HTTPException(detail='Ooops', status_code=405)
+        raise HTTPException(detail="Ooops", status_code=405)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={})])
 
-    response = client.get('/', headers={'accept': 'application/json'})
+    response = client.get("/", headers={"accept": "application/json"})
     assert response.status_code == 405
-    assert response.headers['content-type'] == 'application/json'
+    assert response.headers["content-type"] == "application/json"
     assert response.json() == {
-        'message': 'Ooops',
-        'errors': {},
-        'exception_type': 'starlette.exceptions.HTTPException',
-        'exception': "HTTPException(status_code=405, detail='Ooops')",
+        "message": "Ooops",
+        "errors": {},
+        "exception_type": "starlette.exceptions.HTTPException",
+        "exception": "HTTPException(status_code=405, detail='Ooops')",
     }
 
 
 def test_default_error_handler_not_modified_in_debug(test_client_factory: TestClientFactory, routes: Routes) -> None:
     async def view() -> None:
-        raise HTTPException(detail='Ooops', status_code=304)
+        raise HTTPException(detail="Ooops", status_code=304)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={})])
 
-    response = client.get('/')
+    response = client.get("/")
     assert response.status_code == 304
 
 
 def test_default_error_handler_empty_response_in_debug(test_client_factory: TestClientFactory, routes: Routes) -> None:
     async def view() -> None:
-        raise HTTPException(detail='Ooops', status_code=204)
+        raise HTTPException(detail="Ooops", status_code=204)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={})])
-    response = client.get('/')
+    response = client.get("/")
     assert response.status_code == 204
 
 
 def test_default_error_handler_in_debug(test_client_factory: TestClientFactory, routes: Routes) -> None:
     async def view() -> None:
-        raise HTTPException(detail='Ooops', status_code=500)
+        raise HTTPException(detail="Ooops", status_code=500)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={})])
-    response = client.get('/')
+    response = client.get("/")
     assert response.status_code == 500
-    assert response.text == 'Ooops'
+    assert response.text == "Ooops"

@@ -14,5 +14,5 @@ class TimeoutMiddleware:
             async with anyio.fail_after(self.timeout):
                 await self.app(scope, receive, send)
         except TimeoutError:
-            response = PlainTextResponse('Gateway Timeout', 504)
+            response = PlainTextResponse("Gateway Timeout", 504)
             await response(scope, receive, send)

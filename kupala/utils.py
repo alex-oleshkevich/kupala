@@ -6,17 +6,17 @@ import re
 import typing
 from starlette.concurrency import run_in_threadpool
 
-CAMEL_TO_SNAKE_PATTERN = re.compile(r'(?<!^)(?=[A-Z])')
+CAMEL_TO_SNAKE_PATTERN = re.compile(r"(?<!^)(?=[A-Z])")
 
 
 def camel_to_snake(name: str) -> str:
-    return CAMEL_TO_SNAKE_PATTERN.sub('_', name).lower()
+    return CAMEL_TO_SNAKE_PATTERN.sub("_", name).lower()
 
 
 def import_string(path: str, package: str = None) -> typing.Any:
     attr = None
-    if ':' in path:
-        module_name, attr = path.split(':')
+    if ":" in path:
+        module_name, attr = path.split(":")
     else:
         module_name = path
 
@@ -51,6 +51,6 @@ def to_string_list(value: str | typing.Iterable[str] | None) -> list[str]:
 
 
 def callable_name(injection: typing.Any) -> str:
-    class_name = injection.__name__ if inspect.isclass(injection) else getattr(injection, '__name__', repr(injection))
-    module_name = getattr(injection, '__module__', '')
-    return f'{module_name}.{class_name}{inspect.signature(injection)}'
+    class_name = injection.__name__ if inspect.isclass(injection) else getattr(injection, "__name__", repr(injection))
+    module_name = getattr(injection, "__module__", "")
+    return f"{module_name}.{class_name}{inspect.signature(injection)}"

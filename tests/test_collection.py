@@ -250,23 +250,23 @@ def test_stringable() -> None:
 
 def test_choices() -> None:
     items = [
-        {'item_id': 1, 'item_name': 'one'},
-        {'item_id': 2, 'item_name': 'two'},
-        {'item_id': 3, 'item_name': 'three'},
+        {"item_id": 1, "item_name": "one"},
+        {"item_id": 2, "item_name": "two"},
+        {"item_id": 3, "item_name": "three"},
     ]
-    assert Collection(items).choices('item_name', 'item_id') == [(1, 'one'), (2, 'two'), (3, 'three')]
+    assert Collection(items).choices("item_name", "item_id") == [(1, "one"), (2, "two"), (3, "three")]
 
 
 def test_choices_dict() -> None:
     items = [
-        {'item_id': 1, 'item_name': 'one'},
-        {'item_id': 2, 'item_name': 'two'},
-        {'item_id': 3, 'item_name': 'three'},
+        {"item_id": 1, "item_name": "one"},
+        {"item_id": 2, "item_name": "two"},
+        {"item_id": 3, "item_name": "three"},
     ]
-    assert Collection(items).choices_dict('item_name', 'item_id') == [
-        {'value': 1, 'label': 'one'},
-        {'value': 2, 'label': 'two'},
-        {'value': 3, 'label': 'three'},
+    assert Collection(items).choices_dict("item_name", "item_id") == [
+        {"value": 1, "label": "one"},
+        {"value": 2, "label": "two"},
+        {"value": 3, "label": "three"},
     ]
 
 

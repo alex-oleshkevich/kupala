@@ -13,7 +13,7 @@ class CustomObject:
 
 def _default(o: t.Any) -> t.Any:
     if isinstance(o, CustomObject):
-        return '<custom>'
+        return "<custom>"
 
 
 class _JsonEncoder(JSONEncoder):
@@ -23,48 +23,48 @@ class _JsonEncoder(JSONEncoder):
 
 def test_json(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(request: Request) -> JSONResponse:
-        return JSONResponse({'user': 'root'})
+        return JSONResponse({"user": "root"})
 
-    routes.add('/', view)
+    routes.add("/", view)
 
     client = test_client_factory(routes=routes)
-    response = client.get('/')
+    response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {'user': 'root'}
+    assert response.json() == {"user": "root"}
 
 
 def test_custom_encoder_class(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(request: Request) -> JSONResponse:
-        return JSONResponse({'object': CustomObject()}, encoder_class=_JsonEncoder)
+        return JSONResponse({"object": CustomObject()}, encoder_class=_JsonEncoder)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
-    response = client.get('/')
-    assert response.json() == {'object': '<custom>'}
+    response = client.get("/")
+    assert response.json() == {"object": "<custom>"}
 
 
 def test_custom_default(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(request: Request) -> JSONResponse:
         return JSONResponse(
             {
-                'object': CustomObject(),
+                "object": CustomObject(),
             },
             default=_default,
         )
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
-    response = client.get('/')
-    assert response.json() == {'object': '<custom>'}
+    response = client.get("/")
+    assert response.json() == {"object": "<custom>"}
 
 
 def test_json_indents(test_client_factory: TestClientFactory, routes: Routes) -> None:
     def view(request: Request) -> JSONResponse:
-        return JSONResponse({'user': {'details': {'name': 'root'}}}, indent=4)
+        return JSONResponse({"user": {"details": {"name": "root"}}}, indent=4)
 
-    routes.add('/', view)
+    routes.add("/", view)
     client = test_client_factory(routes=routes)
-    response = client.get('/')
+    response = client.get("/")
     assert (
         response.text
         == """{

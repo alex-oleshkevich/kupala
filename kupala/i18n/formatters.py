@@ -10,23 +10,23 @@ from babel import dates, numbers
 from kupala.i18n.locale import get_locale
 from kupala.i18n.timezone import get_timezone, to_user_timezone
 
-_DateTimeFormats = typing.Literal['short', 'medium', 'long', 'full']
-_TimeDeltaFormats = typing.Literal['narrow', 'short', 'long']
+_DateTimeFormats = typing.Literal["short", "medium", "long", "full"]
+_TimeDeltaFormats = typing.Literal["narrow", "short", "long"]
 
 
-def format_datetime(dt: datetime.datetime, format: _DateTimeFormats = 'medium', rebase: bool = True) -> str:
+def format_datetime(dt: datetime.datetime, format: _DateTimeFormats = "medium", rebase: bool = True) -> str:
     locale = get_locale()
     if rebase:
         dt = to_user_timezone(dt)
     return dates.format_datetime(dt, format=format, locale=locale)
 
 
-def format_date(date: datetime.datetime, format: _DateTimeFormats = 'medium') -> str:
+def format_date(date: datetime.datetime, format: _DateTimeFormats = "medium") -> str:
     locale = get_locale()
     return dates.format_date(date, format=format, locale=locale)
 
 
-def format_time(time: datetime.datetime, format: _DateTimeFormats = 'medium', rebase: bool = True) -> str:
+def format_time(time: datetime.datetime, format: _DateTimeFormats = "medium", rebase: bool = True) -> str:
     locale = get_locale()
     if rebase:
         time = to_user_timezone(time)
@@ -35,10 +35,10 @@ def format_time(time: datetime.datetime, format: _DateTimeFormats = 'medium', re
 
 def format_timedelta(
     timedelta: datetime.timedelta,
-    granularity: str = 'second',
+    granularity: str = "second",
     threshold: float = 0.85,
     add_direction: bool = False,
-    format: _TimeDeltaFormats = 'long',
+    format: _TimeDeltaFormats = "long",
 ) -> str:
     locale = get_locale()
     return dates.format_timedelta(
@@ -62,7 +62,7 @@ def format_interval(
     locale = get_locale()
     extra_kwargs = {}
     if rebase:
-        extra_kwargs['tzinfo'] = get_timezone()
+        extra_kwargs["tzinfo"] = get_timezone()
     return dates.format_interval(start, end, skeleton=skeleton, fuzzy=fuzzy, locale=locale, **extra_kwargs)
 
 
@@ -81,7 +81,7 @@ def format_currency(
     currency: str,
     format: str = None,
     currency_digits: bool = True,
-    format_type: str = 'standard',
+    format_type: str = "standard",
     decimal_quantization: bool = True,
     group_separator: bool = True,
 ) -> str:

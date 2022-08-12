@@ -10,7 +10,7 @@ from tests.conftest import TestAppFactory
 def make_cache_manager(registry: InjectionRegistry) -> CacheManager:
     return CacheManager(
         {
-            'default': Cache('memory://'),
+            "default": Cache("memory://"),
         }
     )
 

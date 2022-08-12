@@ -53,11 +53,11 @@ class InMemoryCache(CacheBackend):
         self._cache.clear()
 
     async def increment(self, key: str, step: int) -> None:
-        value = int(await self.get(key) or b'0')
+        value = int(await self.get(key) or b"0")
         await self.set(key, str(value + step).encode(), 999_999_999)
 
     async def decrement(self, key: str, step: int) -> None:
-        value = int(await self.get(key) or b'0')
+        value = int(await self.get(key) or b"0")
         await self.set(key, str(value - step).encode(), 999_999_999)
 
     async def touch(self, key: str, delta: int) -> None:

@@ -43,13 +43,13 @@ class TestClientFactory(typing.Protocol):  # pragma: nocover
 @pytest.fixture
 def test_app_factory() -> TestAppFactory:
     def factory(*args: typing.Any, **kwargs: typing.Any) -> App:
-        renderer = kwargs.pop('renderer', FormatRenderer())
-        kwargs.setdefault('debug', True)
-        kwargs.setdefault('app_class', App)
-        kwargs.setdefault('routes', Routes())
-        kwargs.setdefault('secret_key', 't0pSekRet!')
-        kwargs.setdefault('dependencies', InjectionRegistry())
-        app_class = kwargs.pop('app_class')
+        renderer = kwargs.pop("renderer", FormatRenderer())
+        kwargs.setdefault("debug", True)
+        kwargs.setdefault("app_class", App)
+        kwargs.setdefault("routes", Routes())
+        kwargs.setdefault("secret_key", "t0pSekRet!")
+        kwargs.setdefault("dependencies", InjectionRegistry())
+        app_class = kwargs.pop("app_class")
         app = app_class(*args, **kwargs)
 
         app.dependencies.bind(TemplateRenderer, renderer)
@@ -61,10 +61,10 @@ def test_app_factory() -> TestAppFactory:
 @pytest.fixture
 def test_client_factory(test_app_factory: TestAppFactory) -> TestClientFactory:
     def factory(**kwargs: typing.Any) -> TestClient:
-        raise_server_exceptions = kwargs.pop('raise_server_exceptions', True)
+        raise_server_exceptions = kwargs.pop("raise_server_exceptions", True)
 
-        kwargs.setdefault('app', test_app_factory(**kwargs))
-        app = kwargs['app']
+        kwargs.setdefault("app", test_app_factory(**kwargs))
+        app = kwargs["app"]
         return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
     return typing.cast(TestClientFactory, factory)

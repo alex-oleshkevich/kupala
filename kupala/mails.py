@@ -21,7 +21,7 @@ class CSSInlinerPlugin(Plugin):
 
 
 class MailerManager:
-    def __init__(self, mailers: dict[str, Mailer] | None = None, default: str = 'default') -> None:
+    def __init__(self, mailers: dict[str, Mailer] | None = None, default: str = "default") -> None:
         self._mailers = mailers or {}
         self._default = default
 
@@ -34,16 +34,16 @@ class MailerManager:
         self,
         url: str,
         *,
-        from_address: str = 'no-reply@example.com',
-        from_name: str = 'Example',
+        from_address: str = "no-reply@example.com",
+        from_name: str = "Example",
         signer: Signer = None,
         encrypter: Encrypter = None,
         plugins: list[Plugin] = None,
-        name: str = 'default',
+        name: str = "default",
     ) -> MailerManager:
         """Create and configure mailer from URL."""
         if from_name:
-            from_address = f'{from_name} <{from_address}>'
+            from_address = f"{from_name} <{from_address}>"
         transport = create_transport_from_url(url)
         return self.add(
             name,
@@ -68,7 +68,7 @@ class MailerManager:
             raise KeyError(f'No mailer named "{name}" defined.')
         return self._mailers[name]
 
-    async def send(self, message: Email | Message, name: str = 'default') -> SentMessages:
+    async def send(self, message: Email | Message, name: str = "default") -> SentMessages:
         """Send message using selected mailer."""
         mailer = self.get(name)
         return await mailer.send(message)
@@ -94,8 +94,8 @@ async def send_mail(
     html: str = None,
     text: str = None,
     return_path: str = None,
-    text_charset: str = 'utf-8',
-    html_charset: str = 'utf-8',
+    text_charset: str = "utf-8",
+    html_charset: str = "utf-8",
     boundary: str = None,
     message_id: str = None,
 ) -> SentMessages:
@@ -135,8 +135,8 @@ async def send_templated_mail(
     text_template: str = None,
     context: dict = None,
     return_path: str = None,
-    text_charset: str = 'utf-8',
-    html_charset: str = 'utf-8',
+    text_charset: str = "utf-8",
+    html_charset: str = "utf-8",
     boundary: str = None,
     message_id: str = None,
 ) -> SentMessages:

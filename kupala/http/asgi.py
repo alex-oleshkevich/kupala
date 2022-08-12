@@ -35,5 +35,5 @@ class ASGIHandler:
             self.asgi_app = mw.wrap(self.asgi_app)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        assert scope['type'] in {'http', 'websocket', 'lifespan'}
+        assert scope["type"] in {"http", "websocket", "lifespan"}
         await self.asgi_app(scope, receive, send)

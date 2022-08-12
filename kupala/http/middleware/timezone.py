@@ -8,8 +8,8 @@ from kupala.i18n.timezone import switch_timezone
 
 def _get_timezone_from_user(request: Request) -> str | None:
     tz_provider = typing.cast(HasTimezone, request.user)
-    if hasattr(tz_provider, 'get_timezone'):
-        return getattr(tz_provider, 'get_timezone')()
+    if hasattr(tz_provider, "get_timezone"):
+        return getattr(tz_provider, "get_timezone")()
     return None
 
 
@@ -17,7 +17,7 @@ class TimezoneMiddleware:
     def __init__(
         self,
         app: ASGIApp,
-        fallback: str = 'UTC',
+        fallback: str = "UTC",
         timezone_detector: typing.Callable[[Request], str | None] = None,
     ) -> None:
         self.app = app
