@@ -11,7 +11,6 @@ from imia import AnonymousUser, LoginState, UserLike, UserToken
 from starlette import datastructures as ds, requests
 from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
-from starsessions import Session
 
 from kupala.storages.storages import Storage
 
@@ -159,11 +158,6 @@ class Request(requests.Request):
     def is_post(self) -> bool:
         """Test if request was made using POST command."""
         return self.method.upper() == "POST"
-
-    @property
-    def session(self) -> Session:  # type: ignore[override]
-        assert "session" in self.scope, "SessionMiddleware must be installed to access request.session"
-        return self.scope["session"]
 
     @property
     def locale(self) -> Locale:

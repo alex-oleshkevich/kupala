@@ -1,6 +1,6 @@
 import pytest
 import typing
-from starsessions import SessionMiddleware
+from starsessions import CookieBackend, SessionAutoloadMiddleware, SessionMiddleware
 
 from kupala.http import Routes
 from kupala.http.middleware import Middleware
@@ -33,7 +33,8 @@ def test_flash_messages(
     client = test_client_factory(
         routes=routes,
         middleware=[
-            Middleware(SessionMiddleware, secret_key="key!", autoload=True),
+            Middleware(SessionMiddleware, backend=CookieBackend(secret_key="key", max_age=80000)),
+            Middleware(SessionAutoloadMiddleware),
             Middleware(FlashMessagesMiddleware, storage=storage),
         ],
     )

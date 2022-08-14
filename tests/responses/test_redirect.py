@@ -1,5 +1,5 @@
 import pytest
-from starsessions import SessionMiddleware
+from starsessions import CookieBackend, SessionAutoloadMiddleware, SessionMiddleware
 
 from kupala.http import Routes
 from kupala.http.middleware import Middleware
@@ -73,7 +73,8 @@ def test_redirect_with_flash_message(test_client_factory: TestClientFactory, rou
     client = test_client_factory(
         routes=routes,
         middleware=[
-            Middleware(SessionMiddleware, secret_key="key!", autoload=True),
+            Middleware(SessionMiddleware, backend=CookieBackend(secret_key="key", max_age=80000)),
+            Middleware(SessionAutoloadMiddleware),
             Middleware(FlashMessagesMiddleware, storage="session"),
         ],
     )
@@ -95,7 +96,8 @@ def test_redirect_with_flash_message_via_method(test_client_factory: TestClientF
     client = test_client_factory(
         routes=routes,
         middleware=[
-            Middleware(SessionMiddleware, secret_key="key!", autoload=True),
+            Middleware(SessionMiddleware, backend=CookieBackend(secret_key="key", max_age=80000)),
+            Middleware(SessionAutoloadMiddleware),
             Middleware(FlashMessagesMiddleware, storage="session"),
         ],
     )
@@ -117,7 +119,8 @@ def test_redirect_with_success(test_client_factory: TestClientFactory, routes: R
     client = test_client_factory(
         routes=routes,
         middleware=[
-            Middleware(SessionMiddleware, secret_key="key!", autoload=True),
+            Middleware(SessionMiddleware, backend=CookieBackend(secret_key="key", max_age=80000)),
+            Middleware(SessionAutoloadMiddleware),
             Middleware(FlashMessagesMiddleware, storage="session"),
         ],
     )
@@ -139,7 +142,8 @@ def test_redirect_with_error(test_client_factory: TestClientFactory, routes: Rou
     client = test_client_factory(
         routes=routes,
         middleware=[
-            Middleware(SessionMiddleware, secret_key="key!", autoload=True),
+            Middleware(SessionMiddleware, backend=CookieBackend(secret_key="key", max_age=80000)),
+            Middleware(SessionAutoloadMiddleware),
             Middleware(FlashMessagesMiddleware, storage="session"),
         ],
     )
