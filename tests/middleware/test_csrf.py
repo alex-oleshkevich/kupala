@@ -1,6 +1,6 @@
 import pytest
 from itsdangerous import URLSafeTimedSerializer
-from starsessions import CookieBackend, SessionAutoloadMiddleware, SessionMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from kupala.http import Routes
 from kupala.http.exceptions import PermissionDenied
@@ -84,8 +84,7 @@ def test_middleware_checks_access(test_client_factory: TestClientFactory, routes
     client = test_client_factory(
         routes=routes,
         middleware=[
-            Middleware(SessionMiddleware, backend=CookieBackend(secret_key="key", max_age=80000)),
-            Middleware(SessionAutoloadMiddleware),
+            Middleware(SessionMiddleware, secret_key="key", max_age=80000),
             Middleware(CSRFMiddleware, secret_key="key!"),
         ],
     )
@@ -135,8 +134,7 @@ def test_middleware_allow_from_whitelist(test_client_factory: TestClientFactory,
     client = test_client_factory(
         routes=routes,
         middleware=[
-            Middleware(SessionMiddleware, backend=CookieBackend(secret_key="key", max_age=80000)),
-            Middleware(SessionAutoloadMiddleware),
+            Middleware(SessionMiddleware, secret_key="key", max_age=80000),
             Middleware(CSRFMiddleware, secret_key="secret", exclude_urls=[r"/login"]),
         ],
     )
@@ -157,8 +155,7 @@ def test_middleware_allow_from_whitelist_using_full_url(test_client_factory: Tes
     client = test_client_factory(
         routes=routes,
         middleware=[
-            Middleware(SessionMiddleware, backend=CookieBackend(secret_key="key", max_age=80000)),
-            Middleware(SessionAutoloadMiddleware),
+            Middleware(SessionMiddleware, secret_key="key", max_age=80000),
             Middleware(CSRFMiddleware, secret_key="secret", exclude_urls=["http://testserver/"]),
         ],
     )
@@ -174,8 +171,7 @@ def test_middleware_injects_template_context(test_client_factory: TestClientFact
     client = test_client_factory(
         routes=routes,
         middleware=[
-            Middleware(SessionMiddleware, backend=CookieBackend(secret_key="key", max_age=80000)),
-            Middleware(SessionAutoloadMiddleware),
+            Middleware(SessionMiddleware, secret_key="key", max_age=80000),
             Middleware(CSRFMiddleware, secret_key="secret", exclude_urls=["http://testserver/"]),
         ],
     )

@@ -4,7 +4,6 @@ import os
 import typing
 from itsdangerous import BadData, SignatureExpired, URLSafeTimedSerializer
 from starlette.types import ASGIApp, Receive, Scope, Send
-from starsessions import load_session
 
 from kupala.http.exceptions import PermissionDenied
 from kupala.http.requests import Request
@@ -89,7 +88,6 @@ class CSRFMiddleware:
             raise CSRFError("CsrfMiddleware requires SessionMiddleware.")
 
         request = Request(scope, receive, send)
-        await load_session(request)
         if CSRF_SESSION_KEY not in request.session:
             token = get_generate_random()
             csrf_token = generate_token(self._secret_key, token)

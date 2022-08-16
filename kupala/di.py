@@ -107,10 +107,11 @@ class InjectionRegistry:
     def injectable(
         self,
         type_name: typing.Any,
+        cached: bool = False,
         scope: Scope = "global",
     ) -> typing.Callable[[InjectableFactory], InjectableFactory]:
         def wrapper(fn: InjectableFactory) -> InjectableFactory:
-            self.register(type_name, fn, scope=scope)
+            self.register(type_name, fn, cached=cached, scope=scope)
             return fn
 
         return wrapper

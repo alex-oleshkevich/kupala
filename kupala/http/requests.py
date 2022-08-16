@@ -203,6 +203,10 @@ class Request(requests.Request):
     def url_for(self, name: str, **path_params: typing.Any) -> str:
         return self.app.url_for(name, **path_params)
 
+    def absolute_url_for(self, name: str, **path_params: typing.Any) -> str:
+        path = self.app.url_for(name, **path_params)
+        return str(self.url.replace(path=path))
+
     async def form(self) -> FormData:
         data = await super().form()
         return FormData(
