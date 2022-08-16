@@ -29,9 +29,10 @@ class App:
         self,
         *,
         secret_key: str,
-        routes: Routes,
+        routes: Routes | None = None,
         dependencies: InjectionRegistry | None = None,
         debug: bool = False,
+        extensions: typing.Iterable[Extension] | None = None,
         commands: list[click.Command] | None = None,
         context_processors: list[ContextProcessor] | None = None,
         middleware: list[Middleware] | MiddlewareStack | None = None,
@@ -42,24 +43,32 @@ class App:
         self.debug = debug
         self.state = State()
 
-        self._router = Router(routes)
-        self._commands = commands or []
-        self._middleware = MiddlewareStack(list(middleware or []))
-        self._lifespan_handlers = lifespan_handlers or []
-        self._error_handlers = error_handlers or {}
-        self._asgi_handler = self._build_middleware()
+        self._asgi_handler: ASGIApp | None = None
+        self.routes = routes or Routes()
+        self.commands = commands or []
+        self.middleware = MiddlewareStack(list(middleware or []))
+        self.lifespan_handlers = lifespan_handlers or []
+        self.error_handlers = error_handlers or {}
+        self.dependencies = dependencies or InjectionRegistry()
         self.context_processors = context_processors or []
         self.context_processors.append(standard_processors)
-        self.dependencies = dependencies or InjectionRegistry()
 
         self.dependencies.bind(self.__class__, self)
+
+        self._router = Router(self.routes)
+
+        # bootstrap extensions
+        extensions = extensions or []
+        for extension in extensions:
+            extension.register(self)
+            extension.bootstrap(self)
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         started = False
         try:
             await receive()
             async with AsyncExitStack() as stack:
-                for hook in self._lifespan_handlers:
+                for hook in self.lifespan_handlers:
                     await stack.enter_async_context(hook(self))
                 await send({"type": "lifespan.startup.complete"})
                 started = True
@@ -78,7 +87,7 @@ class App:
     def cli(self) -> int:
         """Run console application."""
         set_current_application(self)
-        return ConsoleApplication(self, self._commands).run()
+        return ConsoleApplication(self, self.commands).run()
 
     def url_for(self, name: str, **path_params: str) -> str:
         """
@@ -98,11 +107,15 @@ class App:
         return self.dependencies.get(TemplateRenderer).render(template_name, context or {})  # type: ignore[misc]
 
     def _build_middleware(self) -> ASGIApp:
-        self._middleware.top(ExceptionMiddleware, handlers=self._error_handlers, debug=self.debug)
-        self._middleware.top(StarceptionMiddleware)
+        middleware = [
+            Middleware(StarceptionMiddleware),
+            *self.middleware,
+            Middleware(ExceptionMiddleware, handlers=self.error_handlers, debug=self.debug),
+        ]
 
-        app: ASGIApp = self._router
-        for mw in reversed(self._middleware):
+        app: ASGIApp = Router(self.routes)
+        self._router = app
+        for mw in reversed(middleware):
             app = mw.wrap(app)
         return app
 
@@ -118,7 +131,20 @@ class App:
         scope["app"] = self
         scope["state"] = {}
         set_current_application(self)
-        await self._asgi_handler(scope, receive, send)
+
+        try:
+            await self._asgi_handler(scope, receive, send)  # type: ignore[misc]
+        except TypeError:
+            self._asgi_handler = self._build_middleware()
+            await self._asgi_handler(scope, receive, send)
+
+
+class Extension:
+    def register(self, app: App) -> None:
+        ...
+
+    def bootstrap(self, app: App) -> None:
+        ...
 
 
 _current_app: cv.ContextVar[App] = cv.ContextVar("_current_app")
