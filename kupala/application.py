@@ -61,6 +61,7 @@ class App:
         extensions = extensions or []
         for extension in extensions:
             extension.register(self)
+        for extension in extensions:
             extension.bootstrap(self)
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
