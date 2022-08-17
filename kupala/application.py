@@ -110,7 +110,7 @@ class App:
         middleware = [
             Middleware(StarceptionMiddleware),
             *self.middleware,
-            Middleware(ExceptionMiddleware, handlers=self.error_handlers, debug=self.debug),
+            Middleware(ExceptionMiddleware, handlers=self.error_handlers),
         ]
 
         app: ASGIApp = Router(self.routes)

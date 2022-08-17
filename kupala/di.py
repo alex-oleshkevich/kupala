@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 
+import inspect
 import typing
 
 _T = typing.TypeVar("_T")
@@ -97,9 +98,12 @@ class InjectionRegistry:
 
     def _ensure_not_exists(self, type_name: typing.Any, scope: Scope) -> None:
         if type_name in self._scopes[scope]:
-            raise InjectionAlreadyRegisteredError(
-                f'Injection "{type_name.__class__.__name__}" has been already registered in scope "{scope}".'
-            )
+            if inspect.isclass(type_name):
+                name = type_name.__name__
+            else:
+                name = type_name.__class__.__name__
+
+            raise InjectionAlreadyRegisteredError(f'Injection "{name}" has been already registered in scope "{scope}".')
 
     _PS = typing.ParamSpec("_PS")
     _RT = typing.TypeVar("_RT")

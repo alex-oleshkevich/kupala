@@ -27,6 +27,9 @@ class MiddlewareStack:
     def __init__(self, middleware: list[Middleware] = None) -> None:
         self._global: list[Middleware] = middleware or []
 
+    def add(self, mw: Middleware) -> None:
+        self._global.append(mw)
+
     def top(self, mw: typing.Type, **kwargs: typing.Any) -> None:
         """Add middleware to the top of stack."""
         self._global.insert(0, Middleware(mw, **kwargs))

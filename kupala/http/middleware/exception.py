@@ -7,7 +7,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from kupala.http.exceptions import HTTPException
 from kupala.http.requests import Request
-from kupala.http.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from kupala.http.responses import HTMLResponse, Response
 
 E = typing.TypeVar("E", bound=Exception)
 ErrorHandler = typing.Callable[[Request, E], typing.Any]
@@ -15,18 +15,14 @@ _renderer = jinja2.Environment(loader=jinja2.PackageLoader(__name__.split(".")[0
 
 
 async def default_http_error_handler(request: Request, exc: HTTPException) -> Response:
-    if request.wants_json:
-        message = getattr(exc, "message", getattr(exc, "detail"))
-        data = {"message": message, "errors": getattr(exc, "errors", {})}
-        if request.app.debug:
-            exception_type = f"{exc.__class__.__module__}.{exc.__class__.__qualname__}"
-            data["exception_type"] = exception_type
-            data["exception"] = repr(exc)
-        return JSONResponse(data, status_code=exc.status_code)
-    elif request.app.debug:
-        if exc.status_code in {204, 304}:
-            return Response(b"", status_code=exc.status_code)
-        return PlainTextResponse(exc.detail, status_code=exc.status_code)
+    """
+    The default error handler for HTTP exception will:
+
+    * reraise exception in debug mode
+    * render a default error page if non-debug mode
+    """
+    if request.app.debug:
+        raise exc from None
     else:
         content = _renderer.get_template("errors/http_error.html").render({"request": request, "exc": exc})
         return HTMLResponse(content, status_code=exc.status_code)
@@ -59,10 +55,8 @@ class ExceptionMiddleware:
         self,
         app: ASGIApp,
         handlers: dict[int | typing.Type[Exception], ErrorHandler],
-        debug: bool = False,
     ) -> None:
         self.app = app
-        self.debug = debug
         self.handlers = ErrorHandlers(handlers)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -81,9 +75,6 @@ class ExceptionMiddleware:
         try:
             await self.app(scope, receive, sender)
         except Exception as exc:
-            if self.debug:
-                raise
-
             handler = self.handlers.get_for_exception(exc)
             if handler is None:
                 raise exc
