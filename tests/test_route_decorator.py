@@ -9,7 +9,7 @@ from kupala.http import NotAuthenticated, PermissionDenied
 from kupala.http.dispatching import route
 from kupala.http.middleware import AuthenticationMiddleware, Middleware
 from kupala.http.requests import Request
-from kupala.http.responses import JSONResponse, PlainTextResponse
+from kupala.http.responses import JSONResponse
 from kupala.http.routing import Routes
 from tests.conftest import TestClientFactory
 
@@ -49,18 +49,6 @@ def test_action_config_methods(test_client_factory: TestClientFactory, routes: R
     assert response.json() == {"method": "POST"}
 
 
-def test_action_config_middleware(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(middleware=[Middleware(SampleMiddleware)])
-    async def view(request: Request) -> JSONResponse:
-        return JSONResponse({"called": request.scope["called"]})
-
-    routes.add("/", view)
-    client = test_client_factory(routes=routes)
-
-    response = client.get("/")
-    assert response.json() == {"called": True}
-
-
 def test_route_overrides_action_config_methods(test_client_factory: TestClientFactory, routes: Routes) -> None:
     """Methods defined by action_config() have higher precedence."""
 
@@ -73,33 +61,6 @@ def test_route_overrides_action_config_methods(test_client_factory: TestClientFa
     assert client.get("/").status_code == 200
     with pytest.raises(HTTPException):
         assert client.post("/").status_code == 405
-
-
-def test_route_overrides_action_config_middleware(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    """Methods defined by action_config() have higher precedence."""
-
-    def set_one(app: ASGIApp) -> ASGIApp:
-        async def middleware(scope: Scope, receive: Receive, send: Send) -> None:
-            scope["used"] = "one"
-            await app(scope, receive, send)
-
-        return middleware
-
-    def set_two(app: ASGIApp) -> ASGIApp:
-        async def middleware(scope: Scope, receive: Receive, send: Send) -> None:
-            scope["used"] = "two"
-            await app(scope, receive, send)
-
-        return middleware
-
-    @route(middleware=[Middleware(set_two)])
-    def view(request: Request) -> PlainTextResponse:
-        return PlainTextResponse(request.scope["used"])
-
-    routes.add("/", view, middleware=[Middleware(set_one)])
-    client = test_client_factory(routes=routes)
-
-    assert client.get("/").text == "one"
 
 
 def test_view_allows_unauthenticated_access(test_client_factory: TestClientFactory, routes: Routes) -> None:

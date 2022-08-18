@@ -12,13 +12,9 @@ from kupala.http.exceptions import PermissionDenied
 from kupala.http.requests import Request
 from kupala.utils import callable_name, run_async
 
-if typing.TYPE_CHECKING:
-    from kupala.http.middleware import Middleware
-
 
 def route(
     methods: list[str] = None,
-    middleware: typing.Sequence[Middleware] = None,
     guards: list[route_guards.Guard] | None = None,
     is_authenticated: bool = False,
     permission: str | None = None,
@@ -36,7 +32,6 @@ def route(
     def wrapper(fn: typing.Callable) -> typing.Callable:
         setattr(fn, "__route_methods__", allowed_methods)
         setattr(fn, "__route_guards__", guards)
-        setattr(fn, "__route_middleware__", middleware)
         return fn
 
     return wrapper

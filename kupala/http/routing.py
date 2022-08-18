@@ -96,7 +96,6 @@ class Route(routing.Route):
         name: str = None,
         include_in_schema: bool = True,
         methods: list[str] | None = None,
-        middleware: typing.Sequence[Middleware] = None,
     ) -> None:
         assert path.startswith("/"), "Routed paths must start with '/'"
         self.path = path
@@ -105,7 +104,6 @@ class Route(routing.Route):
         self.include_in_schema = include_in_schema
 
         methods = methods or getattr(endpoint, "__route_methods__", ["GET", "HEAD"])
-        middleware = middleware or getattr(endpoint, "__route_middleware__", [])
 
         endpoint_handler = endpoint
         while isinstance(endpoint_handler, functools.partial):
@@ -117,9 +115,6 @@ class Route(routing.Route):
         else:
             # Endpoint is a class. Treat it as ASGI.
             self.app = endpoint
-
-        if middleware:
-            self.app = apply_middleware(typing.cast(typing.Callable, self.app), middleware)
 
         self.methods = {method.upper() for method in methods}
         if "GET" in self.methods:
@@ -207,7 +202,6 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         methods: list[str] = None,
         name: str = None,
         include_in_schema: bool = True,
-        middleware: typing.Sequence[Middleware] = None,
     ) -> None:
         route = Route(
             path,
@@ -215,7 +209,6 @@ class Routes(typing.Sequence[routing.BaseRoute]):
             methods=methods,
             name=name,
             include_in_schema=include_in_schema,
-            middleware=middleware,
         )
         self._routes.append(route)
 

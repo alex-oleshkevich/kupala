@@ -1,5 +1,4 @@
 import os
-import pytest
 import typing as t
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -192,30 +191,6 @@ def test_group_url_generation_with_middleware() -> None:
     router = Router(routes=routes)
     assert router.url_path_for("admin_users") == "/admin/users"
     assert router.url_path_for("category_items") == "/admin/category/items"
-
-
-@pytest.mark.parametrize("method", ["add"])
-def test_route_specific_middleware(test_client_factory: TestClientFactory, routes: Routes, method: str) -> None:
-    call_stack: list[str] = []
-
-    middleware = [
-        Middleware(SampleMiddleware, callback=lambda: call_stack.append("one")),
-        Middleware(SampleMiddleware, callback=lambda: call_stack.append("two")),
-    ]
-
-    fn = getattr(routes, method)
-    if method == "add":
-        fn("/", view, methods=["GET"], middleware=middleware)
-    else:
-        fn("/", view, middleware=middleware)
-
-    client = test_client_factory(routes=routes)
-    client_method_name = method
-    if client_method_name in {"add", "get_or_post"}:
-        client_method_name = "get"
-    client_method = getattr(client, client_method_name)
-    assert client_method("/").status_code == 200
-    assert call_stack == ["one", "two"]  # check middleware call order
 
 
 def test_sizeable(routes: Routes) -> None:

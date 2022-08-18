@@ -115,7 +115,7 @@ class App:
         ]
 
         app: ASGIApp = Router(self.routes)
-        self._router = app
+        self._router = app  # type: ignore[assignment]
         for mw in reversed(middleware):
             app = mw.wrap(app)
         return app
