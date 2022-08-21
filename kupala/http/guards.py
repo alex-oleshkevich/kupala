@@ -1,6 +1,10 @@
-import typing
+from __future__ import annotations
 
-from kupala.http.exceptions import NotAuthenticated
+import inspect
+import typing
+from starlette.concurrency import run_in_threadpool
+
+from kupala.http.exceptions import NotAuthenticated, PermissionDenied
 from kupala.http.requests import Request
 
 
@@ -22,3 +26,18 @@ def has_permission(permission: str) -> Guard:
         return request.auth.is_authenticated and permission in request.auth.scopes
 
     return guard
+
+
+async def call_guards(request: Request, guards: typing.Iterable[Guard]) -> None:
+    """Call route guards."""
+    for guard in guards:
+        if inspect.iscoroutinefunction(guard):
+            result = guard(request)
+        else:
+            result = await run_in_threadpool(guard, request)
+
+        if inspect.iscoroutine(result):
+            result = await result
+
+        if result is False:
+            raise PermissionDenied("You are not allowed to access this page.")

@@ -8,7 +8,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.di import InjectionError
 from kupala.http import guards as route_guards
-from kupala.http.exceptions import PermissionDenied
+from kupala.http.guards import call_guards
 from kupala.http.requests import Request
 from kupala.utils import callable_name, run_async
 
@@ -46,21 +46,6 @@ def detect_request_class(endpoint: typing.Callable) -> typing.Type[Request]:
     """
     args = typing.get_type_hints(endpoint)
     return args.get("request", Request)
-
-
-async def call_guards(request: Request, guards: typing.Iterable[route_guards.Guard]) -> None:
-    """Call route guards."""
-    for guard in guards:
-        if inspect.iscoroutinefunction(guard):
-            result = guard(request)
-        else:
-            result = await run_in_threadpool(guard, request)
-
-        if inspect.iscoroutine(result):
-            result = await result
-
-        if result is False:
-            raise PermissionDenied("You are not allowed to access this page.")
 
 
 async def resolve_injections(
