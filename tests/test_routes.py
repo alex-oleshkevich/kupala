@@ -1,6 +1,7 @@
 import os
 import typing as t
 from starlette.types import ASGIApp, Receive, Scope, Send
+from unittest import mock
 
 from kupala.http.middleware import Middleware
 from kupala.http.requests import Request
@@ -54,6 +55,22 @@ def test_mount(test_client_factory: TestClientFactory, routes: Routes) -> None:
     response = client.get("/asgi")
     assert response.status_code == 200
     assert response.text == "ok"
+
+
+def test_mount_calls_guards(test_client_factory: TestClientFactory, routes: Routes) -> None:
+    guard_called = mock.MagicMock()
+
+    def guard(request: Request) -> None:
+        guard_called()
+
+    async def asgi(scope: Scope, receive: Receive, send: Send) -> None:
+        await PlainTextResponse("ok")(scope, receive, send)
+
+    routes.mount("/asgi", asgi, guards=[guard])
+    client = test_client_factory(routes=routes)
+
+    client.get("/asgi")
+    guard_called.assert_called_once()
 
 
 def test_static(test_client_factory: TestClientFactory, routes: Routes, tmp_path: str) -> None:
@@ -118,6 +135,19 @@ def test_host_with_middleware(test_client_factory: TestClientFactory, routes: Ro
     assert call_stack == ["one", "two"]  # check middleware call order
 
 
+def test_host_calls_guards(test_client_factory: TestClientFactory, routes: Routes) -> None:
+    guard_called = mock.MagicMock()
+
+    def guard(request: Request) -> None:
+        guard_called()
+
+    with routes.host("api.example.com", guards=[guard]) as api:
+        api.add("/", view)
+    client = test_client_factory(routes=routes)
+    client.get("/", headers={"host": "api.example.com"})
+    guard_called.assert_called_once()
+
+
 def test_group(test_client_factory: TestClientFactory, routes: Routes) -> None:
     with routes.group("/admin") as admin:
         admin.add("/", view)
@@ -175,6 +205,20 @@ def test_group_with_middleware(test_client_factory: TestClientFactory, routes: R
     client = test_client_factory(routes=routes)
     assert client.get("/admin/users").status_code == 200
     assert call_stack == ["one", "two"]  # check middleware call order
+
+
+def test_group_calls_guards(test_client_factory: TestClientFactory, routes: Routes) -> None:
+    guard_called = mock.MagicMock()
+
+    def guard(request: Request) -> None:
+        guard_called()
+
+    with routes.group("/admin", guards=[guard]) as api:
+        api.add("/users", view, name="users")
+
+    client = test_client_factory(routes=routes)
+    client.get("/admin/users")
+    guard_called.assert_called_once()
 
 
 def test_group_url_generation_with_middleware() -> None:

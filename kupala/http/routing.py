@@ -10,7 +10,9 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.http.dispatching import dispatch_endpoint
+from kupala.http.guards import Guard
 from kupala.http.middleware import Middleware
+from kupala.http.middleware.guards import GuardsMiddleware
 from kupala.http.responses import RedirectResponse
 from kupala.storages.file_server import FileServer
 from kupala.storages.storages import Storage
@@ -191,7 +193,7 @@ class GroupRoutes(_RouteAdapter):
 
 
 class Routes(typing.Sequence[routing.BaseRoute]):
-    def __init__(self, routes: typing.Iterable[routing.BaseRoute] = None) -> None:
+    def __init__(self, routes: typing.Iterable[routing.BaseRoute] | None = None) -> None:
         self._routes: list[routing.BaseRoute] = list(routes or [])
 
     def add(
@@ -199,8 +201,8 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         path: str,
         endpoint: typing.Callable,
         *,
-        methods: list[str] = None,
-        name: str = None,
+        methods: list[str] | None = None,
+        name: str | None = None,
         include_in_schema: bool = True,
     ) -> None:
         route = Route(
@@ -212,12 +214,22 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         )
         self._routes.append(route)
 
-    def websocket(self, path: str, endpoint: typing.Callable, *, name: str = None) -> None:
+    def websocket(self, path: str, endpoint: typing.Callable, *, name: str | None = None) -> None:
         self._routes.append(WebSocketRoute(path, endpoint, name=name))
 
     def mount(
-        self, path: str, app: ASGIApp, *, name: str = None, middleware: typing.Sequence[Middleware] = None
+        self,
+        path: str,
+        app: ASGIApp,
+        *,
+        name: str | None = None,
+        middleware: typing.Sequence[Middleware] | None = None,
+        guards: typing.Iterable[Guard] | None = None,
     ) -> None:
+        if guards:
+            middleware = list(middleware or [])
+            middleware.insert(0, Middleware(GuardsMiddleware, guards=guards))
+
         self._routes.append(Mount(path, app, name=name, middleware=middleware))
 
     def static(
@@ -240,8 +252,8 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         path: str,
         *,
         storage: Storage,
-        name: str = None,
-        middleware: typing.Sequence[Middleware] = None,
+        name: str | None = None,
+        middleware: typing.Sequence[Middleware] | None = None,
         inline: bool = False,
     ) -> None:
         """Serve file uploads from disk."""
@@ -254,8 +266,13 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         routes: Routes | list[routing.BaseRoute] | None = None,
         *,
         name: str = None,
-        middleware: typing.Sequence[Middleware] = None,
+        middleware: typing.Sequence[Middleware] | None = None,
+        guards: typing.Iterable[Guard] | None = None,
     ) -> HostRoutes:
+        if guards:
+            middleware = list(middleware or [])
+            middleware.insert(0, Middleware(GuardsMiddleware, guards=guards))
+
         app = HostRoutes(host, routes, name, middleware)
         self._routes.append(typing.cast(routing.Host, app))
         return app
@@ -265,14 +282,19 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         prefix: str,
         routes: Routes | list[routing.BaseRoute] | None = None,
         *,
-        name: str = None,
-        middleware: typing.Sequence[Middleware] = None,
+        name: str | None = None,
+        middleware: typing.Sequence[Middleware] | None = None,
+        guards: typing.Iterable[Guard] | None = None,
     ) -> GroupRoutes:
+        if guards:
+            middleware = list(middleware or [])
+            middleware.insert(0, Middleware(GuardsMiddleware, guards=guards))
+
         app = GroupRoutes(prefix, routes, name, middleware)
         self._routes.append(typing.cast(routing.Mount, app))
         return app
 
-    def redirect(self, path: str, destination: str, status_code: int = 307, headers: dict = None) -> None:
+    def redirect(self, path: str, destination: str, status_code: int = 307, headers: dict | None = None) -> None:
         self.mount(
             path,
             RedirectResponse(destination, status_code=status_code, headers=headers),
