@@ -2,7 +2,7 @@ import pytest
 import typing
 from starlette.middleware.sessions import SessionMiddleware
 
-from kupala.http import Routes
+from kupala.http import route
 from kupala.http.middleware import Middleware
 from kupala.http.middleware.flash_messages import (
     FlashBag,
@@ -17,21 +17,19 @@ from tests.conftest import TestClientFactory
 
 
 @pytest.mark.parametrize("storage", ["session"])
-def test_flash_messages(
-    storage: typing.Literal["session"], test_client_factory: TestClientFactory, routes: Routes
-) -> None:
+def test_flash_messages(storage: typing.Literal["session"], test_client_factory: TestClientFactory) -> None:
+    @route("/set", methods=["post"])
     def set_view(request: Request) -> JSONResponse:
         flash(request).success("This is a message.")
         return JSONResponse({})
 
+    @route("/get")
     def get_view(request: Request) -> JSONResponse:
         bag = flash(request)
         return JSONResponse({"messages": list(bag)})
 
-    routes.add("/set", set_view, methods=["post"])
-    routes.add("/get", get_view)
     client = test_client_factory(
-        routes=routes,
+        routes=[set_view, get_view],
         middleware=[
             Middleware(SessionMiddleware, secret_key="key", max_age=80000),
             Middleware(FlashMessagesMiddleware, storage=storage),
@@ -47,9 +45,7 @@ def test_flash_messages(
     assert response.json()["messages"] == []
 
 
-def test_flash_messages_session_storages_requires_session(
-    test_client_factory: TestClientFactory, routes: Routes
-) -> None:
+def test_flash_messages_session_storages_requires_session(test_client_factory: TestClientFactory) -> None:
     client = test_client_factory(middleware=[Middleware(FlashMessagesMiddleware, storage="session")])
 
     with pytest.raises(KeyError) as ex:

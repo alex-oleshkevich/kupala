@@ -5,7 +5,7 @@ from kupala.http.responses import PlainTextResponse
 
 
 class TimeoutMiddleware:
-    def __init__(self, app: ASGIApp, timeout: int = 30) -> None:
+    def __init__(self, app: ASGIApp, timeout: float = 30) -> None:
         self.app = app
         self.timeout = timeout
 

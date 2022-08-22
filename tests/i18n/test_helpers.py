@@ -1,6 +1,6 @@
 from babel.core import Locale
 
-from kupala.http import Route, Routes
+from kupala.http import route
 from kupala.http.middleware import LocaleMiddleware, Middleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
@@ -33,13 +33,14 @@ def test_get_language() -> None:
 
 
 def test_remember_language(test_app_factory: TestAppFactory) -> None:
+    @route("/")
     def view(request: Request) -> JSONResponse:
         response = JSONResponse(request.language)
         return remember_current_language(request, response)
 
     set_locale("be")
     app = test_app_factory(
-        routes=Routes([Route("/", view)]),
+        routes=[view],
         middleware=[
             Middleware(LocaleMiddleware, languages=["be", "pl", "en"]),
         ],

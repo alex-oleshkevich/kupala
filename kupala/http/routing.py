@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import functools
-import inspect
 import os
 import typing
 from starlette import routing
-from starlette.routing import compile_path, get_name
+from starlette.routing import compile_path
 from starlette.staticfiles import StaticFiles
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp
 
-from kupala.http.dispatching import dispatch_endpoint
 from kupala.http.guards import Guard
 from kupala.http.middleware import Middleware
 from kupala.http.middleware.guards import GuardsMiddleware
@@ -22,17 +19,6 @@ from kupala.utils import import_string
 def apply_middleware(app: typing.Callable, middleware: typing.Sequence[Middleware]) -> ASGIApp:
     for mw in reversed(middleware):
         app = mw.wrap(app)
-    return app
-
-
-def request_response(func: typing.Callable) -> ASGIApp:
-    """Takes a function or coroutine `func(request) -> response` and returns an
-    ASGI application."""
-
-    async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        response = await dispatch_endpoint(scope, receive, send, func)
-        await response(scope, receive, send)
-
     return app
 
 
@@ -90,40 +76,6 @@ class Router(routing.Router):
 
 
 class Route(routing.Route):
-    def __init__(
-        self,
-        path: str,
-        endpoint: typing.Callable,
-        *,
-        name: str = None,
-        include_in_schema: bool = True,
-        methods: list[str] | None = None,
-    ) -> None:
-        assert path.startswith("/"), "Routed paths must start with '/'"
-        self.path = path
-        self.endpoint = endpoint
-        self.name = get_name(endpoint) if name is None else name
-        self.include_in_schema = include_in_schema
-
-        methods = methods or getattr(endpoint, "__route_methods__", ["GET", "HEAD"])
-
-        endpoint_handler = endpoint
-        while isinstance(endpoint_handler, functools.partial):
-            endpoint_handler = endpoint_handler.func
-
-        if inspect.isfunction(endpoint_handler) or inspect.ismethod(endpoint_handler):
-            # Endpoint is function or method. Treat it as `func(request) -> response`.
-            self.app = request_response(endpoint)
-        else:
-            # Endpoint is a class. Treat it as ASGI.
-            self.app = endpoint
-
-        self.methods = {method.upper() for method in methods}
-        if "GET" in self.methods:
-            self.methods.add("HEAD")
-
-        self.path_regex, self.path_format, self.param_convertors = compile_path(path)
-
     def __repr__(self) -> str:
         return f"<Route: path={self.path}, methods={self.methods}, name={self.name}>"
 
@@ -196,23 +148,8 @@ class Routes(typing.Sequence[routing.BaseRoute]):
     def __init__(self, routes: typing.Iterable[routing.BaseRoute] | None = None) -> None:
         self._routes: list[routing.BaseRoute] = list(routes or [])
 
-    def add(
-        self,
-        path: str,
-        endpoint: typing.Callable,
-        *,
-        methods: list[str] | None = None,
-        name: str | None = None,
-        include_in_schema: bool = True,
-    ) -> None:
-        route = Route(
-            path,
-            endpoint,
-            methods=methods,
-            name=name,
-            include_in_schema=include_in_schema,
-        )
-        self._routes.append(route)
+    def add(self, *route: Route) -> None:
+        self._routes.extend(route)
 
     def websocket(self, path: str, endpoint: typing.Callable, *, name: str | None = None) -> None:
         self._routes.append(WebSocketRoute(path, endpoint, name=name))

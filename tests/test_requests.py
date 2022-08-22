@@ -3,9 +3,9 @@ import pytest
 import typing as t
 from imia import AnonymousUser, LoginState, UserToken
 
+from kupala.http import route
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
-from kupala.http.routing import Routes
 from kupala.storages.storages import Storage
 from tests.conftest import TestClientFactory
 
@@ -193,7 +193,8 @@ def test_query_params() -> None:
     assert request.query_params.get_int("enable") is None
 
 
-def test_file_uploads(test_client_factory: TestClientFactory, routes: Routes) -> None:
+def test_file_uploads(test_client_factory: TestClientFactory) -> None:
+    @route("/", methods=["post"])
     async def upload_view(request: Request) -> JSONResponse:
         files = await request.files()
         return JSONResponse(
@@ -207,8 +208,7 @@ def test_file_uploads(test_client_factory: TestClientFactory, routes: Routes) ->
             ]
         )
 
-    routes.add("/", upload_view, methods=["post"])
-    client = test_client_factory(routes=routes)
+    client = test_client_factory(routes=[upload_view])
 
     file1 = io.BytesIO("праўда".encode())
     file2 = io.StringIO("file2")
@@ -228,7 +228,8 @@ def test_file_uploads(test_client_factory: TestClientFactory, routes: Routes) ->
 
 
 @pytest.mark.asyncio
-async def test_file_upload_store(test_client_factory: TestClientFactory, routes: Routes, storage: Storage) -> None:
+async def test_file_upload_store(test_client_factory: TestClientFactory, storage: Storage) -> None:
+    @route("/", methods=["post"])
     async def upload_view(request: Request) -> JSONResponse:
         files = await request.files()
         file = files.get("file")
@@ -238,8 +239,7 @@ async def test_file_upload_store(test_client_factory: TestClientFactory, routes:
 
         return JSONResponse(filename)
 
-    routes.add("/", upload_view, methods=["post"])
-    client = test_client_factory(routes=routes)
+    client = test_client_factory(routes=[upload_view])
 
     file1 = io.BytesIO(b"content")
     response = client.post(
@@ -256,9 +256,8 @@ async def test_file_upload_store(test_client_factory: TestClientFactory, routes:
 
 
 @pytest.mark.asyncio
-async def test_file_upload_store_without_filename(
-    test_client_factory: TestClientFactory, routes: Routes, storage: Storage
-) -> None:
+async def test_file_upload_store_without_filename(test_client_factory: TestClientFactory, storage: Storage) -> None:
+    @route("/", methods=["post"])
     async def upload_view(request: Request) -> JSONResponse:
         filename = ""
         files = await request.files()
@@ -268,8 +267,7 @@ async def test_file_upload_store_without_filename(
 
         return JSONResponse(filename)
 
-    routes.add("/", upload_view, methods=["post"])
-    client = test_client_factory(routes=routes)
+    client = test_client_factory(routes=[upload_view])
 
     file1 = io.BytesIO(b"content")
     response = client.post(
@@ -298,15 +296,15 @@ def test_request_headers(form_request: Request) -> None:
 
 
 @pytest.mark.asyncio
-async def test_request_data(test_client_factory: TestClientFactory, routes: Routes) -> None:
+async def test_request_data(test_client_factory: TestClientFactory) -> None:
+    @route("/json", methods=["post"])
     async def json_view(request: Request) -> JSONResponse:
         return JSONResponse(await request.data())  # type: ignore
 
+    @route("/form", methods=["post"])
     async def form_view(request: Request) -> JSONResponse:
         return JSONResponse(dict(await request.data()))  # type: ignore
 
-    routes.add("/json", json_view, methods=["post"])
-    routes.add("/form", form_view, methods=["post"])
-    client = test_client_factory(routes=routes)
+    client = test_client_factory(routes=[json_view, form_view])
     assert client.post("/json", json={"data": "content"}).json() == {"data": "content"}
     assert client.post("/form", data={"data": "content"}).json() == {"data": "content"}

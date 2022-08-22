@@ -1,8 +1,8 @@
 import typing
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.http import Request
 from kupala.http.guards import Guard, call_guards
+from kupala.http.requests import Request
 
 
 class GuardsMiddleware:

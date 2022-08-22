@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from kupala.http import route
 from kupala.http.requests import Request
 from kupala.http.responses import PlainTextResponse
 from kupala.http.routing import Routes
@@ -25,10 +26,11 @@ def test_staticfiles(test_app_factory: TestAppFactory, tmpdir: Path, routes: Rou
 
 
 def test_request_generates_static_url(test_app_factory: TestAppFactory, tmpdir: Path, routes: Routes) -> None:
+    @route("/")
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.static_url("main.css"))
 
-    routes.add("/", view)
+    routes.add(view)
     routes.static("/static", tmpdir)
     app = test_app_factory(routes=routes)
     client = TestClient(app)

@@ -4,13 +4,13 @@ from contextlib import asynccontextmanager
 
 from kupala.application import App
 from kupala.exceptions import ShutdownError, StartupError
-from kupala.http import Routes
+from kupala.http import route
 from kupala.http.responses import Response
 from kupala.testclient import TestClient
 from tests.conftest import TestAppFactory
 
 
-def test_lifespan(test_app_factory: TestAppFactory, routes: Routes) -> None:
+def test_lifespan(test_app_factory: TestAppFactory) -> None:
     enter_called = False
     exit_called = False
 
@@ -21,11 +21,11 @@ def test_lifespan(test_app_factory: TestAppFactory, routes: Routes) -> None:
         yield
         exit_called = True
 
+    @route("/")
     def view() -> Response:
         return Response("content")
 
-    routes.add("/", view)
-    app = test_app_factory(lifespan_handlers=[handler], routes=routes)
+    app = test_app_factory(lifespan_handlers=[handler], routes=[view])
 
     with TestClient(app) as client:
         client.get("/")

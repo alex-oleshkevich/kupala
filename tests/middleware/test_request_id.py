@@ -1,24 +1,20 @@
 import pytest
+from starlette.types import Receive, Scope, Send
 
 from kupala.http import PlainTextResponse, Request, Routes
-from kupala.http.middleware import Middleware
 from kupala.http.middleware.request_id import RequestIDMiddleware
 from kupala.testclient import TestClient
 from tests.conftest import TestAppFactory
 
 
+async def app(scope: Scope, receive: Receive, send: Send) -> None:
+    request = Request(scope, receive, send)
+    await PlainTextResponse(request.id)(scope, receive, send)
+
+
 @pytest.mark.asyncio
-async def test_generates_request_id(test_app_factory: TestAppFactory, routes: Routes) -> None:
-    async def view(request: Request) -> PlainTextResponse:
-        return PlainTextResponse(request.id)
-
-    routes.add("/", view)
-    app = test_app_factory(
-        routes=routes,
-        middleware=[Middleware(RequestIDMiddleware)],
-    )
-
-    client = TestClient(app)
+async def test_generates_request_id() -> None:
+    client = TestClient(RequestIDMiddleware(app))
     response = client.get("/")
     assert len(response.text) == 32
     assert response.headers["x-request-id"] == response.text
@@ -26,14 +22,7 @@ async def test_generates_request_id(test_app_factory: TestAppFactory, routes: Ro
 
 @pytest.mark.asyncio
 async def test_reuses_request_id(test_app_factory: TestAppFactory, routes: Routes) -> None:
-    async def view(request: Request) -> PlainTextResponse:
-        return PlainTextResponse(request.id)
-
-    routes.add("/", view)
-    app = test_app_factory(
-        routes=routes,
-        middleware=[Middleware(RequestIDMiddleware)],
-    )
-
-    client = TestClient(app)
+    client = TestClient(RequestIDMiddleware(app))
+    response = client.get("/")
     assert client.get("/", headers={"x-request-id": "id"}).text == "id"
+    assert response.headers["x-request-id"] == response.text

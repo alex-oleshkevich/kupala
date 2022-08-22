@@ -2,7 +2,7 @@ import pytest
 from itsdangerous import URLSafeTimedSerializer
 from starlette.middleware.sessions import SessionMiddleware
 
-from kupala.http import Routes
+from kupala.http import route
 from kupala.http.exceptions import PermissionDenied
 from kupala.http.middleware import Middleware
 from kupala.http.middleware.csrf import (
@@ -65,7 +65,7 @@ def test_validate_csrf_token_mismatch(csrf_token: str, csrf_timed_token: str) ->
     assert str(ex.value) == "CSRF tokens do not match."
 
 
-def test_middleware_needs_session(test_client_factory: TestClientFactory, routes: Routes) -> None:
+def test_middleware_needs_session(test_client_factory: TestClientFactory) -> None:
     client = test_client_factory(
         middleware=[
             Middleware(CSRFMiddleware, secret_key="secret"),
@@ -76,13 +76,13 @@ def test_middleware_needs_session(test_client_factory: TestClientFactory, routes
     assert str(ex.value) == "CsrfMiddleware requires SessionMiddleware."
 
 
-def test_middleware_checks_access(test_client_factory: TestClientFactory, routes: Routes) -> None:
+def test_middleware_checks_access(test_client_factory: TestClientFactory) -> None:
+    @route("/", methods=["post", "get", "head", "put", "delete", "patch", "options"])
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
 
-    routes.add("/", view, methods=["post", "get", "head", "put", "delete", "patch", "options"])
     client = test_client_factory(
-        routes=routes,
+        routes=[view],
         middleware=[
             Middleware(SessionMiddleware, secret_key="key", max_age=80000),
             Middleware(CSRFMiddleware, secret_key="key!"),
@@ -125,14 +125,17 @@ def test_middleware_checks_access(test_client_factory: TestClientFactory, routes
     assert client.delete("/", headers={"x-csrf-token": token}).status_code == 200
 
 
-def test_middleware_allow_from_whitelist(test_client_factory: TestClientFactory, routes: Routes) -> None:
+def test_middleware_allow_from_whitelist(test_client_factory: TestClientFactory) -> None:
+    @route("/", methods=["post", "options"])
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
 
-    routes.add("/", view, methods=["post", "options"])
-    routes.add("/login", view, methods=["post"])
+    @route("/login", methods=["post"])
+    def login_view(request: Request) -> PlainTextResponse:
+        return PlainTextResponse(request.state.csrf_timed_token)
+
     client = test_client_factory(
-        routes=routes,
+        routes=[view, login_view],
         middleware=[
             Middleware(SessionMiddleware, secret_key="key", max_age=80000),
             Middleware(CSRFMiddleware, secret_key="secret", exclude_urls=[r"/login"]),
@@ -147,13 +150,13 @@ def test_middleware_allow_from_whitelist(test_client_factory: TestClientFactory,
     assert client.post("/login").status_code == 200
 
 
-def test_middleware_allow_from_whitelist_using_full_url(test_client_factory: TestClientFactory, routes: Routes) -> None:
+def test_middleware_allow_from_whitelist_using_full_url(test_client_factory: TestClientFactory) -> None:
+    @route("/", methods=["post"])
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
 
-    routes.add("/", view, methods=["post"])
     client = test_client_factory(
-        routes=routes,
+        routes=[view],
         middleware=[
             Middleware(SessionMiddleware, secret_key="key", max_age=80000),
             Middleware(CSRFMiddleware, secret_key="secret", exclude_urls=["http://testserver/"]),
@@ -163,13 +166,13 @@ def test_middleware_allow_from_whitelist_using_full_url(test_client_factory: Tes
     assert client.post("/").status_code == 200
 
 
-def test_middleware_injects_template_context(test_client_factory: TestClientFactory, routes: Routes) -> None:
+def test_middleware_injects_template_context(test_client_factory: TestClientFactory) -> None:
+    @route("/", methods=["post"])
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
 
-    routes.add("/", view, methods=["post"])
     client = test_client_factory(
-        routes=routes,
+        routes=[view],
         middleware=[
             Middleware(SessionMiddleware, secret_key="key", max_age=80000),
             Middleware(CSRFMiddleware, secret_key="secret", exclude_urls=["http://testserver/"]),

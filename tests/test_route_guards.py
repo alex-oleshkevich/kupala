@@ -9,7 +9,6 @@ from kupala.http.guards import has_permission, is_authenticated
 from kupala.http.middleware import AuthenticationMiddleware, Middleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
-from kupala.http.routing import Routes
 from tests.conftest import TestClientFactory
 
 
@@ -42,50 +41,46 @@ def exception_guard(request: Request) -> None:
     raise PageNotFound()
 
 
-def test_sync_guards(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(guards=[sync_guard])
+def test_sync_guards(test_client_factory: TestClientFactory) -> None:
+    @route("/", guards=[sync_guard])
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add("/", view)
-    client = test_client_factory(routes=routes)
+    client = test_client_factory(routes=[view])
 
     with pytest.raises(PermissionDenied):
         client.get("/")
 
 
-def test_async_guards(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(guards=[async_guard])
+def test_async_guards(test_client_factory: TestClientFactory) -> None:
+    @route("/", guards=[async_guard])
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add("/", view)
-    client = test_client_factory(routes=routes)
+    client = test_client_factory(routes=[view])
 
     with pytest.raises(PermissionDenied):
         client.get("/")
 
 
-def test_exception_guards(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(guards=[exception_guard])
+def test_exception_guards(test_client_factory: TestClientFactory) -> None:
+    @route("/", guards=[exception_guard])
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add("/", view)
-    client = test_client_factory(routes=routes)
+    client = test_client_factory(routes=[view])
 
     with pytest.raises(PageNotFound):
         client.get("/")
 
 
-def test_is_authenticated_guard_allows(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(guards=[is_authenticated])
+def test_is_authenticated_guard_allows(test_client_factory: TestClientFactory) -> None:
+    @route("/", guards=[is_authenticated])
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add("/", view)
     client = test_client_factory(
-        routes=routes,
+        routes=[view],
         middleware=[
             Middleware(AuthenticationMiddleware, authenticators=[BearerAuthenticator(user_provider=provider)]),
         ],
@@ -95,14 +90,13 @@ def test_is_authenticated_guard_allows(test_client_factory: TestClientFactory, r
     assert response.status_code == 200
 
 
-def test_is_authenticated_guard_denies(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(guards=[is_authenticated])
+def test_is_authenticated_guard_denies(test_client_factory: TestClientFactory) -> None:
+    @route("/", guards=[is_authenticated])
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add("/", view)
     client = test_client_factory(
-        routes=routes,
+        routes=[view],
         middleware=[
             Middleware(AuthenticationMiddleware, authenticators=[]),
         ],
@@ -112,14 +106,13 @@ def test_is_authenticated_guard_denies(test_client_factory: TestClientFactory, r
         client.get("/")
 
 
-def test_has_permission_guard_allows(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(guards=[has_permission("users.edit")])
+def test_has_permission_guard_allows(test_client_factory: TestClientFactory) -> None:
+    @route("/", guards=[has_permission("users.edit")])
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add("/", view)
     client = test_client_factory(
-        routes=routes,
+        routes=[view],
         middleware=[
             Middleware(AuthenticationMiddleware, authenticators=[BearerAuthenticator(user_provider=provider)]),
         ],
@@ -128,14 +121,13 @@ def test_has_permission_guard_allows(test_client_factory: TestClientFactory, rou
     assert response.status_code == 200
 
 
-def test_has_permission_guard_denies(test_client_factory: TestClientFactory, routes: Routes) -> None:
-    @route(guards=[has_permission("users.edit")])
+def test_has_permission_guard_denies(test_client_factory: TestClientFactory) -> None:
+    @route("/", guards=[has_permission("users.edit")])
     def view() -> JSONResponse:
         return JSONResponse({})
 
-    routes.add("/", view)
     client = test_client_factory(
-        routes=routes,
+        routes=[view],
         middleware=[
             Middleware(AuthenticationMiddleware, authenticators=[]),
         ],

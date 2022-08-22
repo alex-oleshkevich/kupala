@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import inspect
 import typing
 from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextmanager
@@ -7,34 +8,40 @@ from starlette.concurrency import run_in_threadpool
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.di import InjectionError
-from kupala.http import guards as route_guards
-from kupala.http.guards import call_guards
+from kupala.http.guards import Guard, call_guards
 from kupala.http.requests import Request
+from kupala.http.routing import Route
 from kupala.utils import callable_name, run_async
 
 
 def route(
+    path: str,
     methods: list[str] = None,
-    guards: list[route_guards.Guard] | None = None,
-    is_authenticated: bool = False,
-    permission: str | None = None,
-) -> typing.Callable:
+    name: str | None = None,
+    guards: list[Guard] | None = None,
+) -> typing.Callable[[typing.Callable], Route]:
     """Use this decorator to configure endpoint parameters."""
-    allowed_methods = methods or ["GET", "HEAD"]
 
-    guards = guards or []
-    if is_authenticated:
-        guards.append(route_guards.is_authenticated)
+    def decorator(fn: typing.Callable) -> Route:
+        request_class = detect_request_class(fn)
 
-    if permission:
-        guards.append(route_guards.has_permission(permission))
+        @functools.wraps(fn)
+        async def view_decorator(request: Request) -> Route:
+            request = request_class(request.scope, request.receive, request._send)
+            await call_guards(request, guards or [])
 
-    def wrapper(fn: typing.Callable) -> typing.Callable:
-        setattr(fn, "__route_methods__", allowed_methods)
-        setattr(fn, "__route_guards__", guards)
-        return fn
+            with ExitStack() as sync_stack:
+                async with AsyncExitStack() as async_stack:
+                    args = await resolve_injections(request, fn, sync_stack, async_stack)
+                    if inspect.iscoroutinefunction(fn):
+                        response = await fn(**args)
+                    else:
+                        response = await run_in_threadpool(fn, **args)
+            return response
 
-    return wrapper
+        return Route(path=path, endpoint=view_decorator, name=name, methods=methods)
+
+    return decorator
 
 
 def detect_request_class(endpoint: typing.Callable) -> typing.Type[Request]:

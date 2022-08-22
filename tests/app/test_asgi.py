@@ -1,6 +1,6 @@
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.http import Routes
+from kupala.http import Routes, route
 from kupala.http.middleware import Middleware
 from kupala.http.requests import Request
 from kupala.http.responses import Response
@@ -8,11 +8,11 @@ from tests.conftest import TestClientFactory
 
 
 def test_routes(test_client_factory: TestClientFactory, routes: Routes) -> None:
+    @route("/")
     def view() -> Response:
         return Response("ok")
 
-    routes.add("/", view)
-    client = test_client_factory(routes=routes)
+    client = test_client_factory(routes=[view])
 
     assert client.get("/").text == "ok"
 
@@ -26,10 +26,10 @@ def test_middleware(test_client_factory: TestClientFactory, routes: Routes) -> N
             scope["key"] = "value"
             await self.app(scope, receive, send)
 
+    @route("/")
     def view(request: Request) -> Response:
         return Response(request.scope["key"])
 
-    routes.add("/", view)
-    client = test_client_factory(middleware=[Middleware(TestMiddleware)], routes=routes)
+    client = test_client_factory(middleware=[Middleware(TestMiddleware)], routes=[view])
 
     assert client.get("/").text == "value"
