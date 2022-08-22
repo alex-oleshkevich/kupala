@@ -38,6 +38,28 @@ def test_add(test_client_factory: TestClientFactory) -> None:
     assert client.get("/").status_code == 200
 
 
+def test_route_decorator(test_client_factory: TestClientFactory) -> None:
+    routes = Routes()
+
+    @routes.route("/")
+    def view(request: Request) -> Response:
+        return Response("")
+
+    client = test_client_factory(routes=routes)
+    assert client.get("/").status_code == 200
+
+
+def test_routes_call_dundler(test_client_factory: TestClientFactory) -> None:
+    route = Routes()
+
+    @route("/")
+    def view(request: Request) -> Response:
+        return Response("")
+
+    client = test_client_factory(routes=route)
+    assert client.get("/").status_code == 200
+
+
 def test_websocket(test_client_factory: TestClientFactory) -> None:
     async def view(websocket: WebSocket) -> None:
         await websocket.accept()

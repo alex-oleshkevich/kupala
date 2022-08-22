@@ -249,6 +249,22 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         else:
             self._routes.extend(list(iterable_or_module))
 
+    def route(
+        self,
+        path: str,
+        methods: list[str] = None,
+        name: str | None = None,
+        guards: list[Guard] | None = None,
+    ) -> typing.Callable[[typing.Callable], Route]:
+        from kupala.http.dispatching import route
+
+        def decorator(fn: typing.Callable) -> Route:
+            _route = route(path, methods, name, guards)(fn)
+            self.add(_route)
+            return _route
+
+        return decorator
+
     def __iter__(self) -> typing.Iterator[routing.BaseRoute]:
         return iter(self._routes)
 
@@ -261,3 +277,5 @@ class Routes(typing.Sequence[routing.BaseRoute]):
 
     def __contains__(self, route: object) -> typing.Any:  # pragma: nocover
         raise NotImplementedError
+
+    __call__ = route
