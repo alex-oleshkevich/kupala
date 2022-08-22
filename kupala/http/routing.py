@@ -27,10 +27,11 @@ class Mount(routing.Mount):
         self,
         path: str,
         app: ASGIApp = None,
-        routes: typing.Sequence[routing.BaseRoute] = None,
+        routes: typing.Sequence[routing.BaseRoute] | None = None,
         name: str = None,
         *,
-        middleware: typing.Sequence[Middleware] = None,
+        middleware: typing.Sequence[Middleware] | None = None,
+        guards: typing.Iterable[Guard] | None = None,
     ) -> None:
         assert path == "" or path.startswith("/"), "Routed paths must start with '/'"
         assert app is not None or routes is not None, "Either 'app=...', or 'routes=' must be specified"
@@ -43,6 +44,10 @@ class Mount(routing.Mount):
             self._routes = list(routes or [])
         self.name = name
         self.path_regex, self.path_format, self.param_convertors = compile_path(self.path + "/{path:path}")
+
+        middleware = list(middleware or [])
+        if guards:
+            middleware.insert(0, Middleware(GuardsMiddleware, guards=guards))
 
         if middleware:
             self.app = apply_middleware(self.app, middleware)
@@ -111,15 +116,18 @@ class HostRoutes(_RouteAdapter):
         self,
         host: str,
         routes: list[routing.BaseRoute] | Routes | None = None,
-        name: str = None,
-        middleware: typing.Sequence[Middleware] = None,
+        name: str | None = None,
+        middleware: typing.Sequence[Middleware] | None = None,
+        guards: typing.Iterable[Guard] | None = None,
     ) -> None:
         self._host = host
         self._name = name
         self._routes = Routes(routes)
-        self._middleware = middleware or []
+        self._middleware = list(middleware or [])
         self._wrapped_app: ASGIApp | None = None
         self._base_app: Host | None = None
+        if guards:
+            self._middleware.insert(0, Middleware(GuardsMiddleware, guards=guards))
 
     def _create_base_asgi_app(self) -> ASGIApp:
         return Host(host=self._host, app=Router(routes=self._routes), name=self._name, middleware=self._middleware)
@@ -130,15 +138,18 @@ class GroupRoutes(_RouteAdapter):
         self,
         prefix: str,
         routes: list[routing.BaseRoute] | Routes | None = None,
-        name: str = None,
-        middleware: typing.Sequence[Middleware] = None,
+        name: str | None = None,
+        middleware: typing.Sequence[Middleware] | None = None,
+        guards: typing.Iterable[Guard] | None = None,
     ) -> None:
         self._name = name
         self._prefix = prefix
         self._routes = Routes(routes)
-        self._middleware = middleware or []
+        self._middleware = list(middleware or [])
         self._wrapped_app: ASGIApp | None = None
         self._base_app: Mount | None = None
+        if guards:
+            self._middleware.insert(0, Middleware(GuardsMiddleware, guards=guards))
 
     def _create_base_asgi_app(self) -> ASGIApp:
         return Mount(path=self._prefix, routes=self._routes, name=self._name, middleware=self._middleware)
@@ -163,11 +174,7 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         middleware: typing.Sequence[Middleware] | None = None,
         guards: typing.Iterable[Guard] | None = None,
     ) -> None:
-        if guards:
-            middleware = list(middleware or [])
-            middleware.insert(0, Middleware(GuardsMiddleware, guards=guards))
-
-        self._routes.append(Mount(path, app, name=name, middleware=middleware))
+        self._routes.append(Mount(path, app, name=name, middleware=middleware, guards=guards))
 
     def static(
         self,
@@ -206,11 +213,7 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         middleware: typing.Sequence[Middleware] | None = None,
         guards: typing.Iterable[Guard] | None = None,
     ) -> HostRoutes:
-        if guards:
-            middleware = list(middleware or [])
-            middleware.insert(0, Middleware(GuardsMiddleware, guards=guards))
-
-        app = HostRoutes(host, routes, name, middleware)
+        app = HostRoutes(host, routes, name, middleware, guards)
         self._routes.append(typing.cast(routing.Host, app))
         return app
 
@@ -223,11 +226,7 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         middleware: typing.Sequence[Middleware] | None = None,
         guards: typing.Iterable[Guard] | None = None,
     ) -> GroupRoutes:
-        if guards:
-            middleware = list(middleware or [])
-            middleware.insert(0, Middleware(GuardsMiddleware, guards=guards))
-
-        app = GroupRoutes(prefix, routes, name, middleware)
+        app = GroupRoutes(prefix, routes, name, middleware, guards)
         self._routes.append(typing.cast(routing.Mount, app))
         return app
 

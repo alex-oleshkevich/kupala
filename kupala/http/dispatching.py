@@ -5,7 +5,6 @@ import inspect
 import typing
 from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextmanager
 from starlette.concurrency import run_in_threadpool
-from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.di import InjectionError
 from kupala.http.guards import Guard, call_guards
@@ -115,23 +114,3 @@ async def resolve_injections(
             continue
 
     return injections
-
-
-async def dispatch_endpoint(scope: Scope, receive: Receive, send: Send, endpoint: typing.Callable) -> ASGIApp:
-    """
-    Call endpoint callable resolving all dependencies.
-
-    Will return response.
-    """
-    request_class = detect_request_class(endpoint)
-    request = request_class(scope, receive, send)
-    await call_guards(request, getattr(endpoint, "__route_guards__", []))
-
-    with ExitStack() as sync_stack:
-        async with AsyncExitStack() as async_stack:
-            args = await resolve_injections(request, endpoint, sync_stack, async_stack)
-            if inspect.iscoroutinefunction(endpoint):
-                response = await endpoint(**args)
-            else:
-                response = await run_in_threadpool(endpoint, **args)
-    return response
