@@ -14,7 +14,7 @@ def test_route_decorator(test_client_factory: TestClientFactory) -> None:
 
     assert view.path == "/"
     assert view.name == "index"
-    assert set(view.methods) == {"HEAD", "GET", "POST"}
+    assert set(view.methods or []) == {"HEAD", "GET", "POST"}
 
 
 def test_route_calls_guards(test_client_factory: TestClientFactory) -> None:

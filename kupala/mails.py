@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import typing
 from email.message import Message
 from mailers import Email, Encrypter, Mailer, Plugin, SentMessages, Signer, TemplatedEmail, create_transport_from_url
 from mailers.message import Recipients
@@ -79,25 +80,36 @@ class MailerManager:
         return self
 
 
+_mailers: MailerManager = MailerManager()
+
+
+def add_mailer(name: str, mailer: Mailer) -> None:
+    _mailers.add(name, mailer)
+
+
+def get_mailer(name: str) -> Mailer:
+    return _mailers.get(name)
+
+
 async def send_mail(
-    mailer: Mailer,
-    message: Email = None,
+    message: Email | None = None,
     *,
-    to: Recipients = None,
-    subject: str = None,
-    from_address: Recipients = None,
-    cc: Recipients = None,
-    bcc: Recipients = None,
-    reply_to: Recipients = None,
-    headers: dict = None,
-    sender: str = None,
-    html: str = None,
-    text: str = None,
-    return_path: str = None,
+    to: Recipients | None = None,
+    subject: str | None = None,
+    from_address: Recipients | None = None,
+    cc: Recipients | None = None,
+    bcc: Recipients | None = None,
+    reply_to: Recipients | None = None,
+    headers: dict[str, str] | None = None,
+    sender: str | None = None,
+    html: str | None = None,
+    text: str | None = None,
+    return_path: str | None = None,
     text_charset: str = "utf-8",
     html_charset: str = "utf-8",
-    boundary: str = None,
-    message_id: str = None,
+    boundary: str | None = None,
+    message_id: str | None = None,
+    mailer: Mailer | str | None = "default",
 ) -> SentMessages:
     message = message or Email(
         to=to,
@@ -116,29 +128,32 @@ async def send_mail(
         boundary=boundary,
         message_id=message_id,
     )
+
+    if isinstance(mailer, str):
+        mailer = get_mailer(mailer)
     return await mailer.send(message)
 
 
 async def send_templated_mail(
-    mailer: Mailer,
-    message: Email = None,
+    message: Email | None = None,
     *,
-    to: Recipients = None,
-    subject: str = None,
-    from_address: Recipients = None,
-    cc: Recipients = None,
-    bcc: Recipients = None,
-    reply_to: Recipients = None,
-    headers: dict = None,
-    sender: str = None,
-    html_template: str = None,
-    text_template: str = None,
-    context: dict = None,
-    return_path: str = None,
-    text_charset: str = "utf-8",
-    html_charset: str = "utf-8",
-    boundary: str = None,
-    message_id: str = None,
+    to: Recipients | None = None,
+    subject: str | None = None,
+    from_address: Recipients | None = None,
+    cc: Recipients | None = None,
+    bcc: Recipients | None = None,
+    reply_to: Recipients | None = None,
+    headers: dict[str, str] | None = None,
+    sender: str | None = None,
+    html_template: str | None = None,
+    text_template: str | None = None,
+    context: dict[str, typing.Any] | None = None,
+    return_path: str | None = None,
+    text_charset: str | None = "utf-8",
+    html_charset: str | None = "utf-8",
+    boundary: str | None = None,
+    message_id: str | None = None,
+    mailer: Mailer | str | None = "default",
 ) -> SentMessages:
     message = message or TemplatedEmail(
         to=to,
@@ -159,4 +174,6 @@ async def send_templated_mail(
         message_id=message_id,
     )
 
+    if isinstance(mailer, str):
+        mailer = get_mailer(mailer)
     return await mailer.send(message)

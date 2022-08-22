@@ -13,10 +13,8 @@ from kupala.console.application import ConsoleApplication
 from kupala.contracts import TemplateRenderer
 from kupala.di import InjectionRegistry, Scope as InjectionScope
 from kupala.exceptions import ShutdownError, StartupError
-from kupala.http.context_processors import standard_processors
 from kupala.http.middleware import Middleware, MiddlewareStack
 from kupala.http.middleware.exception import ErrorHandler, ExceptionMiddleware
-from kupala.http.protocols import ContextProcessor
 from kupala.http.routing import Router, Routes
 
 _T = typing.TypeVar("_T")
@@ -34,7 +32,6 @@ class App:
         debug: bool = False,
         extensions: typing.Iterable[Extension] | None = None,
         commands: list[click.Command] | None = None,
-        context_processors: list[ContextProcessor] | None = None,
         middleware: list[Middleware] | MiddlewareStack | None = None,
         error_handlers: dict[typing.Type[Exception] | int, typing.Optional[ErrorHandler]] | None = None,
         lifespan_handlers: list[typing.Callable[[App], typing.AsyncContextManager[None]]] = None,
@@ -50,8 +47,6 @@ class App:
         self.lifespan_handlers = lifespan_handlers or []
         self.error_handlers = error_handlers or {}
         self.dependencies = dependencies or InjectionRegistry()
-        self.context_processors = context_processors or []
-        self.context_processors.append(standard_processors)
 
         self.dependencies.bind(self.__class__, self)
 

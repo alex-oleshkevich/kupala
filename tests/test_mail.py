@@ -12,7 +12,7 @@ from kupala.mails import send_mail, send_templated_mail
 async def test_mail_regular_send() -> None:
     storage: list[Message] = []
     mailer = Mailer(InMemoryTransport(storage), from_address="root <root@localhost>")
-    await send_mail(mailer, Email(subject="test", text="body"))
+    await send_mail(Email(subject="test", text="body"), mailer=mailer)
     assert len(storage) == 1
     assert storage[0]["From"] == "root <root@localhost>"
 
@@ -28,7 +28,7 @@ async def test_send_templated_mail(jinja_template_path: Path, jinja_env: jinja2.
         from_address="root <root@localhost>",
         plugins=[JinjaRendererPlugin(jinja_env)],
     )
-    await send_templated_mail(mailer, to="root@localhost", subject="test", html_template="index.html")
+    await send_templated_mail(to="root@localhost", subject="test", html_template="index.html", mailer=mailer)
     assert len(storage) == 1
     assert storage[0]["From"] == "root <root@localhost>"
     assert storage[0].get_payload() == "base mail\n"
