@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "kupala"
 description = "A modern web framework for Python."
-version = "0.15.13"
+version = "0.15.14"
 authors = ["Alex Oleshkevich <alex.oleshkevich@gmail.com>"]
 license = "MIT"
 readme = "README.md"
@@ -27,7 +27,6 @@ starlette = "^0.20"
 Jinja2 = "^3.1"
 imia = "^0.5"
 python-multipart = "^0.0"
-python-dotenv = "^0.20"
 deesk = "^0.1"
 click = "^8.1"
 mailers = "^2.0"
