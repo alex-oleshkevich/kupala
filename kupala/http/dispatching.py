@@ -20,54 +20,25 @@ def detect_request_class(endpoint: typing.Callable) -> typing.Type[Request]:
     return args.get("request", Request)
 
 
-async def resolve_injections(request: Request, endpoint: typing.Callable) -> dict[str, typing.Any]:
-    """
-    Read endpoint signature and extract injections types. These injections will be resolved into actual service
-    instances. Dependency injections and path parameters are merged.
-
-    Return value of `from_request` can be a generator. In this case we convert it into context manager and add to
-    sync/async exit stack.
-    """
-    injections = {}
-
-    args = typing.get_type_hints(endpoint)
-    inspect.signature(endpoint)
+def generate_injection_plan(fn: typing.Callable, injections: dict[str, Inject]) -> dict[str, Inject]:
+    injection_plan: dict[str, Inject] = {}
+    args = typing.get_type_hints(fn)
     for arg_name, arg_type in args.items():
         if arg_name == "return":
             continue
 
-        if arg_type == type(request):
-            injections[arg_name] = request
+        if arg_type == Request or arg_name == "request":
+            injection_plan[arg_name] = Inject(factory=lambda request: request)
             continue
 
-        if arg_name in request.path_params:
-            injections[arg_name] = request.path_params[arg_name]
-            continue
-        else:
-            continue
-
-    return injections
-
-
-def generate_injection_plan(fn: typing.Callable, injections: dict[str, Inject]) -> dict[str, Inject]:
-    injection_plan: dict[str, Inject] = {}
-    args = typing.get_type_hints(fn)
-    for arg, factory in args.items():
-        if arg == "return":
-            continue
-
-        if factory == Request or issubclass(factory, Request):
-            injection_plan[arg] = Inject(factory=lambda request: request)
-            continue
-
-        if arg in injections:
-            injection_plan[arg] = injections[arg]
+        if arg_name in injections:
+            injection_plan[arg_name] = injections[arg_name]
         else:
 
             def from_path(request: Request, param_name: str) -> typing.Any:
                 return request.path_params[param_name]
 
-            injection_plan[arg] = Inject(factory=functools.partial(from_path, param_name=arg))
+            injection_plan[arg_name] = Inject(factory=functools.partial(from_path, param_name=arg_name))
 
     return injection_plan
 
