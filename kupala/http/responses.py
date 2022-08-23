@@ -151,8 +151,10 @@ class RedirectResponse(Response, responses.RedirectResponse):
             scope["flash_messages"].add(self._flash_message, self._flash_message_category)
 
         if self._path_name:
-            url = scope["request"].url_for(self._path_name, **(self._path_params or {}))
+            request = Request(scope, receive, send)
+            url = request.url_for(self._path_name, **(self._path_params or {}))
         else:
+            assert self._url
             url = self._url
 
         self.headers["location"] = quote(str(url), safe=":/%#?=@[]!$&'()*+,;")
