@@ -5,8 +5,9 @@ import typing
 from starlette import routing
 from starlette.routing import Router
 from starlette.staticfiles import StaticFiles
-from starlette.types import ASGIApp
+from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.http import Request
 from kupala.http.dispatching import create_view_dispatcher
 from kupala.http.guards import Guard
 from kupala.http.middleware import Middleware
@@ -93,12 +94,35 @@ def route(
     methods: list[str] = None,
     name: str | None = None,
     guards: list[Guard] | None = None,
+    middleware: list[Middleware] | None = None,
 ) -> typing.Callable[[typing.Callable], Route]:
+    middleware = middleware or []
+    if guards:
+        middleware.append(Middleware(GuardsMiddleware, guards=guards))
+
     def decorator(fn: typing.Callable) -> Route:
-        view_handler = create_view_dispatcher(fn, guards=guards or [])
-        return Route(path=path, endpoint=view_handler, name=name, methods=methods)
+        view_handler = handler = create_view_dispatcher(fn)
+
+        if middleware:
+
+            class ASGIHandler:
+                async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+                    response = await view_handler(Request(scope, receive, send))
+                    await response(scope, receive, send)
+
+            handler = _asgi_proxy(apply_middleware(ASGIHandler(), middleware))  # type: ignore[assignment]
+
+        return Route(path=path, endpoint=handler, name=name, methods=methods)
 
     return decorator
+
+
+def _asgi_proxy(fn: ASGIApp) -> ASGIApp:
+    class ASGIProxy:
+        async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+            await fn(scope, receive, send)
+
+    return ASGIProxy()
 
 
 def group(

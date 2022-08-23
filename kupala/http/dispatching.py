@@ -3,11 +3,9 @@ from __future__ import annotations
 import functools
 import inspect
 import typing
-from contextlib import AsyncExitStack, ExitStack
 from starlette.concurrency import run_in_threadpool
 
 from kupala.http import Response
-from kupala.http.guards import Guard, call_guards
 from kupala.http.requests import Request
 
 
@@ -21,12 +19,7 @@ def detect_request_class(endpoint: typing.Callable) -> typing.Type[Request]:
     return args.get("request", Request)
 
 
-async def resolve_injections(
-    request: Request,
-    endpoint: typing.Callable,
-    sync_stack: ExitStack,
-    async_stack: AsyncExitStack,
-) -> dict[str, typing.Any]:
+async def resolve_injections(request: Request, endpoint: typing.Callable) -> dict[str, typing.Any]:
     """
     Read endpoint signature and extract injections types. These injections will be resolved into actual service
     instances. Dependency injections and path parameters are merged.
@@ -55,24 +48,18 @@ async def resolve_injections(
     return injections
 
 
-def create_view_dispatcher(
-    fn: typing.Callable,
-    guards: list[Guard],
-) -> typing.Callable[[Request], typing.Awaitable[Response]]:
+def create_view_dispatcher(fn: typing.Callable) -> typing.Callable[[Request], typing.Awaitable[Response]]:
     request_class = detect_request_class(fn)
 
     @functools.wraps(fn)
     async def view_decorator(request: Request) -> Response:
         request = request_class(request.scope, request.receive, request._send)
-        await call_guards(request, guards or [])
+        args = await resolve_injections(request, fn)
 
-        with ExitStack() as sync_stack:
-            async with AsyncExitStack() as async_stack:
-                args = await resolve_injections(request, fn, sync_stack, async_stack)
-                if inspect.iscoroutinefunction(fn):
-                    response = await fn(**args)
-                else:
-                    response = await run_in_threadpool(fn, **args)
+        if inspect.iscoroutinefunction(fn):
+            response = await fn(**args)
+        else:
+            response = await run_in_threadpool(fn, **args)
         return response
 
     return view_decorator
