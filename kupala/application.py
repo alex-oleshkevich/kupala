@@ -33,18 +33,19 @@ class App:
         middleware: typing.Iterable[Middleware] | MiddlewareStack | None = None,
         error_handlers: dict[typing.Type[Exception] | int, ErrorHandler | None] | None = None,
         lifespan_handlers: typing.Iterable[typing.Callable[[App], typing.AsyncContextManager[None]]] = None,
+        renderer: TemplateRenderer | None = None,
     ) -> None:
         self.secret_key = secret_key
         self.debug = debug
         self.state = State()
 
         self._asgi_handler: ASGIApp | None = None
+        self.renderer = renderer
         self.routes = routes or []
         self.commands = commands or []
         self.middleware = MiddlewareStack(list(middleware or []))
         self.lifespan_handlers = lifespan_handlers or []
         self.error_handlers = error_handlers or {}
-        self.renderer: TemplateRenderer | None = None
         self._router = Router(list(self.routes))
 
         # bootstrap extensions

@@ -5,11 +5,15 @@ import datetime
 import decimal
 import enum
 import functools
-import json
 import typing
 import uuid
 from babel.support import LazyProxy
 from pydantic import BaseModel
+
+try:
+    import ujson as json  # type: ignore[import]
+except ImportError:
+    import json  # type: ignore[no-redef]
 
 JSONEncoder = json.JSONEncoder
 
