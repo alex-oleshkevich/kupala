@@ -193,9 +193,10 @@ class Routes(typing.Iterable[Route]):
         methods: list[str] = None,
         name: str | None = None,
         guards: list[Guard] | None = None,
+        inject: dict[str, InjectFactory | Inject] | None = None,
     ) -> typing.Callable[[typing.Callable], Route]:
         def decorator(fn: typing.Callable) -> Route:
-            route_ = route(path, methods=methods, name=name, guards=guards)(fn)
+            route_ = route(path, methods=methods, name=name, guards=guards, inject=inject)(fn)
             self._routes.append(route_)
             return route_
 
