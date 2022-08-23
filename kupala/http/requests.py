@@ -7,7 +7,7 @@ import re
 import typing
 import uuid
 from babel.core import Locale
-from imia import AnonymousUser, LoginState, UserLike, UserToken
+from imia import AnonymousUser, LoginState, UserToken
 from starlette import datastructures as ds, requests
 from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
@@ -89,7 +89,10 @@ class Headers(requests.Headers):
     pass
 
 
-class Request(requests.Request):
+U = typing.TypeVar("U")
+
+
+class Request(requests.Request, typing.Generic[U]):
     def __new__(cls, scope: Scope, receive: Receive = empty_receive, send: Send = empty_send) -> Request:
         if "request" not in scope:
             instance = super().__new__(cls)
@@ -120,7 +123,7 @@ class Request(requests.Request):
         return self.scope.get("auth", UserToken(user=AnonymousUser(), state=LoginState.ANONYMOUS))
 
     @property
-    def user(self) -> UserLike:
+    def user(self) -> U:
         return self.auth.user
 
     @property
