@@ -1,15 +1,10 @@
-from kupala.application import App, Extension
+from kupala.application import App
 
 
-class DummyExtension(Extension):
-    def register(self, app: App) -> None:
-        app.state.register_called = True
-
-    def bootstrap(self, app: App) -> None:
-        app.state.bootstrap_called = True
+def dummy_extension(app: App) -> None:
+    app.state.register_called = True
 
 
 def test_extensions() -> None:
-    app = App(secret_key="key", extensions=[DummyExtension()])
+    app = App(secret_key="key", extensions=[dummy_extension])
     assert app.state.register_called
-    assert app.state.bootstrap_called

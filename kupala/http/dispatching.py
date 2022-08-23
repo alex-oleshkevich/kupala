@@ -3,14 +3,12 @@ from __future__ import annotations
 import functools
 import inspect
 import typing
-from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextmanager
+from contextlib import AsyncExitStack, ExitStack
 from starlette.concurrency import run_in_threadpool
 
-from kupala.di import InjectionError
 from kupala.http import Response
 from kupala.http.guards import Guard, call_guards
 from kupala.http.requests import Request
-from kupala.utils import callable_name, run_async
 
 
 def detect_request_class(endpoint: typing.Callable) -> typing.Type[Request]:
@@ -41,7 +39,7 @@ async def resolve_injections(
     injections = {}
 
     args = typing.get_type_hints(endpoint)
-    signature = inspect.signature(endpoint)
+    inspect.signature(endpoint)
     for arg_name, arg_type in args.items():
         if arg_name == "return":
             continue
@@ -53,33 +51,6 @@ async def resolve_injections(
         if arg_name in request.path_params:
             injections[arg_name] = request.path_params[arg_name]
             continue
-
-        # handle request injectable arguments
-        if request.app.dependencies.has(arg_type, "request"):
-            callback = request.app.dependencies.get(arg_type, "request")
-            if inspect.isgeneratorfunction(callback):
-                injections[arg_name] = sync_stack.enter_context(contextmanager(callback)(request))
-                continue
-
-            if inspect.isasyncgenfunction(callback):
-                injections[arg_name] = await async_stack.enter_async_context(asynccontextmanager(callback)(request))
-                continue
-
-            # not a generator?
-            injections[arg_name] = await run_async(callback, request)
-            continue
-
-        # all other endpoint arguments are must be considered as injections
-        try:
-            injection = request.app.dependencies.get(arg_type)
-            injections[arg_name] = await injection if inspect.iscoroutine(injection) else injection
-        except InjectionError as ex:
-            if arg_name in signature.parameters and signature.parameters[arg_name].default != signature.empty:
-                injections[arg_name] = signature.parameters[arg_name].default
-            else:
-                raise InjectionError(
-                    f'Injection "{arg_name}" cannot be processed in {callable_name(endpoint)}. ' f"Error: {ex}."
-                ) from ex
         else:
             continue
 

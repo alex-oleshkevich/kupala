@@ -3,11 +3,10 @@ import pytest
 from kupala.application import set_current_application
 from kupala.cache import Cache, CacheManager
 from kupala.cache.decorators import cached
-from kupala.di import InjectionRegistry
 from tests.conftest import TestAppFactory
 
 
-def make_cache_manager(registry: InjectionRegistry) -> CacheManager:
+def make_cache_manager() -> CacheManager:
     return CacheManager(
         {
             "default": Cache("memory://"),
@@ -26,7 +25,7 @@ async def test_cached_decorator_with_async_callable(test_app_factory: TestAppFac
         return counter
 
     app = test_app_factory()
-    app.dependencies.register(CacheManager, make_cache_manager, cached=True)
+    app.state.caches = make_cache_manager()
     set_current_application(app)
 
     assert await call_me() == 1
@@ -45,7 +44,7 @@ async def test_cached_decorator_with_async_class_method(test_app_factory: TestAp
             return self.counter
 
     app = test_app_factory()
-    app.dependencies.register(CacheManager, make_cache_manager, cached=True)
+    app.state.caches = make_cache_manager()
     set_current_application(app)
 
     instance = Example()

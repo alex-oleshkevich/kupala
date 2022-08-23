@@ -12,7 +12,6 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.console.application import ConsoleApplication
 from kupala.contracts import TemplateRenderer
-from kupala.di import InjectionRegistry, Scope as InjectionScope
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.http.middleware import Middleware, MiddlewareStack
 from kupala.http.middleware.exception import ErrorHandler, ExceptionMiddleware
@@ -27,14 +26,13 @@ class App:
         self,
         *,
         secret_key: str,
-        routes: typing.Iterable[BaseRoute] | None = None,
-        dependencies: InjectionRegistry | None = None,
         debug: bool = False,
+        routes: typing.Iterable[BaseRoute] | None = None,
         extensions: typing.Iterable[Extension] | None = None,
-        commands: list[click.Command] | None = None,
-        middleware: list[Middleware] | MiddlewareStack | None = None,
-        error_handlers: dict[typing.Type[Exception] | int, typing.Optional[ErrorHandler]] | None = None,
-        lifespan_handlers: list[typing.Callable[[App], typing.AsyncContextManager[None]]] = None,
+        commands: typing.Iterable[click.Command] | None = None,
+        middleware: typing.Iterable[Middleware] | MiddlewareStack | None = None,
+        error_handlers: dict[typing.Type[Exception] | int, ErrorHandler | None] | None = None,
+        lifespan_handlers: typing.Iterable[typing.Callable[[App], typing.AsyncContextManager[None]]] = None,
     ) -> None:
         self.secret_key = secret_key
         self.debug = debug
@@ -46,18 +44,13 @@ class App:
         self.middleware = MiddlewareStack(list(middleware or []))
         self.lifespan_handlers = lifespan_handlers or []
         self.error_handlers = error_handlers or {}
-        self.dependencies = dependencies or InjectionRegistry()
-
-        self.dependencies.bind(self.__class__, self)
-
+        self.renderer: TemplateRenderer | None = None
         self._router = Router(list(self.routes))
 
         # bootstrap extensions
         extensions = extensions or []
         for extension in extensions:
-            extension.register(self)
-        for extension in extensions:
-            extension.bootstrap(self)
+            extension(self)
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         started = False
@@ -100,7 +93,8 @@ class App:
 
     def render(self, template_name: str, context: dict[str, typing.Any] | None = None) -> str:
         """Render template."""
-        return self.dependencies.get(TemplateRenderer).render(template_name, context or {})  # type: ignore[misc]
+        assert self.renderer, "Template render is not installed."
+        return self.renderer.render(template_name, context or {})  # type: ignore[misc]
 
     def _build_middleware(self) -> ASGIApp:
         middleware = [
@@ -114,9 +108,6 @@ class App:
         for mw in reversed(middleware):
             app = mw.wrap(app)
         return app
-
-    def get(self, type_name: typing.Type[_T], scope: InjectionScope = "global") -> _T:
-        return self.dependencies.get(type_name, scope)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         assert scope["type"] in {"http", "websocket", "lifespan"}
@@ -135,11 +126,8 @@ class App:
             await self._asgi_handler(scope, receive, send)
 
 
-class Extension:
-    def register(self, app: App) -> None:
-        ...
-
-    def bootstrap(self, app: App) -> None:
+class Extension(typing.Protocol):
+    def __call__(self, app: App) -> None:
         ...
 
 

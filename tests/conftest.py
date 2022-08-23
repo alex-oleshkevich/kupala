@@ -8,7 +8,6 @@ from starlette.types import ASGIApp
 
 from kupala.application import App
 from kupala.contracts import TemplateRenderer
-from kupala.di import InjectionRegistry
 from kupala.http import Routes
 from kupala.http.middleware import Middleware
 from kupala.storages.storages import LocalStorage, Storage
@@ -49,11 +48,9 @@ def test_app_factory() -> TestAppFactory:
         kwargs.setdefault("app_class", App)
         kwargs.setdefault("routes", Routes())
         kwargs.setdefault("secret_key", "t0pSekRet!")
-        kwargs.setdefault("dependencies", InjectionRegistry())
         app_class = kwargs.pop("app_class")
         app = app_class(*args, **kwargs)
-
-        app.dependencies.bind(TemplateRenderer, renderer)
+        app.renderer = renderer
         return app
 
     return factory
