@@ -2,7 +2,6 @@ import pytest
 import typing
 from imia import BearerAuthenticator, InMemoryProvider
 
-from kupala.authentication import BaseUser
 from kupala.http import route
 from kupala.http.exceptions import NotAuthenticated, PageNotFound, PermissionDenied
 from kupala.http.guards import has_permission, is_authenticated
@@ -12,7 +11,7 @@ from kupala.http.responses import JSONResponse
 from tests.conftest import TestClientFactory
 
 
-class User(BaseUser):
+class User:
     def get_id(self) -> typing.Any:
         pass
 

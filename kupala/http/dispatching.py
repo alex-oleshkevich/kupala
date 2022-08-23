@@ -15,8 +15,7 @@ def detect_request_class(endpoint: typing.Callable) -> typing.Type[Request]:
     """
     Detect which request class to use for this endpoint.
 
-    If endpoint does not have `request` argument, or it is not type-hinted then
-    default request class returned.
+    If endpoint does not have `request` argument, or it is not type-hinted then default request class returned.
     """
     args = typing.get_type_hints(endpoint)
     return args.get("request", Request)
@@ -29,12 +28,11 @@ async def resolve_injections(
     async_stack: AsyncExitStack,
 ) -> dict[str, typing.Any]:
     """
-    Read endpoint signature and extract injections types. These injections will
-    be resolved into actual service instances. Dependency injections and path
-    parameters are merged.
+    Read endpoint signature and extract injections types. These injections will be resolved into actual service
+    instances. Dependency injections and path parameters are merged.
 
-    Return value of `from_request` can be a generator. In this case we convert
-    it into context manager and add to sync/async exit stack.
+    Return value of `from_request` can be a generator. In this case we convert it into context manager and add to
+    sync/async exit stack.
     """
     injections = {}
 

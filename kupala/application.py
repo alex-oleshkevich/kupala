@@ -83,9 +83,8 @@ class App:
         """
         Generate URL by name.
 
-        This method is useful when you want to reverse the URL in non-ASGI mode
-        like CLI. Otherwise, prefer using Request.url_for as it generates full
-        URL incl. host and scheme.
+        This method is useful when you want to reverse the URL in non-ASGI mode like CLI. Otherwise, prefer using
+        Request.url_for as it generates full URL incl. host and scheme.
         """
         return self._router.url_path_for(name, **path_params)
 

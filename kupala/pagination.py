@@ -39,8 +39,7 @@ class Page(typing.Generic[M]):
         """
         Next page number.
 
-        Always returns an integer. If there is no more pages the current page
-        number returned.
+        Always returns an integer. If there is no more pages the current page number returned.
         """
         return min(self.total_pages, self.page + 1)
 
@@ -49,8 +48,7 @@ class Page(typing.Generic[M]):
         """
         Previous page number.
 
-        Always returns an integer. If there is no previous page, the number 1
-        returned.
+        Always returns an integer. If there is no previous page, the number 1 returned.
         """
         return max(1, self.page - 1)
 

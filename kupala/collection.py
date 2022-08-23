@@ -53,8 +53,7 @@ class Collection(typing.Generic[E]):
         return chunked(self, batch)
 
     def pluck(self, key: str) -> Collection[typing.Any]:
-        """Take a attribute/key named `key` from every item and return them in a
-        new collection."""
+        """Take a attribute/key named `key` from every item and return them in a new collection."""
         key = str(key)
         return Collection([attribute_reader(item, key, None) for item in self])
 
@@ -63,8 +62,7 @@ class Collection(typing.Generic[E]):
         return Collection(list(reversed(self)))
 
     def map(self, fn: typing.Callable[[E], typing.Any]) -> Collection:
-        """Apply a function on each collection item and return a new
-        collection."""
+        """Apply a function on each collection item and return a new collection."""
         return Collection(list(map(fn, self)))
 
     def every(self, fn: typing.Callable[[E], bool]) -> bool:
@@ -79,8 +77,7 @@ class Collection(typing.Generic[E]):
         """
         Apply a function on each collection item and return same collection.
 
-        Callback will receive current item as the first argument and current
-        iteration index as the second argument.
+        Callback will receive current item as the first argument and current iteration index as the second argument.
         """
         for index, item in enumerate(self.items):
             fn(item, index)

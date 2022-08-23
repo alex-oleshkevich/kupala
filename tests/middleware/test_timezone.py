@@ -2,7 +2,6 @@ import typing
 from imia import LoginState, UserToken
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.authentication import BaseUser
 from kupala.http.middleware.timezone import TimezoneMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
@@ -14,7 +13,7 @@ async def app(scope: Scope, receive: Receive, send: Send) -> None:
     await JSONResponse(str(request.state.timezone))(scope, receive, send)
 
 
-class _User(BaseUser):
+class _User:
     def __init__(self, timezone: str | None) -> None:
         self.timezone = timezone
 

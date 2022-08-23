@@ -16,8 +16,7 @@ async def app(scope: Scope, receive: Receive, send: Send) -> None:
 
 @pytest.mark.asyncio
 async def test_request_limit_middleware_limits() -> None:
-    """When request body is larger than a configured limit then 413 response to
-    be returned."""
+    """When request body is larger than a configured limit then 413 response to be returned."""
 
     client = TestClient((RequestLimitMiddleware(app, max_body_size=5)))
     assert client.post("/", data={"content": ""}).status_code == 413  # 8 bytes, message + "=" sign

@@ -138,9 +138,8 @@ class Request(requests.Request, typing.Generic[U]):
     @property
     def is_xhr(self) -> bool:
         """
-        Is true when the request is a XMLHttpRequest. It works if JavaScript's
-        HTTP client sets an X-Requested-With HTTP header. Known frameworks:
-        http://en.wikipedia.org/wiki/List_of_Ajax_frameworks#JavaScript.
+        Is true when the request is a XMLHttpRequest. It works if JavaScript's HTTP client sets an X-Requested-With HTTP
+        header. Known frameworks: http://en.wikipedia.org/wiki/List_of_Ajax_frameworks#JavaScript.
 
         :return:
         """

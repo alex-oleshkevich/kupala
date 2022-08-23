@@ -39,8 +39,7 @@ def to_user_timezone(dt: datetime.datetime) -> datetime.datetime:
 
 
 def to_utc(dt: datetime.datetime) -> datetime.datetime:
-    """Convert datetime instance to UTC and drop tzinfo (creates a naive
-    datetime object)."""
+    """Convert datetime instance to UTC and drop tzinfo (creates a naive datetime object)."""
     if dt.tzinfo is None:
         dt = get_timezone().localize(dt)
     return dt.astimezone(UTC).replace(tzinfo=None)

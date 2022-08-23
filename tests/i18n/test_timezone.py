@@ -36,8 +36,7 @@ def test_to_user_timezone() -> None:
 
 
 def test_to_utc() -> None:
-    """Naive time will be assigned current timezone (Europe/Minsk) and then
-    converted to UTC."""
+    """Naive time will be assigned current timezone (Europe/Minsk) and then converted to UTC."""
     with switch_timezone("Europe/Minsk"):
         naive_dt = datetime.datetime(2022, 12, 25, 12, 30, 59)
         assert to_utc(naive_dt).isoformat() == "2022-12-25T09:30:59"

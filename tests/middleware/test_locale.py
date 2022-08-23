@@ -3,7 +3,6 @@ from babel.core import Locale
 from imia import LoginState, UserToken
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.authentication import BaseUser
 from kupala.http.middleware import LocaleMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
@@ -52,7 +51,7 @@ def test_locale_middleware_supports_language_shortcuts() -> None:
     assert client.get("/?lang=be_BY").json() == ["be", None]
 
 
-class _User(BaseUser):
+class _User:
     def __init__(self, language: str | None) -> None:
         self.language = language
 
@@ -93,16 +92,16 @@ def test_locale_middleware_user_supplies_no_language() -> None:
 
 
 def test_locale_middleware_finds_variant() -> None:
-    """If there is no locale exactly matching the requested, try to find
-    alternate variant that may satisfy the client."""
+    """If there is no locale exactly matching the requested, try to find alternate variant that may satisfy the
+    client."""
 
     client = TestClient(LocaleMiddleware(app, languages=["ru_BY"]))
     assert client.get("/?lang=ru_RU").json() == ["ru", "BY"]
 
 
 def test_locale_middleware_fallback_language() -> None:
-    """If there is no locale exactly matching the requested, try to find
-    alternate variant that may satisfy the client."""
+    """If there is no locale exactly matching the requested, try to find alternate variant that may satisfy the
+    client."""
 
     client = TestClient(LocaleMiddleware(app, languages=["be_BY"], default_locale="pl_PL"))
     assert client.get("/?lang=ru_RU").json() == ["pl", "PL"]

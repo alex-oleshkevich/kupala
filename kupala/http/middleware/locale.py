@@ -102,10 +102,9 @@ class LocaleMiddleware:
         """
         Look up requested locale in supported list.
 
-        If the locale does not exist, it will attempt to find the closest locale
-        from the all supported. For example, if clients requests en_US, but we
-        support only "en_GB" then en_GB to be returned. If no locales match
-        request then None returned.
+        If the locale does not exist, it will attempt to find the closest locale from the all supported. For example, if
+        clients requests en_US, but we support only "en_GB" then en_GB to be returned. If no locales match request then
+        None returned.
         """
         from_locale, _ = locale.lower().split("_") if "_" in locale else [locale, ""]
         for supported in self.languages:
