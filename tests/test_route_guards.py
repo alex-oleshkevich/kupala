@@ -3,7 +3,7 @@ import typing
 from imia import BearerAuthenticator, InMemoryProvider
 
 from kupala.authentication import BaseUser
-from kupala.http.dispatching import route
+from kupala.http import route
 from kupala.http.exceptions import NotAuthenticated, PageNotFound, PermissionDenied
 from kupala.http.guards import has_permission, is_authenticated
 from kupala.http.middleware import AuthenticationMiddleware, Middleware

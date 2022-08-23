@@ -1,9 +1,9 @@
 import typing
 from unittest import mock
 
-from kupala.http.dispatching import route
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse, PlainTextResponse
+from kupala.http.routing import route
 from tests.conftest import TestClientFactory
 
 

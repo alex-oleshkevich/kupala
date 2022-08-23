@@ -7,40 +7,10 @@ from contextlib import AsyncExitStack, ExitStack, asynccontextmanager, contextma
 from starlette.concurrency import run_in_threadpool
 
 from kupala.di import InjectionError
+from kupala.http import Response
 from kupala.http.guards import Guard, call_guards
 from kupala.http.requests import Request
-from kupala.http.routing import Route
 from kupala.utils import callable_name, run_async
-
-
-def route(
-    path: str,
-    methods: list[str] = None,
-    name: str | None = None,
-    guards: list[Guard] | None = None,
-) -> typing.Callable[[typing.Callable], Route]:
-    """Use this decorator to configure endpoint parameters."""
-
-    def decorator(fn: typing.Callable) -> Route:
-        request_class = detect_request_class(fn)
-
-        @functools.wraps(fn)
-        async def view_decorator(request: Request) -> Route:
-            request = request_class(request.scope, request.receive, request._send)
-            await call_guards(request, guards or [])
-
-            with ExitStack() as sync_stack:
-                async with AsyncExitStack() as async_stack:
-                    args = await resolve_injections(request, fn, sync_stack, async_stack)
-                    if inspect.iscoroutinefunction(fn):
-                        response = await fn(**args)
-                    else:
-                        response = await run_in_threadpool(fn, **args)
-            return response
-
-        return Route(path=path, endpoint=view_decorator, name=name, methods=methods)
-
-    return decorator
 
 
 def detect_request_class(endpoint: typing.Callable) -> typing.Type[Request]:
@@ -114,3 +84,26 @@ async def resolve_injections(
             continue
 
     return injections
+
+
+def create_view_dispatcher(
+    fn: typing.Callable,
+    guards: list[Guard],
+) -> typing.Callable[[Request], typing.Awaitable[Response]]:
+    request_class = detect_request_class(fn)
+
+    @functools.wraps(fn)
+    async def view_decorator(request: Request) -> Response:
+        request = request_class(request.scope, request.receive, request._send)
+        await call_guards(request, guards or [])
+
+        with ExitStack() as sync_stack:
+            async with AsyncExitStack() as async_stack:
+                args = await resolve_injections(request, fn, sync_stack, async_stack)
+                if inspect.iscoroutinefunction(fn):
+                    response = await fn(**args)
+                else:
+                    response = await run_in_threadpool(fn, **args)
+        return response
+
+    return view_decorator

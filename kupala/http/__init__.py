@@ -1,4 +1,3 @@
-from .dispatching import route
 from .exceptions import (
     BadRequest,
     Conflict,
@@ -26,7 +25,7 @@ from .responses import (
     Response,
     StreamingResponse,
 )
-from .routing import Host, Mount, Route, Router, Routes, WebSocketRoute
+from .routing import Host, Mount, Route, Router, Routes, WebSocketRoute, route
 from .websockets import WebSocket
 
 __all__ = [

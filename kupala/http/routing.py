@@ -7,6 +7,7 @@ from starlette.routing import compile_path
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp
 
+from kupala.http.dispatching import create_view_dispatcher
 from kupala.http.guards import Guard
 from kupala.http.middleware import Middleware
 from kupala.http.middleware.guards import GuardsMiddleware
@@ -256,8 +257,6 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         name: str | None = None,
         guards: list[Guard] | None = None,
     ) -> typing.Callable[[typing.Callable], Route]:
-        from kupala.http.dispatching import route
-
         def decorator(fn: typing.Callable) -> Route:
             _route = route(path, methods, name, guards)(fn)
             self.add(_route)
@@ -279,3 +278,16 @@ class Routes(typing.Sequence[routing.BaseRoute]):
         raise NotImplementedError
 
     __call__ = route
+
+
+def route(
+    path: str,
+    methods: list[str] = None,
+    name: str | None = None,
+    guards: list[Guard] | None = None,
+) -> typing.Callable[[typing.Callable], Route]:
+    def decorator(fn: typing.Callable) -> Route:
+        view_handler = create_view_dispatcher(fn, guards=guards or [])
+        return Route(path=path, endpoint=view_handler, name=name, methods=methods)
+
+    return decorator
