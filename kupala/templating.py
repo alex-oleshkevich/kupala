@@ -63,7 +63,7 @@ class TemplateResponse(Response):
                 "app": request.app,
                 "request": request,
                 "url": request.url_for,
-                "static": request.static_url,
+                "static": request.app.static_url,
             }
         )
         for processor in get_context_processors():

@@ -3,12 +3,13 @@ import os
 import pathlib
 import pytest
 import typing
+from starlette.routing import BaseRoute
 from starlette.types import ASGIApp
 
 from kupala.application import App
 from kupala.contracts import TemplateRenderer
 from kupala.di import InjectionRegistry
-from kupala.http import Route, Routes
+from kupala.http import Routes
 from kupala.http.middleware import Middleware
 from kupala.storages.storages import LocalStorage, Storage
 from kupala.templating import JinjaRenderer
@@ -21,7 +22,7 @@ class TestAppFactory(typing.Protocol):  # pragma: nocover
         self,
         debug: bool = True,
         middleware: list[Middleware] | None = None,
-        routes: Routes | list[Route] | None = None,
+        routes: Routes | typing.Iterable[BaseRoute] | None = None,
         **kwargs: typing.Any,
     ) -> App:
         ...
@@ -32,7 +33,7 @@ class TestClientFactory(typing.Protocol):  # pragma: nocover
         self,
         debug: bool = True,
         middleware: list[Middleware] | None = None,
-        routes: Routes | typing.Iterable[Route] | None = None,
+        routes: Routes | typing.Iterable[BaseRoute] | None = None,
         raise_server_exceptions: bool = True,
         app: ASGIApp | None = None,
         **kwargs: typing.Any,

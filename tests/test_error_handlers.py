@@ -3,7 +3,7 @@ from starlette.exceptions import HTTPException
 from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket
 
-from kupala.http import Routes, route
+from kupala.http import WebSocketRoute, route
 from kupala.http.middleware import ExceptionMiddleware, Middleware
 from kupala.http.requests import Request
 from kupala.http.responses import PlainTextResponse, Response
@@ -117,9 +117,9 @@ def test_websocket_should_raise(test_client_factory: TestClientFactory) -> None:
     def raise_runtime_error(request: WebSocket) -> None:
         raise RuntimeError("Oops!")
 
-    routes = Routes()
-    routes.websocket("/", raise_runtime_error)
-    client = test_client_factory(routes=routes, middleware=[Middleware(ExceptionMiddleware, handlers={})])
+    client = test_client_factory(
+        routes=[WebSocketRoute("/", raise_runtime_error)], middleware=[Middleware(ExceptionMiddleware, handlers={})]
+    )
 
     with pytest.raises(RuntimeError):
         with client.websocket_connect("/"):

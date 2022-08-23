@@ -1,3 +1,5 @@
+from starlette.routing import WebSocketRoute
+
 from .exceptions import (
     BadRequest,
     Conflict,
@@ -25,11 +27,12 @@ from .responses import (
     Response,
     StreamingResponse,
 )
-from .routing import Host, Mount, Route, Router, Routes, WebSocketRoute, route
+from .routing import Host, Mount, Route, Routes, group, route
 from .websockets import WebSocket
 
 __all__ = [
     "route",
+    "group",
     "FormData",
     "QueryParams",
     "UploadFile",
@@ -52,7 +55,6 @@ __all__ = [
     "Route",
     "WebSocketRoute",
     "Routes",
-    "Router",
     "response",
     "HTTPException",
     "BadRequest",

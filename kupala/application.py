@@ -7,6 +7,7 @@ import typing
 from contextlib import AsyncExitStack
 from starception import StarceptionMiddleware
 from starlette.datastructures import State
+from starlette.routing import BaseRoute, Router
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.console.application import ConsoleApplication
@@ -15,7 +16,6 @@ from kupala.di import InjectionRegistry, Scope as InjectionScope
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.http.middleware import Middleware, MiddlewareStack
 from kupala.http.middleware.exception import ErrorHandler, ExceptionMiddleware
-from kupala.http.routing import Router, Routes
 
 _T = typing.TypeVar("_T")
 
@@ -27,7 +27,7 @@ class App:
         self,
         *,
         secret_key: str,
-        routes: Routes | None = None,
+        routes: typing.Iterable[BaseRoute] | None = None,
         dependencies: InjectionRegistry | None = None,
         debug: bool = False,
         extensions: typing.Iterable[Extension] | None = None,
@@ -41,7 +41,7 @@ class App:
         self.state = State()
 
         self._asgi_handler: ASGIApp | None = None
-        self.routes = routes or Routes()
+        self.routes = routes or []
         self.commands = commands or []
         self.middleware = MiddlewareStack(list(middleware or []))
         self.lifespan_handlers = lifespan_handlers or []
@@ -50,7 +50,7 @@ class App:
 
         self.dependencies.bind(self.__class__, self)
 
-        self._router = Router(self.routes)
+        self._router = Router(list(self.routes))
 
         # bootstrap extensions
         extensions = extensions or []
@@ -95,8 +95,8 @@ class App:
         """
         return self._router.url_path_for(name, **path_params)
 
-    def static_url(self, path: str, path_name: str = "static") -> str:
-        return self.url_for(path_name, path=path)
+    def static_url(self, path: str, route_name: str = "static") -> str:
+        return self.url_for(route_name, path=path)
 
     def render(self, template_name: str, context: dict[str, typing.Any] | None = None) -> str:
         """Render template."""
@@ -109,7 +109,7 @@ class App:
             Middleware(ExceptionMiddleware, handlers=self.error_handlers),
         ]
 
-        app: ASGIApp = Router(self.routes)
+        app: ASGIApp = Router(list(self.routes))
         self._router = app  # type: ignore[assignment]
         for mw in reversed(middleware):
             app = mw.wrap(app)

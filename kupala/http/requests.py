@@ -199,10 +199,6 @@ class Request(requests.Request, typing.Generic[U]):
                 return True
         return False
 
-    def static_url(self, path: str, path_name: str = "static") -> str:
-        """Generate a URL to a static file."""
-        return self.url_for(path_name, path=path)
-
     def url_for(self, name: str, **path_params: typing.Any) -> str:
         return self.app.url_for(name, **path_params)
 
