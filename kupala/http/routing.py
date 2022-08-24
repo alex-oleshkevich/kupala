@@ -7,7 +7,6 @@ from starlette.routing import Router
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.dependencies import Inject, InjectFactory
 from kupala.http import Request
 from kupala.http.dispatching import create_view_dispatcher
 from kupala.http.guards import Guard
@@ -96,20 +95,13 @@ def route(
     name: str | None = None,
     guards: list[Guard] | None = None,
     middleware: list[Middleware] | None = None,
-    inject: dict[str, InjectFactory | Inject] | None = None,
 ) -> typing.Callable[[typing.Callable], Route]:
     middleware = middleware or []
-    inject = inject or {}
     if guards:
         middleware.append(Middleware(GuardsMiddleware, guards=guards))
 
-    # fix injection
-    injections = {
-        arg: factory if isinstance(factory, Inject) else Inject(factory=factory) for arg, factory in inject.items()
-    }
-
     def decorator(fn: typing.Callable) -> Route:
-        view_handler = handler = create_view_dispatcher(fn, injections)
+        view_handler = handler = create_view_dispatcher(fn)
 
         if middleware:
 
@@ -193,10 +185,9 @@ class Routes(typing.Iterable[Route]):
         methods: list[str] = None,
         name: str | None = None,
         guards: list[Guard] | None = None,
-        inject: dict[str, InjectFactory | Inject] | None = None,
     ) -> typing.Callable[[typing.Callable], Route]:
         def decorator(fn: typing.Callable) -> Route:
-            route_ = route(path, methods=methods, name=name, guards=guards, inject=inject)(fn)
+            route_ = route(path, methods=methods, name=name, guards=guards)(fn)
             self._routes.append(route_)
             return route_
 

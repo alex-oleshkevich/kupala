@@ -1,12 +1,12 @@
 import pytest
 from starlette.exceptions import HTTPException
-from starlette.types import Receive, Scope, Send
+from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket
 
 from kupala.http import WebSocketRoute, route
 from kupala.http.middleware import ExceptionMiddleware, Middleware
 from kupala.http.requests import Request
-from kupala.http.responses import PlainTextResponse, Response
+from kupala.http.responses import Response
 from tests.conftest import TestClientFactory
 
 
@@ -15,7 +15,7 @@ def test_handler_by_status_code(test_client_factory: TestClientFactory) -> None:
         return Response("called")
 
     @route("/")
-    async def index_view() -> None:
+    async def index_view(_: Request) -> None:
         raise HTTPException(status_code=403)
 
     client = test_client_factory(
@@ -29,11 +29,11 @@ def test_handler_by_type(test_client_factory: TestClientFactory) -> None:
     class CustomError(Exception):
         pass
 
-    async def on_error(request: Request, exc: Exception) -> Response:
+    async def on_error(_: Request, exc: Exception) -> Response:
         return Response("called")
 
     @route("/")
-    async def index_view(request: Request) -> None:
+    async def index_view(_: Request) -> None:
         raise CustomError()
 
     client = test_client_factory(
@@ -48,11 +48,11 @@ def test_sync_handler(test_client_factory: TestClientFactory) -> None:
     class CustomError(Exception):
         pass
 
-    def on_error(request: Request, exc: Exception) -> Response:
+    def on_error(_: Request, exc: Exception) -> Response:
         return Response("called")
 
     @route("/")
-    async def index_view() -> None:
+    async def index_view(_: Request) -> None:
         raise CustomError()
 
     client = test_client_factory(
@@ -95,18 +95,19 @@ def test_should_reraise_unhandled_exception(test_client_factory: TestClientFacto
         assert response.text == "called"
 
 
-@route("/")
-class HandledExcAfterResponse:
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        response = PlainTextResponse("OK", status_code=200)
-        await response(scope, receive, send)
-        raise HTTPException(status_code=406)
-
-
 def test_handled_exc_after_response(test_client_factory: TestClientFactory) -> None:
+    def init_error(app: ASGIApp) -> ASGIApp:
+        async def inner(scope: Scope, receive: Receive, send: Send) -> None:
+            await send({"type": "http.response.start", "status": 409})
+            raise HTTPException(status_code=406)
+
+        return inner
+
     client = test_client_factory(
-        routes=[HandledExcAfterResponse],  # type: ignore[list-item]
-        middleware=[Middleware(ExceptionMiddleware, handlers={})],
+        middleware=[
+            Middleware(ExceptionMiddleware, handlers={}),
+            Middleware(init_error),
+        ],
     )
 
     with pytest.raises(RuntimeError):

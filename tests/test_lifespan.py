@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from kupala.application import App
 from kupala.exceptions import ShutdownError, StartupError
-from kupala.http import route
+from kupala.http import Request, route
 from kupala.http.responses import Response
 from kupala.testclient import TestClient
 from tests.conftest import TestAppFactory
@@ -22,7 +22,7 @@ def test_lifespan(test_app_factory: TestAppFactory) -> None:
         exit_called = True
 
     @route("/")
-    def view() -> Response:
+    def view(_: Request) -> Response:
         return Response("content")
 
     app = test_app_factory(lifespan_handlers=[handler], routes=[view])
@@ -49,7 +49,7 @@ def test_lifespan_boot_error(test_app_factory: TestAppFactory) -> None:
 
 def test_lifespan_shutdown_error(test_app_factory: TestAppFactory) -> None:
     @asynccontextmanager
-    async def handler(app: App) -> typing.AsyncIterator[None]:
+    async def handler(_: App) -> typing.AsyncIterator[None]:
         yield
         raise TypeError()
 

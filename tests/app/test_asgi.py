@@ -9,7 +9,7 @@ from tests.conftest import TestClientFactory
 
 def test_routes(test_client_factory: TestClientFactory, routes: Routes) -> None:
     @route("/")
-    def view() -> Response:
+    def view(_: Request) -> Response:
         return Response("ok")
 
     client = test_client_factory(routes=[view])

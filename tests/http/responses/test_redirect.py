@@ -13,7 +13,7 @@ REDIRECT_INPUT_DATA_SESSION_KEY = "_form_old_input"
 
 def test_redirect(test_client_factory: TestClientFactory) -> None:
     @route("/")
-    def view() -> RedirectResponse:
+    def view(_: Request) -> RedirectResponse:
         return RedirectResponse("/about")
 
     client = test_client_factory(routes=[view])
@@ -24,7 +24,7 @@ def test_redirect(test_client_factory: TestClientFactory) -> None:
 
 def test_redirect_requires_url_or_path_name(test_client_factory: TestClientFactory) -> None:
     @route("/")
-    def view() -> RedirectResponse:
+    def view(_: Request) -> RedirectResponse:
         return RedirectResponse()
 
     client = test_client_factory(routes=[view])
@@ -36,7 +36,7 @@ def test_redirect_requires_url_or_path_name(test_client_factory: TestClientFacto
 
 def test_redirect_to_path_name(test_client_factory: TestClientFactory) -> None:
     @route("/")
-    def view() -> RedirectResponse:
+    def view(_: Request) -> RedirectResponse:
         return RedirectResponse(path_name="about")
 
     @route("/about", name="about")
@@ -51,7 +51,7 @@ def test_redirect_to_path_name(test_client_factory: TestClientFactory) -> None:
 
 def test_redirect_to_path_name_with_path_params(test_client_factory: TestClientFactory) -> None:
     @route("/")
-    def view() -> RedirectResponse:
+    def view(_: Request) -> RedirectResponse:
         return RedirectResponse(path_name="about", path_params={"id": 42})
 
     @route("/about/{id}", name="about")
@@ -66,7 +66,7 @@ def test_redirect_to_path_name_with_path_params(test_client_factory: TestClientF
 
 def test_redirect_with_flash_message(test_client_factory: TestClientFactory) -> None:
     @route("/")
-    def view(request: Request) -> RedirectResponse:
+    def view(_: Request) -> RedirectResponse:
         return RedirectResponse("/about", flash_message="Saved.", flash_category="success")
 
     @route("/about/")
@@ -88,7 +88,7 @@ def test_redirect_with_flash_message(test_client_factory: TestClientFactory) -> 
 
 def test_redirect_with_flash_message_via_method(test_client_factory: TestClientFactory) -> None:
     @route("/")
-    def view() -> RedirectResponse:
+    def view(_: Request) -> RedirectResponse:
         return RedirectResponse("/about").flash("Saved.")
 
     @route("/about")
@@ -110,7 +110,7 @@ def test_redirect_with_flash_message_via_method(test_client_factory: TestClientF
 
 def test_redirect_with_success(test_client_factory: TestClientFactory, routes: Routes) -> None:
     @route("/")
-    def view() -> RedirectResponse:
+    def view(_: Request) -> RedirectResponse:
         return RedirectResponse("/about").with_success("Saved.")
 
     @route("/about")
@@ -132,7 +132,7 @@ def test_redirect_with_success(test_client_factory: TestClientFactory, routes: R
 
 def test_redirect_with_error(test_client_factory: TestClientFactory, routes: Routes) -> None:
     @route("/")
-    def view() -> RedirectResponse:
+    def view(_: Request) -> RedirectResponse:
         return RedirectResponse("/about").with_error("Error.")
 
     @route("/about")
