@@ -94,13 +94,13 @@ class Response:
         self.status_code = code
         return self
 
-    async def to_http_response(self, request: Request) -> responses.Response:
-        await self.prepare(request)
-        response = self.create_http_response(request)
+    def _process(self, http_response: responses.Response) -> None:
+        self._process_cookies(http_response)
 
+    def _process_cookies(self, http_response: responses.Response) -> None:
         # apply any pending cookie
         for cookie in self._cookies:
-            response.set_cookie(
+            http_response.set_cookie(
                 key=cookie.name,
                 value=cookie.value,
                 max_age=cookie.max_age,
@@ -114,7 +114,7 @@ class Response:
 
         # delete cookies
         for cookie in self._cookie_to_delete:
-            response.delete_cookie(
+            http_response.delete_cookie(
                 key=cookie.name,
                 path=cookie.path,
                 domain=cookie.domain,
@@ -122,10 +122,12 @@ class Response:
                 httponly=cookie.httponly,
                 samesite=cookie.samesite,
             )
-        return response
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        response = self.create_response_from_asgi(scope, receive, send)
+        request = Request(scope, receive, send)
+        await self.prepare(request)  # process async hooks, unstable API
+        response = self.create_http_response(request)
+        self._process(response)
         await response(scope, receive, send)
 
     def __repr__(self) -> str:

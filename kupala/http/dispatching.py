@@ -4,10 +4,9 @@ import functools
 import inspect
 import typing
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import Response as StarletteResponse
+from starlette.types import ASGIApp
 
 from kupala.dependencies import Inject
-from kupala.http import Response
 from kupala.http.requests import Request
 
 
@@ -36,11 +35,11 @@ def generate_injection_plan(fn: typing.Callable, injections: dict[str, Inject]) 
 
 def create_view_dispatcher(
     fn: typing.Callable, inject: dict[str, Inject]
-) -> typing.Callable[[Request], typing.Awaitable[StarletteResponse]]:
+) -> typing.Callable[[Request], typing.Awaitable[ASGIApp]]:
     injection_plan = generate_injection_plan(fn, inject)
 
     @functools.wraps(fn)
-    async def view_decorator(request: Request) -> StarletteResponse:
+    async def view_decorator(request: Request) -> ASGIApp:
         # make sure view receives our request class
         request.__class__ = Request
         view_args: dict[str, typing.Any] = {}
@@ -55,10 +54,6 @@ def create_view_dispatcher(
         else:
             response = await run_in_threadpool(fn, **view_args)
 
-        match response:
-            case Response():
-                return await response.to_http_response(request)
-            case _:
-                return response
+        return typing.cast(ASGIApp, response)
 
     return view_decorator

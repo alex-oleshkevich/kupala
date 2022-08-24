@@ -89,7 +89,5 @@ class ExceptionMiddleware:
             else:
                 response = await run_in_threadpool(handler, request, exc)
 
-            match response:
-                case Response():
-                    response = await response.to_http_response(request)
+            response = typing.cast(ASGIApp, response)
             await response(scope, receive, sender)
