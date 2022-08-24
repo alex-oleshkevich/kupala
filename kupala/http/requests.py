@@ -7,11 +7,11 @@ import re
 import typing
 import uuid
 from babel.core import Locale
-from imia import AnonymousUser, LoginState, UserToken
 from starlette import datastructures as ds, requests
 from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 
+from kupala.authentication import AnonymousUser, AuthToken, LoginState, UserLike
 from kupala.storages.storages import Storage
 
 if typing.TYPE_CHECKING:
@@ -89,7 +89,7 @@ class Headers(requests.Headers):
     pass
 
 
-U = typing.TypeVar("U")
+U = typing.TypeVar("U", bound=UserLike)
 
 
 class Request(requests.Request, typing.Generic[U]):
@@ -119,8 +119,8 @@ class Request(requests.Request, typing.Generic[U]):
         return self.scope["app"]
 
     @property
-    def auth(self) -> UserToken:
-        return self.scope.get("auth", UserToken(user=AnonymousUser(), state=LoginState.ANONYMOUS))
+    def auth(self) -> AuthToken[U]:
+        return self.scope.get("auth", AuthToken(user=AnonymousUser(), state=LoginState.ANONYMOUS))
 
     @property
     def user(self) -> U:

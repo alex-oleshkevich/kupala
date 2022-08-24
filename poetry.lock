@@ -373,18 +373,6 @@ optional = false
 python-versions = ">=3.5"
 
 [[package]]
-name = "imia"
-version = "0.5.3"
-description = "Full stack authentication library for ASGI."
-category = "main"
-optional = false
-python-versions = ">=3.8.0,<4.0.0"
-
-[package.extras]
-sqlalchemy = ["SQLAlchemy (>=1.4.25,<2.0.0)"]
-aiosqlite = ["aiosqlite (>=0.17.0,<0.18.0)"]
-
-[[package]]
 name = "iniconfig"
 version = "1.1.1"
 description = "iniconfig: brain-dead simple config-ini parsing"
@@ -900,7 +888,7 @@ s3 = ["aioboto3"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "e8e3104f1ab2ea492bb0d0e2b5623e7fddf1a0006bdcbc6488e1f60a95966406"
+content-hash = "da85b432b22452c94770cc17f818b5162a990e7f2f0f4f29afa2d8fab55ec8b8"
 
 [metadata.files]
 aioboto3 = [
@@ -1215,10 +1203,6 @@ h11 = [
 idna = [
     {file = "idna-3.3-py3-none-any.whl", hash = "sha256:84d9dd047ffa80596e0f246e2eab0b391788b0503584e8945f2368256d2735ff"},
     {file = "idna-3.3.tar.gz", hash = "sha256:9d643ff0a55b762d5cdb124b8eaa99c66322e2157b69160bc32796e824360e6d"},
-]
-imia = [
-    {file = "imia-0.5.3-py3-none-any.whl", hash = "sha256:f8edce6c04c4eb4542aee0fe90126899858c3466636134dbfb414edb0a475273"},
-    {file = "imia-0.5.3.tar.gz", hash = "sha256:e02cdebceef1828f076f52477bf78612dabf282ac9334855ffb491576c26bb1f"},
 ]
 iniconfig = [
     {file = "iniconfig-1.1.1-py2.py3-none-any.whl", hash = "sha256:011e24c64b7f47f6ebd835bb12a743f2fbe9a26d4cecaa7f53bc4f35ee9da8b3"},

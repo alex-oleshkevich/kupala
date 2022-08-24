@@ -25,7 +25,6 @@ classifiers = [
 python = "^3.10"
 starlette = "^0.20"
 Jinja2 = "^3.1"
-imia = "^0.5"
 python-multipart = "^0.0"
 deesk = "^0.1"
 click = "^8.1"
@@ -106,6 +105,7 @@ omit = ["tests/*", ".venv/*", "*/__main__.py"]
 exclude_lines = [
     "pragma: no cover",
     "raise NotImplementedError",
+    "if typing.TYPE_CHECKING:",
 ]
 
 [tool.mypy]

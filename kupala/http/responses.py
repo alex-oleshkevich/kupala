@@ -75,9 +75,6 @@ class Response:
         )
         return self
 
-    async def prepare(self, request: Request) -> None:
-        """A response hook for asynchronous actions."""
-
     def create_http_response(self, request: Request) -> responses.Response:
         return responses.Response(
             self.content,
@@ -85,10 +82,6 @@ class Response:
             headers=self.headers,
             media_type=self.content_type,
         )
-
-    def create_response_from_asgi(self, scope: Scope, receive: Receive, send: Send) -> responses.Response:
-        request = Request(scope, receive, send)
-        return self.create_http_response(request)
 
     def status(self: _T, code: int) -> _T:
         self.status_code = code
@@ -125,7 +118,6 @@ class Response:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         request = Request(scope, receive, send)
-        await self.prepare(request)  # process async hooks, unstable API
         response = self.create_http_response(request)
         self._process(response)
         await response(scope, receive, send)
@@ -148,14 +140,14 @@ class TemplateResponse(Response):
         self.template_name = template_name
         self.context = dict(context or {})
 
-    async def prepare(self, request: Request) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        request = Request(scope, receive, send)
         for processor in get_context_processors():
             if inspect.iscoroutinefunction(processor):
                 self.context.update(await processor(request))  # type: ignore[misc]
             else:
                 self.context.update(processor(request))  # type: ignore[arg-type]
 
-    def create_http_response(self, request: Request) -> responses.Response:
         self.context.update(
             {
                 "app": request.app,
@@ -164,10 +156,8 @@ class TemplateResponse(Response):
                 "static": request.app.static_url,
             }
         )
-        content = request.app.render(self.template_name, self.context).encode("utf-8")
-        return responses.Response(
-            content, status_code=self.status_code, headers=self.headers, media_type=self.content_type
-        )
+        self.content = request.app.render(self.template_name, self.context).encode("utf-8")
+        await super().__call__(scope, receive, send)
 
 
 template = TemplateResponse

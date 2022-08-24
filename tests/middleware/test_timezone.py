@@ -1,7 +1,6 @@
-import typing
-from imia import LoginState, UserToken
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.authentication import AuthToken, LoginState, UserLike
 from kupala.http.middleware.timezone import TimezoneMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
@@ -13,21 +12,12 @@ async def app(scope: Scope, receive: Receive, send: Send) -> None:
     await JSONResponse(str(request.state.timezone))(scope, receive, send)
 
 
-class _User:
+class _User(UserLike):
     def __init__(self, timezone: str | None) -> None:
         self.timezone = timezone
 
-    def get_id(self) -> typing.Any:
-        pass
-
-    def get_display_name(self) -> str:
-        pass
-
-    def get_scopes(self) -> list[str]:
-        pass
-
-    def get_hashed_password(self) -> str:
-        pass
+    def get_id(self) -> str:
+        return ""
 
     def get_timezone(self) -> str | None:
         return self.timezone
@@ -39,7 +29,7 @@ class ForceAuthentication:
         self.timezone = timezone
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        scope["auth"] = UserToken(user=_User(timezone=self.timezone), state=LoginState.FRESH)
+        scope["auth"] = AuthToken(user=_User(timezone=self.timezone), state=LoginState.FRESH)
         await self.app(scope, receive, send)
 
 

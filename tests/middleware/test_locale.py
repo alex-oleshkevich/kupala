@@ -1,8 +1,7 @@
-import typing
 from babel.core import Locale
-from imia import LoginState, UserToken
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.authentication import AuthToken, LoginState, UserLike
 from kupala.http.middleware import LocaleMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
@@ -51,21 +50,12 @@ def test_locale_middleware_supports_language_shortcuts() -> None:
     assert client.get("/?lang=be_BY").json() == ["be", None]
 
 
-class _User:
+class _User(UserLike):
     def __init__(self, language: str | None) -> None:
         self.language = language
 
-    def get_id(self) -> typing.Any:
-        pass
-
-    def get_display_name(self) -> str:
-        pass
-
-    def get_scopes(self) -> list[str]:
-        pass
-
-    def get_hashed_password(self) -> str:
-        pass
+    def get_id(self) -> str:
+        return ""
 
     def get_preferred_language(self) -> str | None:
         return self.language
@@ -77,7 +67,7 @@ class ForceAuthentication:
         self.language = language
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        scope["auth"] = UserToken(user=_User(language=self.language), state=LoginState.FRESH)
+        scope["auth"] = AuthToken(user=_User(language=self.language), state=LoginState.FRESH)
         await self.app(scope, receive, send)
 
 

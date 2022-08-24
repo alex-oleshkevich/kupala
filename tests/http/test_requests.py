@@ -1,8 +1,8 @@
 import io
 import pytest
 import typing as t
-from imia import AnonymousUser, LoginState, UserToken
 
+from kupala.authentication import AnonymousUser, AuthToken, LoginState
 from kupala.http import route
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
@@ -282,7 +282,7 @@ async def test_file_upload_store_without_filename(test_client_factory: TestClien
 
 
 def test_request_auth(form_request: Request) -> None:
-    form_request.scope["auth"] = UserToken(AnonymousUser(), LoginState.ANONYMOUS)
+    form_request.scope["auth"] = AuthToken(AnonymousUser(), LoginState.ANONYMOUS)
     assert isinstance(form_request.user, AnonymousUser)
 
 
