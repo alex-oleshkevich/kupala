@@ -4,20 +4,11 @@ import functools
 import inspect
 import typing
 from starlette.concurrency import run_in_threadpool
+from starlette.responses import Response as StarletteResponse
 
 from kupala.dependencies import Inject
 from kupala.http import Response
 from kupala.http.requests import Request
-
-
-def detect_request_class(endpoint: typing.Callable) -> typing.Type[Request]:
-    """
-    Detect which request class to use for this endpoint.
-
-    If endpoint does not have `request` argument, or it is not type-hinted then default request class returned.
-    """
-    args = typing.get_type_hints(endpoint)
-    return args.get("request", Request)
 
 
 def generate_injection_plan(fn: typing.Callable, injections: dict[str, Inject]) -> dict[str, Inject]:
@@ -45,11 +36,11 @@ def generate_injection_plan(fn: typing.Callable, injections: dict[str, Inject]) 
 
 def create_view_dispatcher(
     fn: typing.Callable, inject: dict[str, Inject]
-) -> typing.Callable[[Request], typing.Awaitable[Response]]:
+) -> typing.Callable[[Request], typing.Awaitable[StarletteResponse]]:
     injection_plan = generate_injection_plan(fn, inject)
 
     @functools.wraps(fn)
-    async def view_decorator(request: Request) -> Response:
+    async def view_decorator(request: Request) -> StarletteResponse:
         # make sure view receives our request class
         request.__class__ = Request
         view_args: dict[str, typing.Any] = {}
@@ -63,6 +54,11 @@ def create_view_dispatcher(
             response = await fn(**view_args)
         else:
             response = await run_in_threadpool(fn, **view_args)
-        return response
+
+        match response:
+            case Response():
+                return await response.to_http_response(request)
+            case _:
+                return response
 
     return view_decorator

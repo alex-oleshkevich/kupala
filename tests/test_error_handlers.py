@@ -98,7 +98,7 @@ def test_should_reraise_unhandled_exception(test_client_factory: TestClientFacto
 @route("/")
 class HandledExcAfterResponse:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        response = PlainTextResponse("OK", status_code=200)
+        response = PlainTextResponse("OK", status_code=200).create_response_from_asgi(scope, receive, send)
         await response(scope, receive, send)
         raise HTTPException(status_code=406)
 

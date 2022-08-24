@@ -14,7 +14,7 @@ def test_file_server_attachment(tmp_path: Path, test_client_factory: TestClientF
             Mount("/media", FileServer(storage=storage)),
         ]
     )
-    response = client.get("/media/file.txt")
+    response = client.get("/media/missing_file.txt")
     assert response.status_code == 404
 
     tmp_file = tmp_path / "file.txt"

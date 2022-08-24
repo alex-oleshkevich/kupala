@@ -22,7 +22,11 @@ class FileServer:
 
         url = self.storage.url(path)
         if url.startswith("http"):
-            return RedirectResponse(url, 307)
+            return RedirectResponse(url, status_code=307)
+
+        if not await self.storage.exists(path):
+            return PlainTextResponse("File not found", status_code=404)
+
         path = self.storage.abspath(path)
         return FileResponse(path, inline=not self.as_attachment)
 

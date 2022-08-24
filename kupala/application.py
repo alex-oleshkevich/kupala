@@ -91,7 +91,7 @@ class App:
     def static_url(self, path: str, route_name: str = "static") -> str:
         return self.url_for(route_name, path=path)
 
-    def render(self, template_name: str, context: dict[str, typing.Any] | None = None) -> str:
+    def render(self, template_name: str, context: typing.Mapping[str, typing.Any] | None = None) -> str:
         """Render template."""
         assert self.renderer, "Template render is not installed."
         return self.renderer.render(template_name, context or {})  # type: ignore[misc]

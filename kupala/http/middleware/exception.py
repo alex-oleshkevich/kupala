@@ -88,4 +88,8 @@ class ExceptionMiddleware:
                 response = await handler(request, exc)
             else:
                 response = await run_in_threadpool(handler, request, exc)
+
+            match response:
+                case Response():
+                    response = await response.to_http_response(request)
             await response(scope, receive, sender)

@@ -7,7 +7,7 @@ from tests.conftest import TestClientFactory
 def test_go_back_response(test_client_factory: TestClientFactory) -> None:
     @route("/")
     def view(request: Request) -> Response:
-        return GoBackResponse(request)
+        return GoBackResponse()
 
     client = test_client_factory(routes=[view])
     res = client.get("/", headers={"referer": "http://testserver/somepage"}, allow_redirects=False)

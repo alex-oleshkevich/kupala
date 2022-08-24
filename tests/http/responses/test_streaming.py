@@ -49,7 +49,7 @@ def test_streaming_response_with_filename(test_app_factory: TestAppFactory) -> N
 
     @route("/")
     def view(request: Request) -> StreamingResponse:
-        return StreamingResponse(numbers(), media_type="text/plain", file_name="numbers.txt")
+        return StreamingResponse(numbers(), content_type="text/plain", file_name="numbers.txt")
 
     app = test_app_factory(routes=[view])
 
@@ -57,6 +57,24 @@ def test_streaming_response_with_filename(test_app_factory: TestAppFactory) -> N
     response = client.get("/")
     assert response.text == "1234"
     assert response.headers["content-disposition"] == 'attachment; filename="numbers.txt"'
+
+
+def test_streaming_response_without_filename(test_app_factory: TestAppFactory) -> None:
+    async def numbers() -> t.AsyncGenerator[str, None]:
+        for x in range(1, 5):
+            yield str(x)
+            await asyncio.sleep(0)
+
+    @route("/")
+    def view(request: Request) -> StreamingResponse:
+        return StreamingResponse(numbers(), content_type="text/plain")
+
+    app = test_app_factory(routes=[view])
+
+    client = TestClient(app)
+    response = client.get("/")
+    assert response.text == "1234"
+    assert response.headers["content-disposition"] == "attachment"
 
 
 def test_streaming_response_with_inline_disposition(test_app_factory: TestAppFactory) -> None:
@@ -67,7 +85,7 @@ def test_streaming_response_with_inline_disposition(test_app_factory: TestAppFac
 
     @route("/")
     def view(request: Request) -> StreamingResponse:
-        return StreamingResponse(numbers(), media_type="text/plain", file_name="numbers.txt", inline=True)
+        return StreamingResponse(numbers(), content_type="text/plain", file_name="numbers.txt", inline=True)
 
     app = test_app_factory(routes=[view])
 

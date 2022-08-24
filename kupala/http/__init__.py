@@ -15,7 +15,6 @@ from .exceptions import (
 )
 from .middleware.exception import ErrorHandler
 from .requests import Cookies, FilesData, FormData, Headers, QueryParams, Request, UploadFile
-from .response_factories import response
 from .responses import (
     EmptyResponse,
     FileResponse,
@@ -55,7 +54,6 @@ __all__ = [
     "Route",
     "WebSocketRoute",
     "Routes",
-    "response",
     "HTTPException",
     "BadRequest",
     "NotAcceptable",
