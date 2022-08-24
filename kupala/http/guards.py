@@ -3,8 +3,8 @@ from __future__ import annotations
 import inspect
 import typing
 
-from kupala.http import Response
 from kupala.http.requests import Request
+from kupala.http.responses import Response
 
 
 class Guard(typing.Protocol):  # pragma: no cover
