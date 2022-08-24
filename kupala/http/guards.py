@@ -2,27 +2,35 @@ from __future__ import annotations
 
 import inspect
 import typing
-from starlette.concurrency import run_in_threadpool
 
-from kupala.http.exceptions import PermissionDenied
+from kupala.http import Response
 from kupala.http.requests import Request
 
 
 class Guard(typing.Protocol):  # pragma: no cover
-    def __call__(self, request: Request) -> bool | None | typing.Awaitable[bool | None]:
+    """
+    Guards protect views from unauthorized access.
+
+    The guard function should raise HTTPException or return a Response.
+    """
+
+    def __call__(self, request: Request) -> Response | None | typing.Awaitable[None | Response]:
         ...
 
 
-async def call_guards(request: Request, guards: typing.Iterable[Guard]) -> None:
+class GuardInterrupt(Exception):
+    def __init__(self, response: Response) -> None:
+        self.response = response
+
+
+async def call_guards(request: Request, guards: typing.Iterable[Guard]) -> Response | None:
     """Call route guards."""
     for guard in guards:
         if inspect.iscoroutinefunction(guard):
-            result = guard(request)
+            result = await guard(request)  # type: ignore[misc]
         else:
-            result = await run_in_threadpool(guard, request)
+            result = guard(request)
 
-        if inspect.iscoroutine(result):
-            result = await result
-
-        if result is False:
-            raise PermissionDenied("You are not allowed to access this page.")
+        if isinstance(result, Response):
+            return result
+    return None

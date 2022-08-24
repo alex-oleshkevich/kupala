@@ -24,3 +24,15 @@ def test_middleware_calls_guards() -> None:
     client.get("/")
     sync_guard_called.assert_called_once()
     async_guard_called.assert_called_once()
+
+
+def test_middleware_returns_guard_response() -> None:
+    def sync_guard(request: Request) -> Response:
+        return Response("ok")
+
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        await Response("")(scope, receive, send)
+
+    app = GuardsMiddleware(app, guards=[sync_guard])
+    client = TestClient(app)
+    assert client.get("/").text == "ok"
