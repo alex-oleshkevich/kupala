@@ -8,6 +8,7 @@ import typing
 import uuid
 from babel.core import Locale
 from starlette import datastructures as ds, requests
+from starlette.datastructures import State
 from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 
@@ -90,9 +91,10 @@ class Headers(requests.Headers):
 
 
 U = typing.TypeVar("U", bound=UserLike)
+S = typing.TypeVar("S", bound=State)
 
 
-class Request(requests.Request, typing.Generic[U]):
+class Request(requests.Request, typing.Generic[S, U]):
     def __new__(cls, scope: Scope, receive: Receive = empty_receive, send: Send = empty_send) -> Request:
         if "request" not in scope:
             instance = super().__new__(cls)
@@ -125,6 +127,10 @@ class Request(requests.Request, typing.Generic[U]):
     @property
     def user(self) -> U:
         return self.auth.user
+
+    @property
+    def state(self) -> S | typing.Any:
+        return typing.cast(S, super().state)
 
     @property
     def wants_json(self) -> bool:
