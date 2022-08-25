@@ -210,7 +210,7 @@ def remember_me(
     signer = Signer(request.app.secret_key)
     value = signer.sign(user.get_id()).decode("utf8")
 
-    response.set_cookie(
+    return response.set_cookie(
         name=cookie_name,
         value=value,
         max_age=int(duration.total_seconds()),
@@ -220,7 +220,28 @@ def remember_me(
         httponly=cookie_http_only,
         samesite=cookie_samesite,
     )
-    return response
+
+
+def forget_me(
+    response: Response,
+    *,
+    cookie_name: str = REMEMBER_COOKIE_NAME,
+    cookie_path: str = "/",
+    cookie_domain: str | None = None,
+    cookie_samesite: typing.Literal["lax", "strict", "none"] = "lax",
+    cookie_secure: bool = False,
+    cookie_http_only: bool = True,
+) -> Response:
+    return response.set_cookie(
+        name=cookie_name,
+        value="null",
+        max_age=-1,
+        path=cookie_path,
+        domain=cookie_domain,
+        secure=cookie_secure,
+        httponly=cookie_http_only,
+        samesite=cookie_samesite,
+    )
 
 
 def _regenerate_session_id(connection: HTTPConnection) -> None:
