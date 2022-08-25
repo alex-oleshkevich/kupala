@@ -4,7 +4,7 @@ import abc
 import datetime
 import enum
 import typing
-from itsdangerous import Signer
+from itsdangerous import BadSignature, Signer
 from starlette.requests import HTTPConnection
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -84,6 +84,9 @@ class AuthToken(typing.Generic[_T]):
     def __contains__(self, requirement: str) -> bool:
         return requirement in self.scopes
 
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}: state={self.state}, user={self.user}>"
+
 
 class Authenticator(typing.Protocol):  # pragma: nocover
     async def __call__(self, connection: HTTPConnection) -> AuthToken | None:
@@ -122,10 +125,13 @@ class RememberMeAuthenticator:
 
     async def __call__(self, connection: HTTPConnection) -> AuthToken | None:
         if cookie_value := connection.cookies.get(self.cookie_name):
-            signer = Signer(secret_key=connection.app.secret_key)
-            user_id = signer.unsign(cookie_value).decode("utf8")
-            if user := await self.user_loader(connection, user_id):
-                return AuthToken(user=user, state=LoginState.REMEMBERED)
+            try:
+                signer = Signer(secret_key=connection.app.secret_key)
+                user_id = signer.unsign(cookie_value).decode("utf8")
+                if user := await self.user_loader(connection, user_id):
+                    return AuthToken(user=user, state=LoginState.REMEMBERED)
+            except BadSignature:
+                return None
         return None
 
 
@@ -200,7 +206,7 @@ def remember_me(
     cookie_samesite: typing.Literal["lax", "strict", "none"] = "lax",
     cookie_secure: bool = False,
     cookie_http_only: bool = True,
-) -> None:
+) -> Response:
     signer = Signer(request.app.secret_key)
     value = signer.sign(user.get_id()).decode("utf8")
 
@@ -214,6 +220,7 @@ def remember_me(
         httponly=cookie_http_only,
         samesite=cookie_samesite,
     )
+    return response
 
 
 def _regenerate_session_id(connection: HTTPConnection) -> None:

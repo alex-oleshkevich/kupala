@@ -245,6 +245,43 @@ def test_middleware_not_authenticates_invalid_users_via_remember_me() -> None:
     assert client.get("/", cookies={"remember_me": signer.sign("id").decode()}).text == "no"
 
 
+def test_middleware_remember_me_not_fails_on_tampered_cookie() -> None:
+    users = {"id": User(id="id")}
+
+    @dataclasses.dataclass
+    class AppLike:
+        secret_key: str
+
+    async def user_loader(_: HTTPConnection, user_id: str) -> UserLike | None:
+        return users.get(user_id)
+
+    def init_app(app: ASGIApp) -> ASGIApp:
+        async def inner(scope: Scope, receive: Receive, send: Send) -> None:
+            scope["app"] = AppLike(secret_key="key!")
+            await app(scope, receive, send)
+
+        return inner
+
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        request = Request(scope, receive, send)
+        response = Response("yes" if request.auth.is_authenticated else "no")
+        await response(scope, receive, send)
+
+    client = TestClient(
+        init_app(
+            SessionMiddleware(
+                AuthenticationMiddleware(
+                    app,
+                    authenticators=[RememberMeAuthenticator(user_loader=user_loader)],
+                ),
+                secret_key="key!",
+            ),
+        ),
+    )
+
+    assert client.get("/", cookies={"remember_me": "bad cookie"}).text == "no"
+
+
 def test_middleware_on_success() -> None:
     users = {"id": User(id="id")}
 
@@ -298,6 +335,7 @@ def test_auth_token() -> None:
     assert token.scopes == ["admin"]
     assert bool(token) is True
     assert str(token) == "root"
+    assert repr(token) == "<AuthToken: state=fresh, user=root>"
     assert "admin" in token
 
     token.change_state(LoginState.ANONYMOUS)
