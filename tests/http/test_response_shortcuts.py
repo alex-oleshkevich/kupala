@@ -4,7 +4,6 @@ import pathlib
 import typing as t
 from json import JSONEncoder
 
-from kupala.contracts import TemplateRenderer
 from kupala.http import Response, responses, route
 from kupala.http.requests import Request
 from tests.conftest import TestClientFactory
@@ -287,11 +286,14 @@ def test_empty_response(test_client_factory: TestClientFactory) -> None:
     assert res.status_code == 204
 
 
-def test_template_response(test_client_factory: TestClientFactory, format_renderer: TemplateRenderer) -> None:
+def test_template_response(test_client_factory: TestClientFactory, tmp_path: os.PathLike) -> None:
+    with open(os.path.join(tmp_path, "template_response.html"), "w") as f:
+        f.write("hello {{ world }}")
+
     @route("/")
     def view(request: Request) -> Response:
-        return responses.template("hello world")
+        return responses.template("template_response.html", {"world": "world"})
 
-    client = test_client_factory(routes=[view], renderer=format_renderer)
+    client = test_client_factory(routes=[view])
     res = client.get("/")
     assert res.text == "hello world"

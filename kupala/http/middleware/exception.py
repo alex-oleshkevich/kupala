@@ -1,17 +1,17 @@
+import http
 import inspect
-import jinja2
 import typing
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as BaseHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from kupala.http import responses
 from kupala.http.exceptions import HTTPException
 from kupala.http.requests import Request
-from kupala.http.responses import HTMLResponse, Response
+from kupala.http.responses import Response
 
 E = typing.TypeVar("E", bound=Exception)
 ErrorHandler = typing.Callable[[Request, E], typing.Any]
-_renderer = jinja2.Environment(loader=jinja2.PackageLoader(__name__.split(".")[0]))
 
 
 async def default_http_error_handler(request: Request, exc: HTTPException) -> Response:
@@ -24,8 +24,29 @@ async def default_http_error_handler(request: Request, exc: HTTPException) -> Re
     if request.app.debug:
         raise exc from None
     else:
-        content = _renderer.get_template("errors/http_error.html").render({"request": request, "exc": exc})
-        return HTMLResponse(content, status_code=exc.status_code)
+        phrase = http.HTTPStatus(exc.status_code).phrase
+        return responses.template(
+            "errors/http_error.html",
+            {"request": request, "phrase": phrase, "status_code": exc.status_code},
+            status_code=exc.status_code,
+        )
+
+
+async def default_server_error_handler(request: Request, exc: HTTPException) -> Response:
+    """The default error handler for 500s."""
+    if request.app.debug:
+        raise exc from None
+    else:
+        phrase = http.HTTPStatus(500).phrase
+        return responses.template(
+            "errors/http_error.html",
+            {
+                "request": request,
+                "phrase": phrase,
+                "status_code": 500,
+            },
+            status_code=500,
+        )
 
 
 _default_error_handlers = {

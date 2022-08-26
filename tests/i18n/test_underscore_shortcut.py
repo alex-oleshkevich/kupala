@@ -11,7 +11,7 @@ LOCALE_DIR = pathlib.Path(__file__).parent / "locales"
 
 def test_underscode_shortcut_translates() -> None:
     translator = Translator(directories=[LOCALE_DIR])
-    app = App(secret_key="key", routes=Routes())
+    app = App("tests", secret_key="key", routes=Routes())
     app.state.translator = translator
     set_current_application(app)
 

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="dns-prefetch" href="//fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css?family=Inter" rel="stylesheet">
-    <title>{{ exc.status_code }}. {{ exc.detail }}</title>
+    <title>{{ status_code }}. {{ phrase }}</title>
     <style>
         html, body {
             color: #6b7280;
@@ -39,8 +39,8 @@
 <body>
 <div class="page">
     {% block content %}
-    <h3>{{ exc.status_code }}.</h3>
-    <p>{{ exc.detail }}</p>
+        <h3>{{ status_code }}.</h3>
+        <p>{{ phrase }}</p>
     {% endblock %}
 </div>
 </body>

@@ -6,5 +6,5 @@ def dummy_extension(app: App) -> None:
 
 
 def test_extensions() -> None:
-    app = App(secret_key="key", extensions=[dummy_extension])
+    app = App("tests", secret_key="key", extensions=[dummy_extension])
     assert app.state.register_called

@@ -1,9 +1,9 @@
 import jinja2
+import os
 import pytest
 from email.message import Message
 from mailers import Email, InMemoryTransport, Mailer
 from mailers.plugins.jinja_renderer import JinjaRendererPlugin
-from pathlib import Path
 
 from kupala.mails import send_mail, send_templated_mail
 
@@ -18,8 +18,9 @@ async def test_mail_regular_send() -> None:
 
 
 @pytest.mark.asyncio
-async def test_send_templated_mail(jinja_template_path: Path, jinja_env: jinja2.Environment) -> None:
-    with open(jinja_template_path / "index.html", "w") as f:
+async def test_send_templated_mail(tmp_path: os.PathLike) -> None:
+    jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader([tmp_path]))
+    with open(os.path.join(tmp_path, "index.html"), "w") as f:
         f.write("base mail")
 
     storage: list[Message] = []

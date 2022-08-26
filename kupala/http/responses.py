@@ -13,7 +13,6 @@ from kupala.http.middleware.flash_messages import FlashBag
 from kupala.http.requests import Request
 from kupala.json import JSONEncoder
 from kupala.structures import Cookie
-from kupala.templating import get_context_processors
 
 _T = typing.TypeVar("_T", bound="Response")
 
@@ -142,7 +141,7 @@ class TemplateResponse(Response):
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         request = Request(scope, receive, send)
-        for processor in get_context_processors():
+        for processor in request.app.get_template_context_processors():
             if inspect.iscoroutinefunction(processor):
                 self.context.update(await processor(request))  # type: ignore[misc]
             else:
