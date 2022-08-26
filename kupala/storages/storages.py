@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import pathlib
-import typing
 from deesk.drivers.fs import LocalFsDriver
 from deesk.storage import Storage as BaseStorage
 
@@ -29,12 +28,29 @@ class LocalStorage(Storage):
 
 
 class S3Storage(Storage):
-    def __init__(self, url_prefix: str = "", link_ttl: int = 300, **kwargs: typing.Any) -> None:
+    def __init__(
+        self,
+        bucket: str,
+        aws_access_key_id: str,
+        aws_secret_access_key: str,
+        url_prefix: str = "",
+        link_ttl: int = 300,
+        region_name: str | None = None,
+        profile_name: str | None = None,
+        endpoint_url: str | None = None,
+    ) -> None:
         from deesk.drivers.s3 import S3Driver
 
         self.url_prefix = url_prefix
         self.link_ttl = link_ttl
-        self.driver = S3Driver(**kwargs)
+        self.driver = S3Driver(
+            bucket=bucket,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name=region_name,
+            profile_name=profile_name,
+            endpoint_url=endpoint_url,
+        )
         super().__init__(self.driver)
 
     def url(self, path: str | os.PathLike) -> str:
@@ -63,39 +79,6 @@ class StorageManager:
         self._storages[name] = storage
         return self
 
-    def add_local(self, name: str, base_dir: str | os.PathLike) -> StorageManager:
-        self.add(name, LocalStorage(base_dir))
-        return self
-
-    def add_s3(
-        self,
-        name: str,
-        bucket: str,
-        aws_access_key_id: str,
-        aws_secret_access_key: str,
-        region_name: str = None,
-        profile_name: str = None,
-        endpoint_url: str = None,
-        link_ttl: int = 300,
-    ) -> StorageManager:
-        self.add(
-            name,
-            S3Storage(
-                bucket=bucket,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_access_key_id=aws_access_key_id,
-                region_name=region_name,
-                profile_name=profile_name,
-                endpoint_url=endpoint_url,
-                link_ttl=link_ttl,
-            ),
-        )
-        return self
-
     def get(self, name: str) -> Storage:
         assert name in self._storages
         return self._storages[name]
-
-    def set_default(self, name: str) -> StorageManager:
-        self._default_storage_name = name
-        return self
