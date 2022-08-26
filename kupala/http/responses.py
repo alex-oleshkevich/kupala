@@ -351,9 +351,6 @@ class RedirectResponse(Response):
         content_type: str = "application/octet-stream",
     ) -> None:
         super().__init__(status_code=status_code, headers=headers, content_type=content_type)
-
-        assert url or path_name, 'Either "url" or "path_name" argument must be passed.'
-
         self.url = url
         self.path_name = path_name
         self.path_params = path_params or {}
@@ -372,7 +369,16 @@ class RedirectResponse(Response):
     def with_success(self, message: str) -> RedirectResponse:
         return self.flash(message, category="success")
 
+    def to_path_name(
+        self, path_name: str, path_params: typing.Mapping[str, typing.Any] | None = None
+    ) -> RedirectResponse:
+        self.path_name = path_name
+        self.path_params = path_params or {}
+        return self
+
     def create_http_response(self, request: Request) -> responses.Response:
+        assert self.url or self.path_name, 'Either "url" or "path_name" argument must be passed.'
+
         if self.flash_message and "flash_messages" in request.scope:
             flashes = typing.cast(FlashBag, request.scope["flash_messages"])
             flashes.add(self.flash_message, self.flash_category)

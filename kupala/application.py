@@ -63,7 +63,7 @@ class App:
                 await send({"type": "lifespan.startup.complete"})
                 started = True
                 await receive()
-        except BaseException as ex:
+        except Exception as ex:
             text = traceback.format_exc()
             if started:
                 await send({"type": "lifespan.shutdown.failed", "message": text})
@@ -109,6 +109,10 @@ class App:
             app = mw.wrap(app)
         return app
 
+    def add_middleware(self, middleware: ASGIApp, **options: typing.Any) -> None:
+        """Register new ASGI middleware."""
+        self.middleware.add(Middleware(middleware, **options))
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         assert scope["type"] in {"http", "websocket", "lifespan"}
         if scope["type"] == "lifespan":
@@ -120,6 +124,8 @@ class App:
         set_current_application(self)
 
         try:
+            # lazily create ASGI handler
+            # this lets extensions alter application config without coding overhead
             await self._asgi_handler(scope, receive, send)  # type: ignore[misc]
         except TypeError:
             self._asgi_handler = self._build_middleware()
