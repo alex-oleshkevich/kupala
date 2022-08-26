@@ -4,6 +4,8 @@ import functools
 import itertools
 import typing
 
+from kupala.choices import Choices
+
 E = typing.TypeVar("E")
 
 
@@ -111,7 +113,7 @@ class Collection(typing.Generic[E]):
 
         return {key(item): item for item in self}
 
-    def choices(self, label_col: str = "name", value_col: str = "id") -> list[tuple[typing.Any, typing.Any]]:
+    def choices(self, label_col: str = "name", value_col: str = "id") -> Choices:
         return [(attribute_reader(item, value_col), attribute_reader(item, label_col)) for item in self]
 
     def choices_dict(

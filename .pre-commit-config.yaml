@@ -37,7 +37,7 @@ repos:
                 args: [ '--in-place', '--remove-all-unused-imports', '--remove-unused-variable' ]
 
     -   repo: https://gitlab.com/pycqa/flake8
-        rev: 3.9.2
+        rev: 5.0.1
         hooks:
             -   id: flake8
 
