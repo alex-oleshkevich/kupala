@@ -1,14 +1,37 @@
 import typing
-from starsessions import CookieStore, Serializer, SessionAutoloadMiddleware, SessionMiddleware, SessionStore
+from starsessions import (
+    CookieStore,
+    InMemoryStore,
+    Serializer,
+    SessionAutoloadMiddleware,
+    SessionMiddleware,
+    SessionStore,
+)
+from starsessions.stores.redis import RedisStore
+from urllib.parse import parse_qs, urlparse
 
 from kupala.application import App, Extension
+
+
+def create_store(app: App, config: str) -> SessionStore:
+    if config == "cookie://":
+        return CookieStore(app.secret_key)
+    elif config.startswith("redis://"):
+        url = urlparse(config)
+        query = parse_qs(url.query)
+        prefix = query.get("prefix", ["kupala."])[0]
+        gc_ttl = int(query.get("gc_ttl", ["2592000"])[0])  # default 30 days
+        return RedisStore(config, prefix=prefix, gc_ttl=gc_ttl)
+    elif config.startswith("memory://"):
+        return InMemoryStore()
+    raise ValueError(f"Unsupported session store: {config}")
 
 
 def use_session(
     lifetime: int = 0,
     rolling: bool = True,
     autoload: typing.Iterable[str] | bool | None = True,
-    store: typing.Literal["cookie"] | SessionStore = "cookie",
+    store: str | SessionStore = "cookie://",
     cookie_name: str = "session",
     cookie_same_site: str = "lax",
     cookie_https_only: bool = True,
@@ -20,8 +43,8 @@ def use_session(
 
     def extension(app: App) -> None:
         nonlocal store
-        if store == "cookie":
-            store = CookieStore(app.secret_key)
+        if isinstance(store, str):
+            store = create_store(app, store)
 
         app.add_middleware(
             SessionMiddleware,
