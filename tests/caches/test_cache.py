@@ -2,36 +2,11 @@ import pytest
 from datetime import timedelta
 
 from kupala.cache import Cache, InMemoryCache
-from kupala.cache.backends.redis import RedisCache
 
 
 @pytest.fixture()
 def cache() -> Cache:
     return Cache(backend=InMemoryCache(), prefix="cache_")
-
-
-@pytest.mark.asyncio
-async def test_requires_url_or_backend() -> None:
-    with pytest.raises(AssertionError, match='Either "url" or "backend" argument is required.'):
-        Cache()
-
-
-@pytest.mark.asyncio
-async def test_creates_backend_from_url() -> None:
-    cache = Cache("memory://")
-    assert isinstance(cache.backend, InMemoryCache)
-
-
-@pytest.mark.asyncio
-async def test_creates_redis_backend_from_url() -> None:
-    cache = Cache("redis://")
-    assert isinstance(cache.backend, RedisCache)
-
-
-@pytest.mark.asyncio
-async def test_raises_for_unknown_backend() -> None:
-    with pytest.raises(KeyError, match="Unknown backend: unknown://"):
-        Cache("unknown://")
 
 
 @pytest.mark.asyncio
