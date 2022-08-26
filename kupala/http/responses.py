@@ -175,15 +175,6 @@ class BaseTextResponse(Response):
         super().__init__(status_code=status_code, headers=headers, content_type=self.content_type)
         self.content = content
 
-    def create_http_response(self, request: Request) -> responses.Response:
-        assert self.content_type, "Responder.content_type must be defined."
-        return responses.Response(
-            content=self.content,
-            status_code=self.status_code,
-            headers=self.headers,
-            media_type=self.content_type,
-        )
-
 
 class PlainTextResponse(BaseTextResponse):
     content_type = "text/plain"
@@ -221,7 +212,7 @@ class JSONResponse(Response):
             self.default = default or jsonlib.json_default
 
     def create_http_response(self, request: Request) -> responses.Response:
-        content = jsonlib.dumps(
+        self.content = jsonlib.dumps(
             jsonlib.jsonify(self.data),
             ensure_ascii=False,
             allow_nan=False,
@@ -230,9 +221,7 @@ class JSONResponse(Response):
             cls=self.encoder_class,
             separators=(",", ":"),
         ).encode("utf-8")
-        return responses.Response(
-            content, status_code=self.status_code, headers=self.headers, media_type=self.content_type
-        )
+        return super().create_http_response(request)
 
 
 json = JSONResponse
@@ -396,10 +385,7 @@ class EmptyResponse(Response):
         headers: typing.Mapping[str, typing.Any] | None = None,
         content_type: str = "application/octet-stream",
     ) -> None:
-        super().__init__(status_code=204, headers=headers, content_type=content_type)
-
-    def create_http_response(self, request: Request) -> responses.Response:
-        return responses.Response(content=b"", status_code=self.status_code, headers=self.headers)
+        super().__init__(content=b"", status_code=204, headers=headers, content_type=content_type)
 
 
 empty = EmptyResponse
