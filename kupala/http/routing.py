@@ -9,10 +9,10 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.http import Request
 from kupala.http.dispatching import create_view_dispatcher
+from kupala.http.file_server import FileServer
 from kupala.http.guards import Guard
 from kupala.http.middleware import Middleware
 from kupala.http.middleware.guards import GuardsMiddleware
-from kupala.storages.file_server import FileServer
 from kupala.storages.storages import Storage
 
 

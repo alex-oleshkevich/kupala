@@ -2,8 +2,8 @@ import os
 from deesk.drivers.memory import MemoryDriver
 from pathlib import Path
 
+from kupala.http.file_server import FileServer
 from kupala.http.routing import Mount, Routes
-from kupala.storages.file_server import FileServer
 from kupala.storages.storages import Storage
 from tests.conftest import TestClientFactory
 
