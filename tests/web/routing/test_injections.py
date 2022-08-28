@@ -89,18 +89,3 @@ def test_handles_untyped_path_params(test_client_factory: TestClientFactory) -> 
     client.app.add_dependency(Db, get_db)
     response = client.get("/user/42")
     assert response.text == "postgres42"
-
-
-#
-# def test_handles_annotated_types(test_client_factory: TestClientFactory) -> None:
-#     async def get_db(request: Request) -> Db:
-#         return Db(name="postgres")
-#
-#     @route("/user/{id}")
-#     async def view(request: Request, db: FromState[Db], id) -> Response:
-#         return Response(db.name + id)
-#
-#     client = test_client_factory(routes=[view])
-#     client.app.add_dependency(Db, get_db)
-#     response = client.get("/user/42")
-#     assert response.text == "postgres42"
