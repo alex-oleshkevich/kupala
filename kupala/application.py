@@ -216,6 +216,8 @@ class App:
         self._injectables[type_name] = Injection(factory=callback, cached=cached)
 
     def get_dependency(self, type_name: typing.Type[typing.Any]) -> Injection:
+        if origin := getattr(type_name, "__origin__", None):
+            type_name = origin
         return self._injectables[type_name]
 
     def _build_middleware(self) -> ASGIApp:

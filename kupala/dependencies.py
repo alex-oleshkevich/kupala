@@ -31,12 +31,17 @@ class Injection:
 
 
 async def generate_injections(request: Request, plan: dict[str, typing.Type[typing.Any]]) -> dict[str, typing.Any]:
+    from kupala.http.requests import Request
+
     injections = request.path_params
     for arg_name, arg_type in plan.items():
         if arg_name in request.path_params:
             continue
 
-        if arg_type == type(request):
+        if hasattr(arg_type, "__origin__"):  # generic types
+            arg_type = getattr(arg_type, "__origin__")
+
+        if arg_type == Request:
             injections[arg_name] = request
             continue
 
