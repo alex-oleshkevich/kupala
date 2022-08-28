@@ -58,6 +58,8 @@ def use_i18n(
         app.add_template_extensions("jinja2.ext.i18n")
         app.get_jinja_env().install_gettext_translations(translator)  # type: ignore[attr-defined]
 
+        app.add_dependency(Translator, lambda request: translator)
+
     return extension
 
 

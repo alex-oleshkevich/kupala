@@ -1,26 +1,106 @@
 import dataclasses
 
-from kupala.dependencies import Inject, inject
 from kupala.http import Request, Response, route
 from tests.conftest import TestClientFactory
 
 
-def test_injects_dependencies(test_client_factory: TestClientFactory) -> None:
-    @dataclasses.dataclass
-    class Db:
-        name: str
+@dataclasses.dataclass
+class Db:
+    name: str
 
+
+def test_injects_dependencies(test_client_factory: TestClientFactory) -> None:
     def get_db(request: Request) -> Db:
         return Db(name="postgres")
 
-    async def get_async_db(request: Request) -> Db:
-        return Db(name="async_postgres")
-
-    @route("/user/{id}")
-    @inject(db=get_db, async_db=get_async_db, via_class=Inject(get_db))
-    async def view(request: Request, db: Db, async_db: Db, via_class: Db, id: str) -> Response:
-        return Response(f"{db.name}_{async_db.name}_{via_class.name}_{id}")
+    @route("/")
+    async def view(request: Request, db: Db) -> Response:
+        return Response(db.name)
 
     client = test_client_factory(routes=[view])
+    client.app.add_dependency(Db, get_db)
+    response = client.get("/")
+    assert response.text == "postgres"
+
+
+def test_injects_async_dependencies(test_client_factory: TestClientFactory) -> None:
+    async def get_db(request: Request) -> Db:
+        return Db(name="postgres")
+
+    @route("/")
+    async def view(request: Request, db: Db) -> Response:
+        return Response(db.name)
+
+    client = test_client_factory(routes=[view])
+    client.app.add_dependency(Db, get_db)
+    response = client.get("/")
+    assert response.text == "postgres"
+
+
+def test_cached_dependencies(test_client_factory: TestClientFactory) -> None:
+    def get_db(request: Request) -> Db:
+        return Db(name="postgres")
+
+    @route("/")
+    async def view(request: Request, db: Db) -> Response:
+        return Response(str(id(db)))
+
+    client = test_client_factory(routes=[view])
+    client.app.add_dependency(Db, get_db, cached=True)
+    assert client.get("/").text == client.get("/").text
+
+
+def test_cached_async_dependencies(test_client_factory: TestClientFactory) -> None:
+    async def get_db(request: Request) -> Db:
+        return Db(name="postgres")
+
+    @route("/")
+    async def view(request: Request, db: Db) -> Response:
+        return Response(str(id(db)))
+
+    client = test_client_factory(routes=[view])
+    client.app.add_dependency(Db, get_db, cached=True)
+    assert client.get("/").text == client.get("/").text
+
+
+def test_injects_dependencies_and_path_params(test_client_factory: TestClientFactory) -> None:
+    async def get_db(request: Request) -> Db:
+        return Db(name="postgres")
+
+    @route("/user/{id}")
+    async def view(request: Request, db: Db, id: str) -> Response:
+        return Response(db.name + id)
+
+    client = test_client_factory(routes=[view])
+    client.app.add_dependency(Db, get_db)
     response = client.get("/user/42")
-    assert response.text == "postgres_async_postgres_postgres_42"
+    assert response.text == "postgres42"
+
+
+def test_handles_untyped_path_params(test_client_factory: TestClientFactory) -> None:
+    async def get_db(request: Request) -> Db:
+        return Db(name="postgres")
+
+    @route("/user/{id}")
+    async def view(request: Request, db: Db, id) -> Response:  # type: ignore[no-untyped-def]
+        return Response(db.name + id)
+
+    client = test_client_factory(routes=[view])
+    client.app.add_dependency(Db, get_db)
+    response = client.get("/user/42")
+    assert response.text == "postgres42"
+
+
+#
+# def test_handles_annotated_types(test_client_factory: TestClientFactory) -> None:
+#     async def get_db(request: Request) -> Db:
+#         return Db(name="postgres")
+#
+#     @route("/user/{id}")
+#     async def view(request: Request, db: FromState[Db], id) -> Response:
+#         return Response(db.name + id)
+#
+#     client = test_client_factory(routes=[view])
+#     client.app.add_dependency(Db, get_db)
+#     response = client.get("/user/42")
+#     assert response.text == "postgres42"

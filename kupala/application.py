@@ -17,6 +17,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala import json
 from kupala.console.application import ConsoleApplication
+from kupala.dependencies import Injection
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.http.guards import Guard
 from kupala.http.middleware import Middleware, MiddlewareStack
@@ -71,6 +72,7 @@ class App:
             **(error_handlers or {}),
         }
         self._router = Router(list(self.routes))
+        self._injectables: dict[typing.Type[typing.Any], Injection] = {}
 
         # region: templating setup
         _template_dirs: list[str | os.PathLike]
@@ -210,6 +212,17 @@ class App:
 
     def get_jinja_env(self) -> jinja2.Environment:
         return self._jinja_env
+
+    def add_dependency(
+        self,
+        type_name: typing.Type[typing.Any],
+        callback: typing.Callable,
+        cached: bool = False,
+    ) -> None:
+        self._injectables[type_name] = Injection(factory=callback, cached=cached)
+
+    def get_dependency(self, type_name: typing.Type[typing.Any]) -> Injection:
+        return self._injectables[type_name]
 
     def _build_middleware(self) -> ASGIApp:
         middleware = [
