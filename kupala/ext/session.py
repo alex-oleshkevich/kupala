@@ -10,7 +10,7 @@ from starsessions import (
 from starsessions.stores.redis import RedisStore
 from urllib.parse import parse_qs, urlparse
 
-from kupala.application import App, Extension
+from kupala.application import App
 
 
 def create_store(app: App, config: str) -> SessionStore:
@@ -28,6 +28,7 @@ def create_store(app: App, config: str) -> SessionStore:
 
 
 def use_session(
+    app: App,
     lifetime: int = 0,
     rolling: bool = True,
     autoload: typing.Iterable[str] | bool | None = True,
@@ -38,31 +39,27 @@ def use_session(
     cookie_domain: str | None = None,
     cookie_path: str | None = "/",
     serializer: Serializer | None = None,
-) -> Extension:
+) -> None:
     """Enable session support."""
 
-    def extension(app: App) -> None:
-        nonlocal store
-        if isinstance(store, str):
-            store = create_store(app, store)
+    if isinstance(store, str):
+        store = create_store(app, store)
 
+    app.add_middleware(
+        SessionMiddleware,
+        lifetime=lifetime,
+        rolling=rolling,
+        store=store,
+        cookie_name=cookie_name,
+        cookie_same_site=cookie_same_site,
+        cookie_https_only=cookie_https_only,
+        cookie_domain=cookie_domain,
+        cookie_path=cookie_path,
+        serializer=serializer,
+    )
+
+    if autoload:
         app.add_middleware(
-            SessionMiddleware,
-            lifetime=lifetime,
-            rolling=rolling,
-            store=store,
-            cookie_name=cookie_name,
-            cookie_same_site=cookie_same_site,
-            cookie_https_only=cookie_https_only,
-            cookie_domain=cookie_domain,
-            cookie_path=cookie_path,
-            serializer=serializer,
+            SessionAutoloadMiddleware,
+            paths=autoload if isinstance(autoload, typing.Iterable) else None,
         )
-
-        if autoload:
-            app.add_middleware(
-                SessionAutoloadMiddleware,
-                paths=autoload if isinstance(autoload, typing.Iterable) else None,
-            )
-
-    return extension

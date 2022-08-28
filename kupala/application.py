@@ -45,7 +45,6 @@ class App:
         *,
         debug: bool = False,
         routes: typing.Iterable[BaseRoute] | None = None,
-        extensions: typing.Iterable[Extension] | None = None,
         commands: typing.Iterable[click.Command] | None = None,
         middleware: typing.Iterable[Middleware] | MiddlewareStack | None = None,
         error_handlers: dict[typing.Type[Exception] | int, ErrorHandler] | None = None,
@@ -97,11 +96,6 @@ class App:
         # setup static files
         if (self.base_dir / "statics").exists():
             self.add_routes(static_files(path="/static", packages=[self.package_name], name="static"))
-
-        # bootstrap extensions
-        extensions = extensions or []
-        for extension in extensions:
-            extension(self)
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         started = False
@@ -269,11 +263,6 @@ class App:
         except TypeError:
             self._asgi_handler = self._build_middleware()
             await self._asgi_handler(scope, receive, send)
-
-
-class Extension(typing.Protocol):
-    def __call__(self, app: App) -> None:
-        ...
 
 
 _current_app: cv.ContextVar[App] = cv.ContextVar("_current_app")

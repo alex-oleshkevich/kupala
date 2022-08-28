@@ -1,13 +1,11 @@
-from kupala.application import App, Extension
+from kupala.application import App
 from kupala.authentication import AuthenticationMiddleware, Authenticator
 
 
 def use_auth(
+    app: App,
     authenticators: list[Authenticator],
-) -> Extension:
+) -> None:
     """Enable session support."""
 
-    def extension(app: App) -> None:
-        app.middleware.use(AuthenticationMiddleware, authenticators=authenticators)
-
-    return extension
+    app.middleware.use(AuthenticationMiddleware, authenticators=authenticators)

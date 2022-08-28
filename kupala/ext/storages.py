@@ -1,18 +1,19 @@
 import typing
 
-from kupala.application import App, Extension
+from kupala.application import App
 from kupala.storages.storages import Storage, StorageManager
 
 
 def use_storages(
+    app: App,
     storage: Storage,
     extra: typing.Mapping[str, Storage] | None = None,
-) -> Extension:
+) -> None:
     """Enable storages support."""
 
-    def extension(app: App) -> None:
-        manager = StorageManager({"default": storage, **(extra or {})})
-        app.state.storages = manager
-        app.state.storage = manager.default
+    manager = StorageManager({"default": storage, **(extra or {})})
+    app.state.storages = manager
+    app.state.storage = manager.default
 
-    return extension
+    app.add_dependency(StorageManager, lambda _: manager)
+    app.add_dependency(Storage, lambda _: manager.default)
