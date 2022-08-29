@@ -14,6 +14,13 @@
             height: 100vh;
             margin: 0;
             font-size: 24px;
+            height: 100vh;
+            width: 100vw;
+            justify-content: center;
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
         }
 
         h3 {
@@ -22,26 +29,25 @@
             font-weight: 600;
         }
 
-        .page {
-            height: 100vh;
-            width: 100vw;
+        .content {
             display: flex;
-            flex: 1;
-            position: relative;
             justify-content: center;
             align-items: center;
-            font-weight: 400;
-            text-align: center;
         }
     </style>
 </head>
 
 <body>
-<div class="page">
+<div class="content">
     {% block content %}
         <h3>{{ status_code }}.</h3>
         <p>{{ phrase }}</p>
     {% endblock %}
 </div>
+{% if request.app.debug %}
+<div class="content">
+    {{ message }}
+</div>
+{% endif %}
 </body>
 </html>

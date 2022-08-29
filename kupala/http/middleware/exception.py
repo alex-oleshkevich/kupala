@@ -21,15 +21,16 @@ async def default_http_error_handler(request: Request, exc: HTTPException) -> Re
     * reraise exception in debug mode
     * render a default error page if non-debug mode
     """
-    if request.app.debug:
-        raise exc from None
-    else:
-        phrase = http.HTTPStatus(exc.status_code).phrase
-        return responses.template(
-            "errors/http_error.html",
-            {"request": request, "phrase": phrase, "status_code": exc.status_code},
-            status_code=exc.status_code,
-        )
+    if exc.status_code in {204, 304}:
+        return Response(status_code=exc.status_code, headers=exc.headers)
+
+    phrase = http.HTTPStatus(exc.status_code).phrase
+    return responses.template(
+        "errors/http_error.html",
+        {"request": request, "phrase": phrase, "status_code": exc.status_code, "message": str(exc)},
+        status_code=exc.status_code,
+        headers=exc.headers,
+    )
 
 
 async def default_server_error_handler(request: Request, exc: HTTPException) -> Response:

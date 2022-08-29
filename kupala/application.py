@@ -66,8 +66,8 @@ class App:
         self.middleware = MiddlewareStack(list(middleware or []))
         self.lifespan_handlers = list(lifespan_handlers or [])
         self.error_handlers: dict[int | typing.Type[Exception], ErrorHandler] = {
-            HTTPException: default_http_error_handler,
             Exception: default_server_error_handler,
+            HTTPException: default_http_error_handler,
             **(error_handlers or {}),
         }
         self._router = Router(list(self.routes))

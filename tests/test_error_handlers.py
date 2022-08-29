@@ -18,9 +18,8 @@ def test_handler_by_status_code(test_client_factory: TestClientFactory) -> None:
     async def index_view(_: Request) -> None:
         raise HTTPException(status_code=403)
 
-    client = test_client_factory(
-        routes=[index_view], middleware=[Middleware(ExceptionMiddleware, handlers={403: on_403})]
-    )
+    client = test_client_factory(routes=[index_view], middleware=[Middleware(ExceptionMiddleware, handlers={})])
+    client.app.add_error_handler(403, on_403)
     response = client.get("/")
     assert response.text == "called"
 
@@ -133,6 +132,4 @@ def test_default_http_error_handler(test_client_factory: TestClientFactory) -> N
         raise HTTPException(status_code=409)
 
     client = test_client_factory(routes=[index_view], middleware=[Middleware(ExceptionMiddleware, handlers={})])
-
-    with pytest.raises(HTTPException):
-        client.get("/")
+    assert client.get("/").status_code == 409
