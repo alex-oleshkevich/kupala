@@ -189,10 +189,13 @@ class Request(requests.Request, typing.Generic[S, U]):
         return self.method.lower() in ["post", "put", "patch", "delete"]
 
     def url_matches(self, *patterns: str | typing.Pattern) -> bool:
+        url = self.url.path.rstrip("/")
         for pattern in patterns:
-            if pattern == self.url.path:
+            if isinstance(pattern, str):
+                pattern = pattern.rstrip("/")
+            if pattern == url:
                 return True
-            if re.search(pattern, self.url.path):
+            if re.search(pattern, url):
                 return True
         return False
 
