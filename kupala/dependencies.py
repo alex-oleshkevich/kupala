@@ -60,11 +60,11 @@ class Injector:
         return self._injections[name]
 
 
-async def generate_injections(request: Request, plan: dict[str, inspect.Parameter]) -> dict[str, typing.Any]:
+async def generate_injections(request: Request, parameters: dict[str, inspect.Parameter]) -> dict[str, typing.Any]:
     from kupala.http.requests import Request
 
     injections = request.path_params
-    for param_name, param in plan.items():
+    for param_name, param in parameters.items():
         if param_name in request.path_params:
             continue
 
