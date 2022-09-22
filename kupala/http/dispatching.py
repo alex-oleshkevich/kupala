@@ -11,17 +11,14 @@ from kupala.http.requests import Request
 
 
 def create_view_dispatcher(fn: typing.Callable) -> typing.Callable[[Request], typing.Awaitable[ASGIApp]]:
-    injections: dict[str, typing.Type[typing.Any]] = {}
-    for arg_name, arg_type in inspect.get_annotations(fn).items():
-        if arg_name == "return":
-            continue
-        injections[arg_name] = arg_type
+    signature = inspect.signature(fn)
+    parameters = dict(signature.parameters)
 
     @functools.wraps(fn)
     async def view_decorator(request: Request) -> ASGIApp:
         # make sure view receives our request class
         request.__class__ = Request
-        view_args = await generate_injections(request, injections)
+        view_args = await generate_injections(request, parameters)
 
         if inspect.iscoroutinefunction(fn):
             response = await fn(**view_args)

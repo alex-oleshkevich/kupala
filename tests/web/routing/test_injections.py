@@ -89,3 +89,17 @@ def test_handles_untyped_path_params(test_client_factory: TestClientFactory) -> 
     client.app.add_dependency(Db, get_db)
     response = client.get("/user/42")
     assert response.text == "postgres42"
+
+
+def test_not_fail_for_optional_path_params(test_client_factory: TestClientFactory) -> None:
+    async def get_db(request: Request) -> Db:
+        return Db(name="postgres")
+
+    @route("/user")
+    def view(request: Request, db: Db, id: str | None = None) -> Response:
+        return Response("ok")
+
+    client = test_client_factory(routes=[view])
+    client.app.add_dependency(Db, get_db)
+    response = client.get("/user")
+    assert response.text == "ok"

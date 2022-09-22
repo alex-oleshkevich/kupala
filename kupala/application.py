@@ -90,7 +90,7 @@ class App:
                 jinja2.PackageLoader("kupala"),
             ]
         )
-        self._jinja_env = jinja_env or jinja2.Environment(loader=self._jinja_loader)
+        self.jinja_env = jinja_env or jinja2.Environment(loader=self._jinja_loader)
         self._setup_jinja()
         # endregion
 
@@ -154,7 +154,7 @@ class App:
 
     def render(self, template_name: str, context: typing.Mapping[str, typing.Any] | None = None) -> str:
         """Render template to string."""
-        template = self._jinja_env.get_template(template_name)
+        template = self.jinja_env.get_template(template_name)
         return template.render(context or {})
 
     def add_middleware(self, middleware: typing.Type[ASGIApp], **options: typing.Any) -> None:
@@ -189,20 +189,20 @@ class App:
             self._jinja_loader.add_loader(jinja2.PackageLoader(package))
 
     def add_template_global(self, **globals: typing.Any) -> None:
-        self._jinja_env.globals.update(globals)
+        self.jinja_env.globals.update(globals)
 
     def add_template_extensions(self, *extensions: str) -> None:
         for extension in extensions:
-            self._jinja_env.add_extension(extension)
+            self.jinja_env.add_extension(extension)
 
     def add_template_tests(self, **tests: typing.Callable) -> None:
-        self._jinja_env.tests.update(tests)
+        self.jinja_env.tests.update(tests)
 
     def add_template_filters(self, **filters: typing.Any) -> None:
-        self._jinja_env.filters.update(filters)
+        self.jinja_env.filters.update(filters)
 
     def get_jinja_env(self) -> jinja2.Environment:
-        return self._jinja_env
+        return self.jinja_env
 
     def add_dependency(
         self,
@@ -231,13 +231,13 @@ class App:
         return app
 
     def _setup_jinja(self) -> None:
-        self._jinja_env.policies.update(
+        self.jinja_env.policies.update(
             {
                 "json.dumps_function": json.dumps,
                 "json.dumps_kwargs": {"ensure_ascii": False},
             }
         )
-        self._jinja_env.globals.update(
+        self.jinja_env.globals.update(
             {
                 "app": self,
                 "url": self.url_for,
