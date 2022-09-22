@@ -19,7 +19,6 @@ from kupala import json
 from kupala.console.application import ConsoleApplication
 from kupala.dependencies import Injector
 from kupala.exceptions import ShutdownError, StartupError
-from kupala.http.guards import Guard
 from kupala.http.middleware import Middleware, MiddlewareStack
 from kupala.http.middleware.exception import (
     ErrorHandler,
@@ -27,7 +26,6 @@ from kupala.http.middleware.exception import (
     default_http_error_handler,
     default_server_error_handler,
 )
-from kupala.http.routing import Mount
 from kupala.templating import ContextProcessor, DynamicChoiceLoader
 
 _T = typing.TypeVar("_T")
@@ -141,17 +139,6 @@ class App:
         """Add one or more routes."""
         self.routes.extend(routes)
 
-    def mount(
-        self,
-        path: str,
-        app: ASGIApp,
-        name: str | None = None,
-        middleware: typing.Iterable[Middleware] | None = None,
-        guards: typing.Iterable[Guard] | None = None,
-    ) -> None:
-        """Mount another ASGI application."""
-        self.add_routes(Mount(path=path, app=app, name=name, middleware=middleware, guards=guards))
-
     def render(self, template_name: str, context: typing.Mapping[str, typing.Any] | None = None) -> str:
         """Render template to string."""
         template = self.jinja_env.get_template(template_name)
@@ -200,9 +187,6 @@ class App:
 
     def add_template_filters(self, **filters: typing.Any) -> None:
         self.jinja_env.filters.update(filters)
-
-    def get_jinja_env(self) -> jinja2.Environment:
-        return self.jinja_env
 
     def add_dependency(self, name: typing.Hashable, callback: typing.Callable, cached: bool = False) -> None:
         self.dependencies.add_dependency(name=name, callback=callback, cached=cached)
