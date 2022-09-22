@@ -1,6 +1,7 @@
 import pytest
+from starlette.requests import HTTPConnection
 
-from kupala.pagination import Page
+from kupala.pagination import Page, get_page_size_value, get_page_value
 
 
 def test_page() -> None:
@@ -57,13 +58,13 @@ def test_page_next_prev_pages() -> None:
 
 def test_iter_pages() -> None:
     page = Page(rows=[x for x in range(200)], total_rows=200, page_size=10, page=1)
-    assert list(page.iter_pages()) == [1, 2, 3, None, 18, 19, 20]
+    assert list(page.iter_pages()) == [1, 2, 3, 4, None, 18, 19, 20]
 
     page = Page(rows=list(range(200)), total_rows=200, page_size=10, page=10)
-    assert list(page.iter_pages()) == [1, 2, 3, None, 6, 7, 8, 9, 10, 11, 12, None, 18, 19, 20]
+    assert list(page.iter_pages()) == [1, 2, 3, None, 7, 8, 9, 10, 11, 12, 13, None, 18, 19, 20]
 
     page = Page(rows=list(range(200)), total_rows=200, page_size=10, page=20)
-    assert list(page.iter_pages()) == [1, 2, 3, None, 16, 17, 18, 19, 20]
+    assert list(page.iter_pages()) == [1, 2, 3, None, 17, 18, 19, 20]
 
 
 def test_page_repr() -> None:
@@ -76,3 +77,21 @@ def test_page_str() -> None:
     rows = [1, 2]
     page = Page(rows, total_rows=2, page=1, page_size=2)
     assert str(page) == "Page 1 of 1, rows 1 - 2 of 2."
+
+
+def test_get_page_value() -> None:
+    assert get_page_value(HTTPConnection({"query_string": b"", "type": "http"})) == 1
+    assert get_page_value(HTTPConnection({"query_string": b"page=1", "type": "http"})) == 1
+    assert (
+        get_page_value(HTTPConnection({"query_string": b"current_page=1", "type": "http"}), param_name="current_page")
+        == 1
+    )
+
+
+def test_get_page_size_value() -> None:
+    assert get_page_size_value(HTTPConnection({"query_string": b"", "type": "http"}), default=2) == 2
+    assert get_page_size_value(HTTPConnection({"query_string": b"page_size=20", "type": "http"})) == 20
+    assert get_page_size_value(HTTPConnection({"query_string": b"size=20", "type": "http"}), param_name="size") == 20
+    assert (
+        get_page_size_value(HTTPConnection({"query_string": b"page_size=100", "type": "http"}), max_page_size=50) == 50
+    )

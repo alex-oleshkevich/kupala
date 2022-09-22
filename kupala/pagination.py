@@ -2,8 +2,31 @@ from __future__ import annotations
 
 import math
 import typing
+from starlette.requests import HTTPConnection
 
 M = typing.TypeVar("M")
+
+
+def get_page_value(conn: HTTPConnection, param_name: str = "page") -> int:
+    page = 1
+    try:
+        page = max(1, int(conn.query_params.get(param_name, 1)))
+    except (TypeError, ValueError):
+        pass
+    return page
+
+
+def get_page_size_value(
+    conn: HTTPConnection,
+    param_name: str = "page_size",
+    max_page_size: int = 100,
+    default: int = 20,
+) -> int:
+    try:
+        page_size = int(conn.query_params.get(param_name, default))
+        return min(page_size, max_page_size)
+    except (TypeError, ValueError):
+        return default
 
 
 class Page(typing.Generic[M]):
@@ -67,17 +90,34 @@ class Page(typing.Generic[M]):
     def iter_pages(
         self, left_edge: int = 3, left_current: int = 3, right_current: int = 3, right_edge: int = 3
     ) -> typing.Generator[int | None, None, None]:
-        last = 0
-        for number in range(1, self.total_pages + 1):
-            if (
-                number <= left_edge
-                or (number >= self.page - left_current - 1 and number < self.page + right_current)
-                or number > self.total_pages - right_edge
-            ):
-                if last + 1 != number:
-                    yield None
-                yield number
-                last = number
+        pages_end = self.total_pages + 1
+
+        if pages_end == 1:
+            return
+
+        left_end = min(1 + left_edge, pages_end)
+        yield from range(1, left_end)
+
+        if left_end == pages_end:
+            return
+
+        mid_start = max(left_end, self.page - left_current)
+        mid_end = min(self.page + right_current + 1, pages_end)
+
+        if mid_start - left_end > 0:
+            yield None
+
+        yield from range(mid_start, mid_end)
+
+        if mid_end == pages_end:
+            return
+
+        right_start = max(mid_end, pages_end - right_edge)
+
+        if right_start - mid_end > 0:
+            yield None
+
+        yield from range(right_start, pages_end)
 
     def __iter__(self) -> typing.Iterator[M]:
         return iter(self.rows)

@@ -65,18 +65,20 @@ async def generate_injections(request: Request, parameters: dict[str, inspect.Pa
 
     injections = request.path_params
     for param_name, param in parameters.items():
+        annotation = param.annotation
+
         if param_name in request.path_params:
             continue
 
-        if hasattr(param.annotation, "__origin__"):  # generic types
-            param = getattr(param, "__origin__")
+        if hasattr(annotation, "__origin__"):  # generic types
+            annotation = getattr(annotation, "__origin__")
 
-        if param.annotation == Request:
+        if annotation == Request:
             injections[param_name] = request
             continue
 
         try:
-            injection = request.app.dependencies.get_dependency(param.annotation)
+            injection = request.app.dependencies.get_dependency(annotation)
             type_or_coro = await injection.resolve(request)
 
             if inspect.iscoroutine(type_or_coro):
