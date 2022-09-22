@@ -1,5 +1,6 @@
 import http
 import inspect
+import logging
 import typing
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as BaseHTTPException
@@ -38,6 +39,7 @@ async def default_server_error_handler(request: Request, exc: HTTPException) -> 
     if request.app.debug:
         raise exc from None
     else:
+        logging.exception(exc)
         phrase = http.HTTPStatus(500).phrase
         return responses.template(
             "errors/http_error.html",
