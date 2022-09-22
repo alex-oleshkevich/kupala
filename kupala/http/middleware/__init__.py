@@ -8,7 +8,6 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .csrf import CSRFMiddleware
 from .exception import ExceptionMiddleware
 from .flash_messages import FlashMessagesMiddleware
-from .locale import LocaleMiddleware
 from .request_limit import RequestLimitMiddleware
 from .stack import Middleware, MiddlewareStack
 from .timeout import TimeoutMiddleware
@@ -18,7 +17,6 @@ __all__ = [
     "MiddlewareStack",
     "CSRFMiddleware",
     "FlashMessagesMiddleware",
-    "LocaleMiddleware",
     "RequestLimitMiddleware",
     "TimeoutMiddleware",
     "ExceptionMiddleware",

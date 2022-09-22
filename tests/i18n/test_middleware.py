@@ -2,9 +2,9 @@ from babel.core import Locale
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.authentication import AuthToken, LoginState, UserLike
-from kupala.http.middleware import LocaleMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
+from kupala.i18n.middleware import LocaleMiddleware
 from kupala.testclient import TestClient
 
 

@@ -1,11 +1,12 @@
 from babel.core import Locale
 
 from kupala.http import route
-from kupala.http.middleware import LocaleMiddleware, Middleware
+from kupala.http.middleware import Middleware
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse
 from kupala.i18n import get_locale, set_locale, switch_locale
 from kupala.i18n.language import get_language, remember_current_language
+from kupala.i18n.middleware import LocaleMiddleware
 from kupala.testclient import TestClient
 from tests.conftest import TestAppFactory
 

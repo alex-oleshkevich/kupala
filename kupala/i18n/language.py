@@ -1,11 +1,8 @@
-import contextvars as cv
 import typing
 
 from kupala.http.requests import Request
 from kupala.http.responses import Response
 from kupala.i18n.locale import get_locale
-
-_current_language: cv.ContextVar[str] = cv.ContextVar("current_language", default="en")
 
 
 def get_language() -> str:
