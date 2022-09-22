@@ -1,11 +1,27 @@
+import inspect
 import typing
-from starlette.types import ASGIApp
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+
+def _covert_into_class(fn: typing.Callable) -> typing.Type[ASGIApp]:
+    class _InnerApp:
+        def __init__(self, app: typing.Callable) -> None:
+            self.app = app
+
+        async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+            func = fn(self.app)
+            await func(scope, receive, send)
+
+    return _InnerApp
 
 
 class Middleware:
     """Keeps middleware callable along with its constructor arguments."""
 
     def __init__(self, obj: typing.Any, **kwargs: typing.Any) -> None:
+        if inspect.isfunction(obj):
+            obj = _covert_into_class(obj)
+
         self.obj = obj
         self.args = kwargs
 

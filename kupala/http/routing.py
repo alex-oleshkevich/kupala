@@ -1,19 +1,15 @@
 from __future__ import annotations
 
-import os
 import typing
 from starlette import routing
 from starlette.routing import Router
-from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.http import Request
 from kupala.http.dispatching import create_view_dispatcher
-from kupala.http.file_server import FileServer
 from kupala.http.guards import Guard
 from kupala.http.middleware import Middleware
 from kupala.http.middleware.guards import GuardsMiddleware
-from kupala.storages.storages import Storage
 
 
 def apply_middleware(app: typing.Callable, middleware: typing.Iterable[Middleware]) -> ASGIApp:
@@ -105,73 +101,15 @@ def route(
 
         if middleware:
 
-            class ASGIHandler:
-                async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-                    response = await view_handler(Request(scope, receive, send))
-                    await response(scope, receive, send)
+            async def _asgi_handler(scope: Scope, receive: Receive, send: Send) -> None:
+                response = await view_handler(Request(scope, receive, send))
+                await response(scope, receive, send)
 
-            handler = _asgi_proxy(apply_middleware(ASGIHandler(), middleware))  # type: ignore[assignment]
+            handler = apply_middleware(_asgi_handler, middleware)  # type: ignore[assignment]
 
         return Route(path=path, endpoint=handler, name=name, methods=methods)
 
     return decorator
-
-
-def _asgi_proxy(fn: ASGIApp) -> ASGIApp:
-    class ASGIProxy:
-        async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-            await fn(scope, receive, send)
-
-    return ASGIProxy()
-
-
-def group(
-    path: str,
-    routes: typing.Iterable[routing.BaseRoute],
-    *,
-    middleware: typing.Iterable[Middleware] | None = None,
-    guards: typing.Iterable[Guard] | None = None,
-) -> Mount:
-    """Allows to group routes under common prefix."""
-    return Mount(path, routes=routes, middleware=middleware, guards=guards)
-
-
-def static_files(
-    path: str,
-    directory: str | os.PathLike[str] | None = None,
-    packages: list[str | tuple[str, str]] | None = None,
-    *,
-    name: str = "static",
-    html: bool = False,
-    check_dir: bool = True,
-    middleware: typing.Iterable[Middleware] | None = None,
-    guards: typing.Iterable[Guard] | None = None,
-) -> Mount:
-    return Mount(
-        path=path,
-        middleware=middleware,
-        name=name,
-        guards=guards,
-        app=StaticFiles(directory=directory, packages=packages, html=html, check_dir=check_dir),
-    )
-
-
-def file_server(
-    path: str,
-    *,
-    storage: Storage,
-    name: str | None = None,
-    inline: bool = False,
-    middleware: typing.Iterable[Middleware] | None = None,
-    guards: typing.Iterable[Guard] | None = None,
-) -> Mount:
-    return Mount(
-        path=path,
-        name=name,
-        middleware=middleware,
-        guards=guards,
-        app=FileServer(storage=storage, as_attachment=inline),
-    )
 
 
 class Routes(typing.Iterable[Route]):

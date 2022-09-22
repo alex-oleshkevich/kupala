@@ -26,12 +26,11 @@ from .responses import (
     Response,
     StreamingResponse,
 )
-from .routing import Host, Mount, Route, Routes, group, route
+from .routing import Host, Mount, Route, Routes, route
 from .websockets import WebSocket
 
 __all__ = [
     "route",
-    "group",
     "FormData",
     "QueryParams",
     "UploadFile",

@@ -27,7 +27,7 @@ from kupala.http.middleware.exception import (
     default_http_error_handler,
     default_server_error_handler,
 )
-from kupala.http.routing import Mount, static_files
+from kupala.http.routing import Mount
 from kupala.templating import ContextProcessor, DynamicChoiceLoader
 
 _T = typing.TypeVar("_T")
@@ -49,6 +49,7 @@ class App:
         middleware: typing.Iterable[Middleware] | MiddlewareStack | None = None,
         error_handlers: dict[typing.Type[Exception] | int, ErrorHandler] | None = None,
         lifespan_handlers: typing.Iterable[LifespanHandler] = None,
+        jinja_env: jinja2.Environment | None = None,
         template_dir: str | os.PathLike | list[str | os.PathLike] | typing.Literal["auto"] = "auto",
     ) -> None:
         self.secret_key = secret_key
@@ -89,13 +90,9 @@ class App:
                 jinja2.PackageLoader("kupala"),
             ]
         )
-        self._jinja_env = jinja2.Environment(loader=self._jinja_loader)
+        self._jinja_env = jinja_env or jinja2.Environment(loader=self._jinja_loader)
         self._setup_jinja()
         # endregion
-
-        # setup static files
-        if (self.base_dir / "statics").exists():
-            self.add_routes(static_files(path="/static", packages=[self.package_name], name="static"))
 
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         started = False
