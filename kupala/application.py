@@ -12,11 +12,12 @@ from contextlib import AsyncExitStack
 from starception import StarceptionMiddleware
 from starlette.datastructures import State
 from starlette.exceptions import HTTPException
-from starlette.routing import BaseRoute, Router
+from starlette.routing import BaseRoute, Mount, Router
+from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala import json
-from kupala.console.application import ConsoleApplication
+from kupala.console import CommandGroup
 from kupala.dependencies import Injector
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.http.middleware import Middleware, MiddlewareStack
@@ -48,6 +49,7 @@ class App:
         error_handlers: dict[typing.Type[Exception] | int, ErrorHandler] | None = None,
         lifespan_handlers: typing.Iterable[LifespanHandler] = None,
         jinja_env: jinja2.Environment | None = None,
+        static_dir: str | os.PathLike | typing.Literal["auto"] | None = "auto",
         template_dir: str | os.PathLike | list[str | os.PathLike] | typing.Literal["auto"] = "auto",
     ) -> None:
         self.secret_key = secret_key
@@ -61,7 +63,6 @@ class App:
 
         self._asgi_handler: ASGIApp | None = None
         self.routes = list(routes or [])
-        self.commands = list(commands or [])
         self.middleware = MiddlewareStack(list(middleware or []))
         self.lifespan_handlers = list(lifespan_handlers or [])
         self.error_handlers: dict[int | typing.Type[Exception], ErrorHandler] = {
@@ -71,6 +72,10 @@ class App:
         }
         self._router = Router(list(self.routes))
         self.dependencies = Injector()
+
+        self.commands = CommandGroup()
+        for command in commands or []:
+            self.commands.add_command(command)
 
         # region: templating setup
         _template_dirs: list[str | os.PathLike]
@@ -92,6 +97,14 @@ class App:
         self._setup_jinja()
         # endregion
 
+        if static_dir == "auto":
+            if (self.base_dir / "statics").exists():
+                static_dir = self.base_dir / "statics"
+            else:
+                static_dir = None
+        if static_dir:
+            self.routes.append(Mount("/static", StaticFiles(directory=static_dir), name="static"))
+
     async def lifespan_handler(self, scope: Scope, receive: Receive, send: Send) -> None:
         started = False
         try:
@@ -112,11 +125,6 @@ class App:
                 raise StartupError(text) from ex
         else:
             await send({"type": "lifespan.shutdown.complete"})
-
-    def cli(self) -> int:
-        """Run console application."""
-        set_current_application(self)
-        return ConsoleApplication(self, self.commands).run()
 
     def url_for(self, name: str, **path_params: str) -> str:
         """
@@ -190,6 +198,10 @@ class App:
 
     def add_dependency(self, name: typing.Hashable, callback: typing.Callable, cached: bool = False) -> None:
         self.dependencies.add_dependency(name=name, callback=callback, cached=cached)
+
+    def cli(self, *args: str) -> None:
+        """Run command line interface."""
+        return self.commands(args)
 
     def _build_middleware(self) -> ASGIApp:
         middleware = [
