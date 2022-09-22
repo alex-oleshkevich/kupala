@@ -11,6 +11,14 @@ if typing.TYPE_CHECKING:
 InjectFactory = typing.Callable[["Request"], typing.Any]
 
 
+class DependencyError(Exception):
+    ...
+
+
+class NoDependency(DependencyError):
+    ...
+
+
 @dataclasses.dataclass
 class Injection:
     factory: InjectFactory
@@ -30,6 +38,28 @@ class Injection:
         return result
 
 
+class Injector:
+    def __init__(self, injections: dict[typing.Hashable, Injection] | None = None) -> None:
+        self._injections = injections or {}
+
+    def add_dependency(
+        self,
+        name: typing.Hashable,
+        callback: typing.Callable,
+        cached: bool = False,
+    ) -> None:
+        self._injections[name] = Injection(factory=callback, cached=cached)
+
+    def get_dependency(self, name: typing.Hashable) -> Injection:
+        if origin := getattr(name, "__origin__", None):
+            name = origin
+
+        if name not in self._injections:
+            raise NoDependency(f'No dependency factory for type "{name}"')
+
+        return self._injections[name]
+
+
 async def generate_injections(request: Request, plan: dict[str, inspect.Parameter]) -> dict[str, typing.Any]:
     from kupala.http.requests import Request
 
@@ -46,12 +76,14 @@ async def generate_injections(request: Request, plan: dict[str, inspect.Paramete
             continue
 
         try:
-            injection = request.app.get_dependency(param.annotation)
+            injection = request.app.dependencies.get_dependency(param.annotation)
             type_or_coro = await injection.resolve(request)
 
             if inspect.iscoroutine(type_or_coro):
                 type_or_coro = await type_or_coro
-        except KeyError:
+        except NoDependency:
+            if param.default == inspect.Parameter.empty:
+                raise
             type_or_coro = None
 
         injections[param_name] = type_or_coro
