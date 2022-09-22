@@ -48,6 +48,9 @@ class Mount(routing.Mount):
     def routes(self) -> list[routing.BaseRoute]:
         return getattr(self._base_app, "routes", [])
 
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}: " f"path={self.path}, name={self.name or ''}, app={self.app}>"
+
 
 class Host(routing.Host):
     def __init__(
@@ -78,10 +81,13 @@ class Host(routing.Host):
     def routes(self) -> list[routing.BaseRoute]:
         return getattr(self._base_app, "routes", [])
 
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}: " f"host={self.host}, name={self.name or ''}, app={self.app}>"
+
 
 class Route(routing.Route):
     def __repr__(self) -> str:
-        return f"<Route: path={self.path}, methods={self.methods}, name={self.name}>"
+        return f"<{self.__class__.__name__}: path={self.path}, name={self.name}, methods={self.methods}>"
 
 
 def route(
@@ -138,3 +144,8 @@ class Routes(typing.Iterable[Route]):
 
     def __len__(self) -> int:
         return len(self._routes)
+
+    def __repr__(self) -> str:
+        routes_count = len(self._routes)
+        noun = "route" if routes_count == 1 else "routes"
+        return f"<{self.__class__.__name__}: {routes_count} {noun}>"
