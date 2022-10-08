@@ -847,6 +847,17 @@ Babel = ">=2.10.3,<3.0.0"
 starlette = ">=0.21.0,<0.22.0"
 
 [[package]]
+name = "starlette-flash"
+version = "0.1.0"
+description = "Flash messages for Starlette framework."
+category = "main"
+optional = false
+python-versions = ">=3.10.0,<4.0.0"
+
+[package.dependencies]
+starlette = ">=0.21.0,<0.22.0"
+
+[[package]]
 name = "tomli"
 version = "2.0.1"
 description = "A lil' TOML parser"
@@ -943,7 +954,7 @@ s3 = ["aioboto3"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "97cef134222daeda5adc771f3dd512dceb3299af3bba1be21d5785944ae5af9e"
+content-hash = "488405bfb6f36f4b9f3540ecb8d3466d6de2f420fdceed4ba0166a5250669699"
 
 [metadata.files]
 aioboto3 = [
@@ -1691,6 +1702,10 @@ starlette = [
 starlette-babel = [
     {file = "starlette_babel-0.1.0-py3-none-any.whl", hash = "sha256:3a5d7c7ad82b3856b1f6571f4b3b4854d1079ea16a5d5c8e7e9df70189bc9388"},
     {file = "starlette_babel-0.1.0.tar.gz", hash = "sha256:0dce0d59a7208b2b0e70c8a1681ae0f1b0ea7ed7dee26b62485747eddf305125"},
+]
+starlette-flash = [
+    {file = "starlette_flash-0.1.0-py3-none-any.whl", hash = "sha256:2f5551d0c7a6c362f8fd36b623cd3dbbb7da70410af3e1e163f00cf503fa03d7"},
+    {file = "starlette_flash-0.1.0.tar.gz", hash = "sha256:0a27741dee88cbfbe92365de1419d26d66d99d11a2206448733cbf351aabaf3f"},
 ]
 tomli = [
     {file = "tomli-2.0.1-py3-none-any.whl", hash = "sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc"},

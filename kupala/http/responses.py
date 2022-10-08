@@ -6,10 +6,10 @@ import typing
 from starlette import responses
 from starlette.responses import ContentStream
 from starlette.types import Receive, Scope, Send
+from starlette_flash.flash import FlashBag, flash
 from urllib.parse import quote
 
 from kupala import json as jsonlib
-from kupala.http.middleware.flash_messages import FlashBag
 from kupala.http.requests import Request
 from kupala.json import JSONEncoder
 from kupala.structures import Cookie
@@ -367,8 +367,8 @@ class RedirectResponse(Response):
     def create_http_response(self, request: Request) -> responses.Response:
         assert self.url or self.path_name, 'Either "url" or "path_name" argument must be passed.'
 
-        if self.flash_message and "flash_messages" in request.scope:
-            flashes = typing.cast(FlashBag, request.scope["flash_messages"])
+        if self.flash_message:
+            flashes = flash(request)
             flashes.add(self.flash_message, self.flash_category)
 
         url = typing.cast(str, request.url_for(self.path_name, **self.path_params) if self.path_name else self.url)

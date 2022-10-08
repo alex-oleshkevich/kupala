@@ -39,6 +39,7 @@ msgpack = { version = "^1.0", optional = true }
 starception = "^0.4"
 itsdangerous = "^2.1.2"
 python-dotenv = "^0.20.0"
+starlette-flash = "^0.1.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1"

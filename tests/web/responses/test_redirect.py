@@ -1,9 +1,9 @@
 import pytest
 from starlette.middleware.sessions import SessionMiddleware
+from starlette_flash import flash
 
 from kupala.http import Routes, route
 from kupala.http.middleware import Middleware
-from kupala.http.middleware.flash_messages import FlashMessagesMiddleware, flash
 from kupala.http.requests import Request
 from kupala.http.responses import JSONResponse, RedirectResponse
 from tests.conftest import TestClientFactory
@@ -78,7 +78,6 @@ def test_redirect_with_flash_message(test_client_factory: TestClientFactory) -> 
         routes=[view, about_view],
         middleware=[
             Middleware(SessionMiddleware, secret_key="key", max_age=80000),
-            Middleware(FlashMessagesMiddleware, storage="session"),
         ],
     )
     response = client.get("/", allow_redirects=True)
@@ -100,7 +99,6 @@ def test_redirect_with_flash_message_via_method(test_client_factory: TestClientF
         routes=[view, about_view],
         middleware=[
             Middleware(SessionMiddleware, secret_key="key", max_age=80000),
-            Middleware(FlashMessagesMiddleware, storage="session"),
         ],
     )
     response = client.get("/", allow_redirects=True)
@@ -122,7 +120,6 @@ def test_redirect_with_success(test_client_factory: TestClientFactory, routes: R
         routes=[view, about_view],
         middleware=[
             Middleware(SessionMiddleware, secret_key="key", max_age=80000),
-            Middleware(FlashMessagesMiddleware, storage="session"),
         ],
     )
     response = client.get("/", allow_redirects=True)
@@ -144,7 +141,6 @@ def test_redirect_with_error(test_client_factory: TestClientFactory, routes: Rou
         routes=[view, about_view],
         middleware=[
             Middleware(SessionMiddleware, secret_key="key", max_age=80000),
-            Middleware(FlashMessagesMiddleware, storage="session"),
         ],
     )
     response = client.get("/", allow_redirects=True)
