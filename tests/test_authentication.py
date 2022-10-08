@@ -92,7 +92,7 @@ def test_remember_me_set_cookie() -> None:
         user = User(id="id")
         await login(request, user)
         response = Response("ok")
-        remember_me(request, response, user, datetime.timedelta(hours=24))
+        remember_me(response, request.app.secret_key, user, datetime.timedelta(hours=24))
         await response(scope, receive, send)
 
     client = TestClient(SessionMiddleware(app, secret_key="key!"))

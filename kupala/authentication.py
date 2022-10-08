@@ -195,8 +195,8 @@ def confirm_login(connection: HTTPConnection) -> None:
 
 
 def remember_me(
-    request: HTTPConnection,
     response: Response,
+    secret_key: str,
     user: UserLike,
     duration: datetime.timedelta,
     *,
@@ -207,7 +207,7 @@ def remember_me(
     cookie_secure: bool = False,
     cookie_http_only: bool = True,
 ) -> Response:
-    signer = Signer(request.app.secret_key)
+    signer = Signer(secret_key)
     value = signer.sign(user.get_id()).decode("utf8")
 
     return response.set_cookie(
