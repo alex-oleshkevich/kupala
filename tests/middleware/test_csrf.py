@@ -109,15 +109,15 @@ def test_middleware_checks_access(test_client_factory: TestClientFactory) -> Non
 
     # test POST, PUT, DELETE, PATCH are allowed with token
     token = response.text
-    assert client.post("/", {"_token": token}).status_code == 200
+    assert client.post("/", data={"_token": token}).status_code == 200
     assert client.post(f"/?csrf-token={token}").status_code == 200
     assert client.post("/", headers={"x-csrf-token": token}).status_code == 200
 
-    assert client.put("/", {"_token": token}).status_code == 200
+    assert client.put("/", data={"_token": token}).status_code == 200
     assert client.put(f"/?csrf-token={token}").status_code == 200
     assert client.put("/", headers={"x-csrf-token": token}).status_code == 200
 
-    assert client.patch("/", {"_token": token}).status_code == 200
+    assert client.patch("/", data={"_token": token}).status_code == 200
     assert client.patch(f"/?csrf-token={token}").status_code == 200
     assert client.patch("/", headers={"x-csrf-token": token}).status_code == 200
 
@@ -146,7 +146,7 @@ def test_middleware_allow_from_whitelist(test_client_factory: TestClientFactory)
     assert response.status_code == 200
     token = response.text
 
-    assert client.post("/", {"_token": token}).status_code == 200
+    assert client.post("/", data={"_token": token}).status_code == 200
     assert client.post("/login").status_code == 200
 
 

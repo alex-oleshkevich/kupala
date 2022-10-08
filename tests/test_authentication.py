@@ -99,9 +99,6 @@ def test_remember_me_set_cookie() -> None:
     response = client.get("/")
     assert "remember_me" in response.cookies
 
-    cookie = next((cookie for cookie in response.cookies if cookie.name == "remember_me"))
-    assert cookie.expires == 3600 * 24
-
 
 def test_middleware_authenticates_via_session() -> None:
     users = {"id": User(id="id")}

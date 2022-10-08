@@ -23,7 +23,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-starlette = "^0.20"
+starlette = "^0.21"
 Jinja2 = "^3.1"
 python-multipart = "^0.0"
 deesk = "^0.1"
@@ -45,11 +45,11 @@ pytest = "^7.1"
 pytest-asyncio = "^0.19"
 requests = "^2.28"
 pytest-coverage = "^0.0"
-black = "^22.6"
-mypy = "^0.971"
+black = "^22.8"
+mypy = "^0.982"
 flake8 = "^5.0.4"
 uvicorn = "^0.18"
-types-pytz = "^2022.1"
+types-pytz = "^2022.4"
 aioredis = "^2.0"
 msgpack = "^1.0"
 
@@ -57,6 +57,10 @@ msgpack = "^1.0"
 s3 = ["aioboto3"]
 redis = ["aioredis"]
 msgpack = ["msgpack"]
+
+[tool.poetry.group.dev.dependencies]
+starlette-babel = "^0.1.0"
+httpx = "^0.23.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

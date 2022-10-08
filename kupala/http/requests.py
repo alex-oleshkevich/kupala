@@ -169,8 +169,8 @@ class Request(requests.Request, typing.Generic[S, U]):
 
     @property
     def locale(self) -> Locale:
-        assert "locale" in self.scope, "LocaleMiddleware must be installed to access request.locale"
-        return self.scope["locale"]
+        assert "locale" in self.scope["state"], "LocaleMiddleware must be installed to access request.locale"
+        return self.state.locale
 
     @property
     def language(self) -> str:

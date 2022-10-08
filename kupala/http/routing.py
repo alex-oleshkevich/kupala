@@ -28,28 +28,12 @@ class Mount(routing.Mount):
         middleware: typing.Iterable[Middleware] | None = None,
         guards: typing.Iterable[Guard] | None = None,
     ) -> None:
-        assert app or routes, "Either ASGI app or router required."
-
         middleware = list(middleware or [])
 
         if guards:
             middleware.append(Middleware(GuardsMiddleware, guards=guards))
 
-        if app is not None:
-            self._base_app = app
-        else:
-            assert routes
-            self._base_app = Router(routes=list(routes))
-
-        app = apply_middleware(self._base_app, middleware)
-        super().__init__(path, app=app, name=name)
-
-    @property
-    def routes(self) -> list[routing.BaseRoute]:
-        return getattr(self._base_app, "routes", [])
-
-    def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}: " f"path={self.path}, name={self.name or ''}, app={self.app}>"
+        super().__init__(path, app=app, routes=routes, name=name, middleware=middleware)
 
 
 class Host(routing.Host):

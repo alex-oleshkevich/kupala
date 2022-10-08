@@ -211,7 +211,7 @@ def test_file_uploads(test_client_factory: TestClientFactory) -> None:
     client = test_client_factory(routes=[upload_view])
 
     file1 = io.BytesIO("праўда".encode())
-    file2 = io.StringIO("file2")
+    file2 = io.BytesIO(b"file2")
     response = client.post(
         "/",
         data={"text": "data"},
@@ -223,7 +223,7 @@ def test_file_uploads(test_client_factory: TestClientFactory) -> None:
     assert response.status_code == 200
     assert response.json() == [
         {"filename": "file1.txt", "content-type": "text/plain", "content": "праўда"},
-        {"filename": "files", "content-type": "", "content": "file2"},
+        {"filename": "upload", "content-type": "application/octet-stream", "content": "file2"},
     ]
 
 
