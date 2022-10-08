@@ -7,7 +7,6 @@ import typing
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from kupala.http.requests import Request
-from kupala.json import jsonify
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +107,8 @@ class SessionStorage(MessageStorage):
         )
 
     def save(self, scope: Scope, bag: FlashBag) -> None:
-        scope["session"][SESSION_KEY] = jsonify(bag.all())
+        messages = [{"category": message.category, "message": str(message.message)} for message in bag.consume()]
+        scope["session"][SESSION_KEY] = messages
 
 
 _storage_map: dict[str, typing.Type[MessageStorage]] = {
