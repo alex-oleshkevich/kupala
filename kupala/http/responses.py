@@ -6,7 +6,7 @@ import typing
 from starlette import responses
 from starlette.responses import ContentStream
 from starlette.types import Receive, Scope, Send
-from starlette_flash.flash import FlashBag, flash
+from starlette_flash.flash import flash
 from urllib.parse import quote
 
 from kupala import json as jsonlib
@@ -421,9 +421,8 @@ class GoBackResponse(Response):
         if current_origin not in redirect_to:
             redirect_to = "/"
 
-        if self.flash_message and "flash_messages" in request.scope:
-            flashes = typing.cast(FlashBag, request.scope["flash_messages"])
-            flashes.add(self.flash_message, self.flash_category)
+        if self.flash_message:
+            flash(request).add(self.flash_message, self.flash_category)
 
         return responses.RedirectResponse(url=redirect_to, status_code=self.status_code, headers=self.headers)
 
