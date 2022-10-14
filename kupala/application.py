@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import click
 import contextvars as cv
 import importlib
 import jinja2
@@ -17,7 +16,6 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala import json
-from kupala.console import CommandGroup
 from kupala.dependencies import Injector
 from kupala.exceptions import ShutdownError, StartupError
 from kupala.http.middleware import Middleware, MiddlewareStack
@@ -44,7 +42,6 @@ class App:
         *,
         debug: bool = False,
         routes: typing.Iterable[BaseRoute] | None = None,
-        commands: typing.Iterable[click.Command] | None = None,
         middleware: typing.Iterable[Middleware] | MiddlewareStack | None = None,
         error_handlers: dict[typing.Type[Exception] | int, ErrorHandler] | None = None,
         lifespan_handlers: typing.Iterable[LifespanHandler] = None,
@@ -72,10 +69,6 @@ class App:
         }
         self._router = Router(list(self.routes))
         self.dependencies = Injector()
-
-        self.commands = CommandGroup()
-        for command in commands or []:
-            self.commands.add_command(command)
 
         # region: templating setup
         _template_dirs: list[str | os.PathLike]
@@ -162,9 +155,6 @@ class App:
     def add_lifespan_handlers(self, *handlers: LifespanHandler) -> None:
         self.lifespan_handlers.extend(handlers)
 
-    def add_commands(self, *command: click.Command) -> None:
-        self.commands.extend(command)
-
     def add_template_context_processors(self, *processors: ContextProcessor) -> None:
         """
         Add global template context processor.
@@ -198,10 +188,6 @@ class App:
 
     def add_dependency(self, name: typing.Hashable, callback: typing.Callable, cached: bool = False) -> None:
         self.dependencies.add_dependency(name=name, callback=callback, cached=cached)
-
-    def cli(self, *args: str) -> None:
-        """Run command line interface."""
-        return self.commands(args)
 
     def _build_middleware(self) -> ASGIApp:
         middleware = [

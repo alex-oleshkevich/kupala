@@ -23,7 +23,7 @@ class Mount(routing.Mount):
         self,
         path: str,
         app: ASGIApp | None = None,
-        routes: typing.Iterable[routing.BaseRoute] | None = None,
+        routes: typing.Sequence[routing.BaseRoute] | None = None,
         name: str | None = None,
         middleware: typing.Iterable[Middleware] | None = None,
         guards: typing.Iterable[Guard] | None = None,
@@ -33,7 +33,7 @@ class Mount(routing.Mount):
         if guards:
             middleware.append(Middleware(GuardsMiddleware, guards=guards))
 
-        super().__init__(path, app=app, routes=routes, name=name, middleware=middleware)
+        super().__init__(path, app=app, routes=routes, name=name, middleware=middleware)  # type: ignore[arg-type]
 
 
 class Host(routing.Host):
@@ -113,11 +113,11 @@ class Routes(typing.Iterable[Route]):
         methods: list[str] = None,
         name: str | None = None,
         guards: list[Guard] | None = None,
-    ) -> typing.Callable[[typing.Callable], Route]:
-        def decorator(fn: typing.Callable) -> Route:
+    ) -> typing.Callable:
+        def decorator(fn: typing.Callable) -> typing.Callable:
             route_ = route(path, methods=methods, name=name, guards=guards)(fn)
             self._routes.append(route_)
-            return route_
+            return fn
 
         return decorator
 

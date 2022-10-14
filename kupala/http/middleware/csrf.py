@@ -112,8 +112,8 @@ class CSRFMiddleware:
         await self.app(scope, receive, send)
 
     async def get_csrf_token(self, request: Request) -> str:
-        from_headers = request.headers.get(CSRF_HEADER)
-        from_query = request.query_params.get(CSRF_QUERY_PARAM)
+        from_headers = request.headers.get(CSRF_HEADER, "")
+        from_query = request.query_params.get(CSRF_QUERY_PARAM, "")
         from_form_data = ""
         if request.is_submitted:
             form_data = await request.form()
