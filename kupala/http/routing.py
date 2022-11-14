@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 from starlette import routing
-from starlette.routing import Router
+from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.http import Request
@@ -34,44 +34,6 @@ class Mount(routing.Mount):
             middleware.append(Middleware(GuardsMiddleware, guards=guards))
 
         super().__init__(path, app=app, routes=routes, name=name, middleware=middleware)  # type: ignore[arg-type]
-
-
-class Host(routing.Host):
-    def __init__(
-        self,
-        host: str,
-        app: ASGIApp | None = None,
-        routes: typing.Iterable[routing.BaseRoute] | None = None,
-        name: str | None = None,
-        middleware: typing.Iterable[Middleware] | None = None,
-        guards: list[Guard] | None = None,
-    ) -> None:
-        assert app or routes, "Either ASGI app or router required."
-
-        middleware = list(middleware or [])
-        if guards:
-            middleware.append(Middleware(GuardsMiddleware, guards=guards))
-
-        if app is not None:
-            self._base_app = app
-        else:
-            assert routes
-            self._base_app = Router(routes=list(routes))
-
-        app = apply_middleware(self._base_app, middleware)
-        super().__init__(host, app=app, name=name)
-
-    @property
-    def routes(self) -> list[routing.BaseRoute]:
-        return getattr(self._base_app, "routes", [])
-
-    def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}: " f"host={self.host}, name={self.name or ''}, app={self.app}>"
-
-
-class Route(routing.Route):
-    def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}: path={self.path}, name={self.name}, methods={self.methods}>"
 
 
 def route(
