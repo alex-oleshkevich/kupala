@@ -284,16 +284,3 @@ def test_empty_response(test_client_factory: TestClientFactory) -> None:
     client = test_client_factory(routes=[view])
     res = client.get("/")
     assert res.status_code == 204
-
-
-def test_template_response(test_client_factory: TestClientFactory, tmp_path: os.PathLike) -> None:
-    with open(os.path.join(tmp_path, "template_response.html"), "w") as f:
-        f.write("hello {{ world }}")
-
-    @route("/")
-    def view(request: Request) -> Response:
-        return responses.template("template_response.html", {"world": "world"})
-
-    client = test_client_factory(routes=[view])
-    res = client.get("/")
-    assert res.text == "hello world"

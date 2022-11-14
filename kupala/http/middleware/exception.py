@@ -1,65 +1,18 @@
-import http
 import inspect
-import logging
 import typing
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as BaseHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from kupala.http import responses
-from kupala.http.exceptions import HTTPException
 from kupala.http.requests import Request
-from kupala.http.responses import Response
 
 E = typing.TypeVar("E", bound=Exception)
 ErrorHandler = typing.Callable[[Request, E], typing.Any]
 
 
-async def default_http_error_handler(request: Request, exc: HTTPException) -> Response:
-    """
-    The default error handler for HTTP exception will:
-
-    * reraise exception in debug mode
-    * render a default error page if non-debug mode
-    """
-    if exc.status_code in {204, 304}:
-        return Response(status_code=exc.status_code, headers=exc.headers)
-
-    phrase = http.HTTPStatus(exc.status_code).phrase
-    return responses.template(
-        "errors/http_error.html",
-        {"request": request, "phrase": phrase, "status_code": exc.status_code, "message": str(exc)},
-        status_code=exc.status_code,
-        headers=exc.headers,
-    )
-
-
-async def default_server_error_handler(request: Request, exc: HTTPException) -> Response:
-    """The default error handler for 500s."""
-    if request.app.debug:
-        raise exc from None
-    else:
-        logging.exception(exc)
-        phrase = http.HTTPStatus(500).phrase
-        return responses.template(
-            "errors/http_error.html",
-            {
-                "request": request,
-                "phrase": phrase,
-                "status_code": 500,
-            },
-            status_code=500,
-        )
-
-
-_default_error_handlers = {
-    BaseHTTPException: default_http_error_handler,
-}
-
-
 class ErrorHandlers:
     def __init__(self, handlers: dict) -> None:
-        self.handlers: dict = {**_default_error_handlers, **handlers}
+        self.handlers: dict = {**handlers}
 
     def get_for_exception(self, exc: Exception) -> ErrorHandler | None:
         class_name = type(exc)

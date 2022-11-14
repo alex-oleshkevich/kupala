@@ -5,7 +5,7 @@ import jinja2
 import typing
 from jinja2.runtime import Macro
 from markupsafe import Markup
-from starlette import templating
+from starlette import responses, templating
 
 from kupala.http.requests import Request
 from kupala.http.responses import Response
@@ -72,15 +72,15 @@ def nl2br_filter(value: str) -> str:
 def media_url(request: Request, path: str, path_name: str = "media") -> str:
     if any([path.startswith("http://"), path.startswith("https://")]):
         return path
-    return request.app.url_for(path_name, path=path)
+    return request.app.router.url_path_for(path_name, path=path)
 
 
 def static_url(request: Request, path: str, path_name: str = "static") -> str:
-    return request.app.url_for(path_name, path=path)
+    return request.app.router.url_path_for(path_name, path=path)
 
 
 def url_matches(request: Request, path_name: str, **path_params: typing.Any) -> bool:
-    return request.url_matches(request.app.url_for(path_name, **path_params))
+    return request.url_matches(request.app.router.url_path_for(path_name, **path_params))
 
 
 def default_processors(request: Request) -> dict[str, typing.Any]:
@@ -108,7 +108,7 @@ class Jinja2Templates:
         status_code: int = 200,
         headers: dict[str, typing.Any] | None = None,
         content_type: str = "text/html",
-    ) -> templating.Jinja2Templates.TemplateResponse:
+    ) -> responses.Response:
         context = context or {}
         context["request"] = request
         for processor in self.context_processors:
@@ -170,4 +170,4 @@ class Jinja2Templates:
         self, template_name: str, macro_name: str, macro_kwargs: dict[str, typing.Any] | None = None
     ) -> str:
         macro = self.macro(template_name, macro_name)
-        return macro(**macro_kwargs)
+        return macro(**(macro_kwargs or {}))

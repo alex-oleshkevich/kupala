@@ -1,4 +1,6 @@
+from starlette.datastructures import FormData, Headers, UploadFile
 from starlette.routing import WebSocketRoute
+from starlette.websockets import WebSocket
 
 from .exceptions import (
     BadRequest,
@@ -14,7 +16,7 @@ from .exceptions import (
     UnsupportedMediaType,
 )
 from .middleware.exception import ErrorHandler
-from .requests import Cookies, FilesData, FormData, Headers, QueryParams, Request, UploadFile
+from .requests import QueryParams, Request
 from .responses import (
     EmptyResponse,
     FileResponse,
@@ -27,15 +29,12 @@ from .responses import (
     StreamingResponse,
 )
 from .routing import Host, Mount, Route, Routes, route
-from .websockets import WebSocket
 
 __all__ = [
     "route",
     "FormData",
     "QueryParams",
     "UploadFile",
-    "FilesData",
-    "Cookies",
     "ErrorHandler",
     "Headers",
     "Request",

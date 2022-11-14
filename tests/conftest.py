@@ -8,7 +8,6 @@ from starlette.types import ASGIApp
 from kupala.application import App
 from kupala.http import Routes
 from kupala.http.middleware import Middleware
-from kupala.storages.storages import LocalStorage, Storage
 from kupala.testclient import TestClient
 
 
@@ -41,9 +40,7 @@ def test_app_factory(tmp_path: os.PathLike) -> TestAppFactory:
     def factory(*args: typing.Any, **kwargs: typing.Any) -> App:
         kwargs.setdefault("debug", True)
         kwargs.setdefault("routes", Routes())
-        kwargs.setdefault("secret_key", "t0pSekRet!")
-        kwargs.setdefault("template_dir", tmp_path)
-        return App("tests", *args, **kwargs)
+        return App(*args, **kwargs)
 
     return factory
 
@@ -52,9 +49,7 @@ def test_app_factory(tmp_path: os.PathLike) -> TestAppFactory:
 def test_client_factory(test_app_factory: TestAppFactory) -> TestClientFactory:
     def factory(**kwargs: typing.Any) -> TestClient:
         raise_server_exceptions = kwargs.pop("raise_server_exceptions", True)
-
-        kwargs.setdefault("app", test_app_factory(**kwargs))
-        app = kwargs["app"]
+        app = kwargs.pop("app", test_app_factory(**kwargs))
         return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
     return typing.cast(TestClientFactory, factory)
@@ -63,11 +58,6 @@ def test_client_factory(test_app_factory: TestAppFactory) -> TestClientFactory:
 @pytest.fixture
 def routes() -> Routes:
     return Routes()
-
-
-@pytest.fixture()
-def storage(tmp_path: os.PathLike) -> Storage:
-    return LocalStorage(tmp_path)
 
 
 @pytest.fixture()

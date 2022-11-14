@@ -58,7 +58,7 @@ def test_render_to_response(jinja_env: jinja2.Environment) -> None:
         content_type="text/html2",
     )
     assert response.status_code == 400
-    assert response.context == {"context_variable": "var", "request": request}
+    assert response.context == {"context_variable": "var", "request": request}  # type: ignore
     assert response.body == b"SIMPLE TEXT\nFROM CONTEXT var\nMAIN BLOCK CONTENT \n"
     assert response.media_type == "text/html2"
     assert response.headers == MutableHeaders(

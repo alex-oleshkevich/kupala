@@ -59,6 +59,13 @@ class Injector:
 
         return self._injections[name]
 
+    def register(self, name: typing.Hashable, cached: bool = False) -> typing.Callable:
+        def decorator(callback: typing.Callable) -> typing.Any:
+            self.add_dependency(name, callback, cached)
+            return callback
+
+        return decorator
+
 
 async def generate_injections(request: Request, parameters: dict[str, inspect.Parameter]) -> dict[str, typing.Any]:
     from kupala.http.requests import Request

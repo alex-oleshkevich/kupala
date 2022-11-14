@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 import os
 import typing
 from starlette import responses
@@ -123,43 +122,6 @@ class Response:
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}: status_code={self.status_code}>"
-
-
-class TemplateResponse(Response):
-    def __init__(
-        self,
-        template_name: str,
-        context: typing.Mapping[str, typing.Any] | None = None,
-        *,
-        status_code: int = 200,
-        headers: typing.Mapping[str, typing.Any] | None = None,
-        content_type: str = "text/html",
-    ) -> None:
-        super().__init__(status_code=status_code, headers=headers, content_type=content_type)
-        self.template_name = template_name
-        self.context = dict(context or {})
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        request = Request(scope, receive, send)
-        for processor in request.app.get_template_context_processors():
-            if inspect.iscoroutinefunction(processor):
-                self.context.update(await processor(request))  # type: ignore[misc]
-            else:
-                self.context.update(processor(request))  # type: ignore[arg-type]
-
-        self.context.update(
-            {
-                "app": request.app,
-                "request": request,
-                "url": request.url_for,
-                "static": request.app.static_url,
-            }
-        )
-        self.content = request.app.render(self.template_name, self.context).encode("utf-8")
-        await super().__call__(scope, receive, send)
-
-
-template = TemplateResponse
 
 
 class BaseTextResponse(Response):

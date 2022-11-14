@@ -1,13 +1,8 @@
-import io
 import pytest
 import typing as t
 
 from kupala.authentication import AnonymousUser, AuthToken, LoginState
-from kupala.http import route
 from kupala.http.requests import Request
-from kupala.http.responses import JSONResponse
-from kupala.storages.storages import Storage
-from tests.conftest import TestClientFactory
 
 
 @pytest.fixture()
@@ -193,118 +188,6 @@ def test_query_params() -> None:
     assert request.query_params.get_int("enable") is None
 
 
-def test_file_uploads(test_client_factory: TestClientFactory) -> None:
-    @route("/", methods=["post"])
-    async def upload_view(request: Request) -> JSONResponse:
-        files = await request.files()
-        return JSONResponse(
-            [
-                {
-                    "filename": file.filename,
-                    "content": await file.read_string(),
-                    "content-type": file.content_type,
-                }
-                for file in files.getlist("files")
-            ]
-        )
-
-    client = test_client_factory(routes=[upload_view])
-
-    file1 = io.BytesIO("праўда".encode())
-    file2 = io.BytesIO(b"file2")
-    response = client.post(
-        "/",
-        data={"text": "data"},
-        files=[
-            ("files", ("file1.txt", file1, "text/plain")),
-            ("files", file2),
-        ],
-    )
-    assert response.status_code == 200
-    assert response.json() == [
-        {"filename": "file1.txt", "content-type": "text/plain", "content": "праўда"},
-        {"filename": "upload", "content-type": "application/octet-stream", "content": "file2"},
-    ]
-
-
-@pytest.mark.asyncio
-async def test_file_upload_store(test_client_factory: TestClientFactory, storage: Storage) -> None:
-    @route("/", methods=["post"])
-    async def upload_view(request: Request) -> JSONResponse:
-        files = await request.files()
-        file = files.get("file")
-        filename = ""
-        if file:
-            filename = await file.save(storage, "newfile.txt")
-
-        return JSONResponse(filename)
-
-    client = test_client_factory(routes=[upload_view])
-
-    file1 = io.BytesIO(b"content")
-    response = client.post(
-        "/",
-        data={"text": "data"},
-        files=[("file", ("file1.txt", file1, "text/plain"))],
-    )
-    assert response.status_code == 200
-    filename = response.json()
-
-    assert await storage.exists(filename)
-    file = await storage.get(filename)
-    assert await file.read() == b"content"
-
-
-@pytest.mark.asyncio
-async def test_file_upload_store_without_filename(test_client_factory: TestClientFactory, storage: Storage) -> None:
-    @route("/", methods=["post"])
-    async def upload_view(request: Request) -> JSONResponse:
-        filename = ""
-        files = await request.files()
-        file = files.get("file")
-        if file:
-            filename = await file.save(storage, "uploads")
-
-        return JSONResponse(filename)
-
-    client = test_client_factory(routes=[upload_view])
-
-    file1 = io.BytesIO(b"content")
-    response = client.post(
-        "/",
-        data={"text": "data"},
-        files=[("file", file1)],
-    )
-    assert response.status_code == 200
-    filename = response.json()
-    assert ".bin" in filename
-    assert await storage.exists(filename)
-
-
 def test_request_auth(form_request: Request) -> None:
     form_request.scope["auth"] = AuthToken(AnonymousUser(), LoginState.ANONYMOUS)
     assert isinstance(form_request.user, AnonymousUser)
-
-
-def test_request_cookies(form_request: Request) -> None:
-    assert form_request.cookies.get("key") == "value"
-
-
-def test_request_headers(form_request: Request) -> None:
-    assert form_request.headers.get("x-key") == "1"
-    assert form_request.headers.getlist("x-multi") == ["1", "2"]
-
-
-@pytest.mark.asyncio
-async def test_request_data(test_client_factory: TestClientFactory) -> None:
-    @route("/json", methods=["post"])
-    async def json_view(request: Request) -> JSONResponse:
-        return JSONResponse(await request.data())  # type: ignore
-
-    @route("/form", methods=["post"])
-    async def form_view(request: Request) -> JSONResponse:
-        return JSONResponse(dict(await request.data()))  # type: ignore
-
-    client = test_client_factory(routes=[json_view, form_view])
-    assert client.post("/json", json={"data": "content"}).json() == {"data": "content"}
-    assert client.post("/form", data={"data": "content"}).json() == {"data": "content"}
