@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import functools
 import jinja2
 import typing
 from jinja2.runtime import Macro
+from markupsafe import Markup
 from starlette import templating
 
 from kupala.http.requests import Request
@@ -57,6 +59,37 @@ class DynamicChoiceLoader(jinja2.ChoiceLoader):
         # don't touch the first loader, this is usually project's template directory
         # also, don't append it because the last loader should be one that loads templates from the framework
         self.loaders.insert(1, loader)
+
+
+library = Library()
+
+
+@library.filters.register("nl2br")
+def nl2br_filter(value: str) -> str:
+    return Markup(value.replace("\n", "<br>"))
+
+
+def media_url(request: Request, path: str, path_name: str = "media") -> str:
+    if any([path.startswith("http://"), path.startswith("https://")]):
+        return path
+    return request.app.url_for(path_name, path=path)
+
+
+def static_url(request: Request, path: str, path_name: str = "static") -> str:
+    return request.app.url_for(path_name, path=path)
+
+
+def url_matches(request: Request, path_name: str, **path_params: typing.Any) -> bool:
+    return request.url_matches(request.app.url_for(path_name, **path_params))
+
+
+def default_processors(request: Request) -> dict[str, typing.Any]:
+    return {
+        "app": request.app,
+        "static_url": functools.partial(static_url, request),
+        "media_url": functools.partial(media_url, request),
+        "url_matches": functools.partial(url_matches, request),
+    }
 
 
 class Jinja2Templates:
