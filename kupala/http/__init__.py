@@ -15,7 +15,6 @@ from .exceptions import (
     UnprocessableEntity,
     UnsupportedMediaType,
 )
-from .middleware.exception import ErrorHandler
 from .requests import QueryParams, Request
 from .responses import (
     EmptyResponse,
@@ -35,7 +34,6 @@ __all__ = [
     "FormData",
     "QueryParams",
     "UploadFile",
-    "ErrorHandler",
     "Headers",
     "Request",
     "Response",
