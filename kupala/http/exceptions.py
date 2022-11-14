@@ -6,7 +6,7 @@ from kupala.exceptions import KupalaError
 class HTTPException(BaseHTTPException, KupalaError):
     message: str | None = None
 
-    def __init__(self, status_code: int, message: str = None) -> None:  # pragma: nocover
+    def __init__(self, status_code: int, message: str | None = None) -> None:  # pragma: nocover
         self.message = message or self.message
         super().__init__(status_code=status_code, detail=message)  # type: ignore
 
@@ -14,7 +14,7 @@ class HTTPException(BaseHTTPException, KupalaError):
 class _BasePredefinedHTTPException(HTTPException):
     status_code: int
 
-    def __init__(self, message: str = None) -> None:
+    def __init__(self, message: str | None = None) -> None:
         super().__init__(self.status_code, message)
 
 

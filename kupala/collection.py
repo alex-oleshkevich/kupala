@@ -28,7 +28,7 @@ def attribute_reader(obj: typing.Any, attr: str, default: typing.Any = None) -> 
 
 
 class Collection(typing.Generic[E]):
-    def __init__(self, items: typing.Iterable[E] = None) -> None:
+    def __init__(self, items: typing.Iterable[E] | None = None) -> None:
         self._position = 0
         self.items = list(items or [])
 

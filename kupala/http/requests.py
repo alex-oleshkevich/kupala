@@ -20,17 +20,17 @@ if typing.TYPE_CHECKING:
 
 
 class QueryParams(requests.QueryParams):
-    def get_bool(self, key: str, default: bool = None) -> bool | None:
+    def get_bool(self, key: str, default: bool | None = None) -> bool | None:
         value = self.get(key, None)
         return value.lower() in ["t", "true", "yes", "on", "1"] if value is not None else default
 
-    def get_list(self, key: str, subcast: typing.Callable = None) -> list[str]:
+    def get_list(self, key: str, subcast: typing.Callable | None = None) -> list[str]:
         items = self.getlist(key)
         if subcast:
             return list(map(subcast, items))
         return items
 
-    def get_int(self, key: str, default: int = None) -> typing.Optional[int]:
+    def get_int(self, key: str, default: int | None = None) -> typing.Optional[int]:
         value: str = self.get(key, "")
         return int(value) if value != "" and value.isnumeric() else default
 

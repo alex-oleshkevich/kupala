@@ -40,7 +40,7 @@ class Middleware:
 class MiddlewareStack:
     """Keeps track about all middleware used."""
 
-    def __init__(self, middleware: list[Middleware] = None) -> None:
+    def __init__(self, middleware: list[Middleware] | None = None) -> None:
         self._global: list[Middleware] = middleware or []
 
     def add(self, mw: Middleware) -> None:

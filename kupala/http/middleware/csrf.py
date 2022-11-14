@@ -47,7 +47,7 @@ def validate_csrf_token(
     timed_token: str,
     secret_key: str,
     salt: str = "_csrf_",
-    max_age: int = None,
+    max_age: int | None = None,
 ) -> bool:
     if not timed_token or not session_token:
         raise TokenMissingError("CSRF token is missing.")

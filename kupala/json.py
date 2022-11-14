@@ -8,7 +8,6 @@ import functools
 import typing
 import uuid
 from babel.support import LazyProxy
-from pydantic import BaseModel
 
 try:
     import ujson as json  # type: ignore[import]
@@ -31,7 +30,6 @@ _type_to_encoder: dict[type, typing.Callable] = {
     bytes: lambda x: x.decode(),
     LazyProxy: str,
     enum.Enum: lambda x: x.value,
-    BaseModel: lambda x: x.dict(),
 }
 
 

@@ -77,7 +77,7 @@ class Route(routing.Route):
 def route(
     path: str,
     *,
-    methods: list[str] = None,
+    methods: list[str] | None = None,
     name: str | None = None,
     guards: list[Guard] | None = None,
     middleware: list[Middleware] | None = None,
@@ -110,7 +110,7 @@ class Routes(typing.Iterable[Route]):
         self,
         path: str,
         *,
-        methods: list[str] = None,
+        methods: list[str] | None = None,
         name: str | None = None,
         guards: list[Guard] | None = None,
     ) -> typing.Callable:

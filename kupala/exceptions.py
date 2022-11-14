@@ -10,8 +10,8 @@ class ValidationError(KupalaError):
 
     def __init__(
         self,
-        message: str = None,
-        errors: typing.Mapping[str, list[str]] = None,
+        message: str | None = None,
+        errors: typing.Mapping[str, list[str]] | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message

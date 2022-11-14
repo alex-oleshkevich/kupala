@@ -13,7 +13,7 @@ def camel_to_snake(name: str) -> str:
     return CAMEL_TO_SNAKE_PATTERN.sub("_", name).lower()
 
 
-def import_string(path: str, package: str = None) -> typing.Any:
+def import_string(path: str, package: str | None = None) -> typing.Any:
     attr = None
     if ":" in path:
         module_name, attr = path.split(":")

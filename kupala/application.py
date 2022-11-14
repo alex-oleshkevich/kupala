@@ -44,7 +44,7 @@ class App:
         routes: typing.Iterable[BaseRoute] | None = None,
         middleware: typing.Iterable[Middleware] | MiddlewareStack | None = None,
         error_handlers: dict[typing.Type[Exception] | int, ErrorHandler] | None = None,
-        lifespan_handlers: typing.Iterable[LifespanHandler] = None,
+        lifespan_handlers: typing.Iterable[LifespanHandler] | None = None,
         jinja_env: jinja2.Environment | None = None,
         static_dir: str | os.PathLike | typing.Literal["auto"] | None = "auto",
         template_dir: str | os.PathLike | list[str | os.PathLike] | typing.Literal["auto"] = "auto",
