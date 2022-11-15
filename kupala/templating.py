@@ -77,6 +77,8 @@ def url_matches(request: Request, path_name: str, **path_params: typing.Any) -> 
 def framework_processors(request: Request) -> dict[str, typing.Any]:
     return {
         "app": request.app,
+        "url": request.url_for,
+        "abs_url": request.absolute_url_for,
         "static_url": functools.partial(static_url, request),
         "media_url": functools.partial(media_url, request),
         "url_matches": functools.partial(url_matches, request),
