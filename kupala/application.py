@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import typing
-from starception import install_error_handler
 from starlette.applications import Starlette
 from starlette.datastructures import State
 from starlette.middleware import Middleware
@@ -34,7 +33,6 @@ class Kupala(Starlette):
         lifespan: typing.Callable[["Starlette"], typing.AsyncContextManager] | None = None,
         dependencies: Injector | None = None,
     ) -> None:
-        install_error_handler()
         super().__init__(
             debug=debug, routes=routes, middleware=middleware, exception_handlers=exception_handlers, lifespan=lifespan
         )

@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "kupala"
 description = "A modern web framework for Python."
-version = "0.17.2"
+version = "0.17.3"
 authors = ["Alex Oleshkevich <alex.oleshkevich@gmail.com>"]
 license = "MIT"
 readme = "README.md"
@@ -29,7 +29,6 @@ python-multipart = "^0.0"
 Babel = "^2.9"
 aioredis = { version = "^2.0", optional = true }
 msgpack = { version = "^1.0", optional = true }
-starception = "^1.0"
 itsdangerous = "^2.1.2"
 python-dotenv = "^0.20.0"
 starlette-flash = "^0.1.0"
