@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import functools
+import inspect
 import typing
 from starlette import routing
+from starlette.concurrency import run_in_threadpool
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from kupala.dependencies import generate_injections
 from kupala.http import Request
-from kupala.http.dispatching import create_view_dispatcher
 from kupala.http.guards import Guard
 from kupala.http.middleware import Middleware
 from kupala.http.middleware.guards import GuardsMiddleware
@@ -95,3 +98,23 @@ class Routes(typing.Iterable[Route]):
         routes_count = len(self._routes)
         noun = "route" if routes_count == 1 else "routes"
         return f"<{self.__class__.__name__}: {routes_count} {noun}>"
+
+
+def create_view_dispatcher(fn: typing.Callable) -> typing.Callable[[Request], typing.Awaitable[ASGIApp]]:
+    signature = inspect.signature(fn)
+    parameters = dict(signature.parameters)
+
+    @functools.wraps(fn)
+    async def view_decorator(request: Request) -> ASGIApp:
+        # make sure view receives our request class
+        request.__class__ = Request
+        view_args = await generate_injections(request, parameters)
+
+        if inspect.iscoroutinefunction(fn):
+            response = await fn(**view_args)
+        else:
+            response = await run_in_threadpool(fn, **view_args)
+
+        return typing.cast(ASGIApp, response)
+
+    return view_decorator
