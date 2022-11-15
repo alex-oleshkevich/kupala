@@ -4,7 +4,6 @@ import functools
 import jinja2
 import typing
 from jinja2.runtime import Macro
-from markupsafe import Markup
 from starlette import responses, templating
 
 from kupala.http.requests import Request
@@ -59,14 +58,6 @@ class DynamicChoiceLoader(jinja2.ChoiceLoader):
         # don't touch the first loader, this is usually project's template directory
         # also, don't append it because the last loader should be one that loads templates from the framework
         self.loaders.insert(1, loader)
-
-
-library = Library()
-
-
-@library.filters.register("nl2br")
-def nl2br_filter(value: str) -> str:
-    return Markup(value.replace("\n", "<br>"))
 
 
 def media_url(request: Request, path: str, path_name: str = "media") -> str:
