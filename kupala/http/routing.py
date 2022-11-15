@@ -8,7 +8,6 @@ from starlette.concurrency import run_in_threadpool
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.dependencies import generate_injections
 from kupala.http import Request
 from kupala.http.guards import Guard
 from kupala.http.middleware import Middleware
@@ -108,7 +107,7 @@ def create_view_dispatcher(fn: typing.Callable) -> typing.Callable[[Request], ty
     async def view_decorator(request: Request) -> ASGIApp:
         # make sure view receives our request class
         request.__class__ = Request
-        view_args = await generate_injections(request, parameters)
+        view_args = await request.app.dependencies.generate_injections(request, parameters)
 
         if inspect.iscoroutinefunction(fn):
             response = await fn(**view_args)

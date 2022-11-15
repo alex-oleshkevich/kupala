@@ -5,8 +5,7 @@ import dataclasses
 import inspect
 import typing
 
-if typing.TYPE_CHECKING:
-    from kupala.http.requests import Request
+from kupala.http.requests import Request
 
 InjectFactory = typing.Callable[["Request"], typing.Any]
 
@@ -66,35 +65,34 @@ class Injector:
 
         return decorator
 
+    async def generate_injections(
+        self, request: Request, parameters: dict[str, inspect.Parameter]
+    ) -> dict[str, typing.Any]:
+        injections = request.path_params
+        for param_name, param in parameters.items():
+            annotation = param.annotation
 
-async def generate_injections(request: Request, parameters: dict[str, inspect.Parameter]) -> dict[str, typing.Any]:
-    from kupala.http.requests import Request
+            if param_name in request.path_params:
+                continue
 
-    injections = request.path_params
-    for param_name, param in parameters.items():
-        annotation = param.annotation
+            if hasattr(annotation, "__origin__"):  # generic types
+                annotation = getattr(annotation, "__origin__")
 
-        if param_name in request.path_params:
-            continue
+            if annotation == Request:
+                injections[param_name] = request
+                continue
 
-        if hasattr(annotation, "__origin__"):  # generic types
-            annotation = getattr(annotation, "__origin__")
+            try:
+                injection = request.app.dependencies.get_dependency(annotation)
+                type_or_coro = await injection.resolve(request)
 
-        if annotation == Request:
-            injections[param_name] = request
-            continue
+                if inspect.iscoroutine(type_or_coro):
+                    type_or_coro = await type_or_coro
+            except NoDependency:
+                if param.default == inspect.Parameter.empty:
+                    raise
+                type_or_coro = None
 
-        try:
-            injection = request.app.dependencies.get_dependency(annotation)
-            type_or_coro = await injection.resolve(request)
+            injections[param_name] = type_or_coro
 
-            if inspect.iscoroutine(type_or_coro):
-                type_or_coro = await type_or_coro
-        except NoDependency:
-            if param.default == inspect.Parameter.empty:
-                raise
-            type_or_coro = None
-
-        injections[param_name] = type_or_coro
-
-    return injections
+        return injections
