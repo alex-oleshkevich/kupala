@@ -79,19 +79,19 @@ def test_render_to_response_with_context_processors(jinja_env: jinja2.Environmen
 def test_render_block_to_response(jinja_env: jinja2.Environment) -> None:
     templates = Jinja2Templates(jinja_env)
     response = templates.TemplateBlockResponse("index.html", "main")
-    assert response.content == "MAIN BLOCK CONTENT "
+    assert response.body == b"MAIN BLOCK CONTENT "
 
 
 def test_render_block_to_response_with_context(jinja_env: jinja2.Environment) -> None:
     templates = Jinja2Templates(jinja_env)
     response = templates.TemplateBlockResponse("index.html", "main", {"block_var": "value"})
-    assert response.content == "MAIN BLOCK CONTENT value"
+    assert response.body == b"MAIN BLOCK CONTENT value"
 
 
 def test_render_macro_to_response(jinja_env: jinja2.Environment) -> None:
     templates = Jinja2Templates(jinja_env)
     response = templates.TemplateMacroResponse("index.html", "feature", macro_kwargs={"name": "value"})
-    assert response.content == "MACRO value"
+    assert response.body == b"MACRO value"
 
 
 def test_render_to_string(jinja_env: jinja2.Environment) -> None:

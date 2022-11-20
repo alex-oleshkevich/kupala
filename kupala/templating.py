@@ -126,7 +126,7 @@ class Jinja2Templates:
         content_type: str = "text/html",
     ) -> Response:
         content = self.render_block_to_string(template_name, block_name, context)
-        return Response(content=content, status_code=status_code, headers=headers, content_type=content_type)
+        return Response(content=content, status_code=status_code, headers=headers, media_type=content_type)
 
     def TemplateMacroResponse(
         self,
@@ -139,7 +139,7 @@ class Jinja2Templates:
         content_type: str = "text/html",
     ) -> Response:
         content = self.render_macro_to_string(template_name, macro_name, macro_kwargs)
-        return Response(content=content, status_code=status_code, headers=headers, content_type=content_type)
+        return Response(content=content, status_code=status_code, headers=headers, media_type=content_type)
 
     def macro(self, template_name: str, macro_name: str) -> Macro:
         return getattr(self.get_template(template_name).module, macro_name)

@@ -19,7 +19,6 @@ from .requests import QueryParams, Request
 from .responses import (
     EmptyResponse,
     FileResponse,
-    GoBackResponse,
     HTMLResponse,
     JSONResponse,
     PlainTextResponse,
@@ -44,7 +43,6 @@ __all__ = [
     "StreamingResponse",
     "RedirectResponse",
     "EmptyResponse",
-    "GoBackResponse",
     "Host",
     "Mount",
     "Route",
