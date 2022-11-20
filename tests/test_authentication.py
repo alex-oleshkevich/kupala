@@ -194,7 +194,7 @@ def test_middleware_authenticates_via_remember_me() -> None:
             SessionMiddleware(
                 AuthenticationMiddleware(
                     app,
-                    authenticators=[RememberMeAuthenticator(user_loader=user_loader)],
+                    authenticators=[RememberMeAuthenticator(user_loader=user_loader, secret_key="key!")],
                 ),
                 secret_key="key!",
             ),
@@ -232,7 +232,7 @@ def test_middleware_not_authenticates_invalid_users_via_remember_me() -> None:
             SessionMiddleware(
                 AuthenticationMiddleware(
                     app,
-                    authenticators=[RememberMeAuthenticator(user_loader=user_loader)],
+                    authenticators=[RememberMeAuthenticator(user_loader=user_loader, secret_key="key!")],
                 ),
                 secret_key="key!",
             ),
@@ -270,7 +270,7 @@ def test_middleware_remember_me_not_fails_on_tampered_cookie() -> None:
             SessionMiddleware(
                 AuthenticationMiddleware(
                     app,
-                    authenticators=[RememberMeAuthenticator(user_loader=user_loader)],
+                    authenticators=[RememberMeAuthenticator(user_loader=user_loader, secret_key="key!")],
                 ),
                 secret_key="key!",
             ),

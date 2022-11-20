@@ -117,16 +117,18 @@ class RememberMeAuthenticator:
     def __init__(
         self,
         user_loader: ByIdUserFinder,
+        secret_key: str,
         *,
         cookie_name: str = REMEMBER_COOKIE_NAME,
     ) -> None:
+        self.secret_key = secret_key
         self.user_loader = user_loader
         self.cookie_name = cookie_name
 
     async def __call__(self, connection: HTTPConnection) -> AuthToken | None:
         if cookie_value := connection.cookies.get(self.cookie_name):
             try:
-                signer = Signer(secret_key=connection.app.secret_key)
+                signer = Signer(secret_key=self.secret_key)
                 user_id = signer.unsign(cookie_value).decode("utf8")
                 if user := await self.user_loader(connection, user_id):
                     return AuthToken(user=user, state=LoginState.REMEMBERED)
