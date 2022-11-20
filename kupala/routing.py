@@ -3,39 +3,11 @@ from __future__ import annotations
 import functools
 import inspect
 import typing
-from starlette import routing
 from starlette.concurrency import run_in_threadpool
 from starlette.routing import Route
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp
 
-from kupala.guards import Guard
-from kupala.middleware import Middleware
-from kupala.middleware.guards import GuardsMiddleware
 from kupala.requests import Request
-
-
-def apply_middleware(app: typing.Callable, middleware: typing.Iterable[Middleware]) -> ASGIApp:
-    for mw in reversed(list(middleware)):
-        app = mw.wrap(app)
-    return app
-
-
-class Mount(routing.Mount):
-    def __init__(
-        self,
-        path: str,
-        app: ASGIApp | None = None,
-        routes: typing.Sequence[routing.BaseRoute] | None = None,
-        name: str | None = None,
-        middleware: typing.Iterable[Middleware] | None = None,
-        guards: typing.Iterable[Guard] | None = None,
-    ) -> None:
-        middleware = list(middleware or [])
-
-        if guards:
-            middleware.append(Middleware(GuardsMiddleware, guards=guards))
-
-        super().__init__(path, app=app, routes=routes, name=name, middleware=middleware)  # type: ignore[arg-type]
 
 
 def route(
@@ -43,23 +15,9 @@ def route(
     *,
     methods: list[str] | None = None,
     name: str | None = None,
-    guards: list[Guard] | None = None,
-    middleware: list[Middleware] | None = None,
 ) -> typing.Callable[[typing.Callable], Route]:
-    middleware = middleware or []
-    if guards:
-        middleware.append(Middleware(GuardsMiddleware, guards=guards))
-
     def decorator(fn: typing.Callable) -> Route:
-        view_handler = handler = create_view_dispatcher(fn)
-
-        if middleware:
-
-            async def _asgi_handler(scope: Scope, receive: Receive, send: Send) -> None:
-                response = await view_handler(Request(scope, receive, send))
-                await response(scope, receive, send)
-
-            handler = apply_middleware(_asgi_handler, middleware)  # type: ignore[assignment]
+        handler = create_view_dispatcher(fn)
 
         return Route(path=path, endpoint=handler, name=name, methods=methods)
 
@@ -76,10 +34,9 @@ class Routes(typing.Iterable[Route]):
         *,
         methods: list[str] | None = None,
         name: str | None = None,
-        guards: list[Guard] | None = None,
     ) -> typing.Callable:
         def decorator(fn: typing.Callable) -> typing.Callable:
-            route_ = route(path, methods=methods, name=name, guards=guards)(fn)
+            route_ = route(path, methods=methods, name=name)(fn)
             self._routes.append(route_)
             return fn
 
