@@ -36,7 +36,7 @@ class Kupala(Starlette):
         super().__init__(
             debug=debug, routes=routes, middleware=middleware, exception_handlers=exception_handlers, lifespan=lifespan
         )
-        self.dependencies = dependencies or Injector()
+        self.state.dependencies = dependencies or Injector()
 
 
 App = Kupala

@@ -64,7 +64,7 @@ def create_view_dispatcher(fn: typing.Callable) -> typing.Callable[[Request], ty
     async def view_decorator(request: Request) -> ASGIApp:
         # make sure view receives our request class
         request.__class__ = Request
-        view_args = await request.app.dependencies.generate_injections(request, parameters)
+        view_args = await request.app.state.dependencies.generate_injections(request, parameters)
 
         if inspect.iscoroutinefunction(fn):
             response = await fn(**view_args)
