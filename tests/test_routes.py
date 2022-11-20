@@ -1,7 +1,6 @@
-from kupala.http import route
-from kupala.http.requests import Request
-from kupala.http.responses import Response
-from kupala.http.routing import Routes
+from kupala.requests import Request
+from kupala.responses import Response
+from kupala.routing import Routes, route
 
 
 @route("/")

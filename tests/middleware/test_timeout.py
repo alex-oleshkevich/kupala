@@ -3,8 +3,8 @@ import pytest
 from starlette.testclient import TestClient
 from starlette.types import Receive, Scope, Send
 
-from kupala.http.middleware.timeout import TimeoutMiddleware
-from kupala.http.responses import PlainTextResponse
+from kupala.middleware.timeout import TimeoutMiddleware
+from kupala.responses import PlainTextResponse
 
 
 async def app(scope: Scope, receive: Receive, send: Send) -> None:

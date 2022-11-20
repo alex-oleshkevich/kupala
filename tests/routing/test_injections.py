@@ -6,7 +6,9 @@ from starlette.testclient import TestClient
 
 from kupala.application import Kupala
 from kupala.dependencies import Injector
-from kupala.http import Request, Response, route
+from kupala.requests import Request
+from kupala.responses import Response
+from kupala.routing import route
 
 
 @dataclasses.dataclass

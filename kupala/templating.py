@@ -6,8 +6,8 @@ import typing
 from jinja2.runtime import Macro
 from starlette import responses, templating
 
-from kupala.http.requests import Request
-from kupala.http.responses import Response
+from kupala.requests import Request
+from kupala.responses import Response
 
 
 class ContextProcessor(typing.Protocol):  # pragma: nocover

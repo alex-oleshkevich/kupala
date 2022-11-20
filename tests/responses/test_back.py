@@ -1,6 +1,6 @@
-from kupala.http import route
-from kupala.http.requests import Request
-from kupala.http.responses import RedirectResponse, Response
+from kupala.requests import Request
+from kupala.responses import RedirectResponse, Response
+from kupala.routing import route
 from tests.conftest import TestClientFactory
 
 

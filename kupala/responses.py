@@ -6,8 +6,8 @@ from starlette.background import BackgroundTask
 from starlette.responses import FileResponse, HTMLResponse, PlainTextResponse, Response, StreamingResponse
 from starlette_flash import flash
 
-from kupala.http import Request
 from kupala.json import dumps as json_dump
+from kupala.requests import Request
 
 __all__ = [
     "Response",

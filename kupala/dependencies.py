@@ -5,7 +5,7 @@ import dataclasses
 import inspect
 import typing
 
-from kupala.http.requests import Request
+from kupala.requests import Request
 
 InjectFactory = typing.Callable[["Request"], typing.Any]
 

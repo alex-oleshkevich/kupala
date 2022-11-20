@@ -1,8 +1,9 @@
 from starlette.types import ASGIApp, Receive, Scope, Send
 from unittest import mock
 
-from kupala.http import Request, Response, route
-from kupala.http.middleware import Middleware
+from kupala.middleware import Middleware
+from kupala.responses import Response
+from kupala.routing import Request, route
 from tests.conftest import TestClientFactory
 
 

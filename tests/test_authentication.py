@@ -22,7 +22,8 @@ from kupala.authentication import (
     logout,
     remember_me,
 )
-from kupala.http import Request, Response
+from kupala.requests import Request
+from kupala.responses import Response
 
 
 @dataclasses.dataclass

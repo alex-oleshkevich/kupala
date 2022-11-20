@@ -8,10 +8,10 @@ from starlette.concurrency import run_in_threadpool
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.http import Request
-from kupala.http.guards import Guard
-from kupala.http.middleware import Middleware
-from kupala.http.middleware.guards import GuardsMiddleware
+from kupala.guards import Guard
+from kupala.middleware import Middleware
+from kupala.middleware.guards import GuardsMiddleware
+from kupala.requests import Request
 
 
 def apply_middleware(app: typing.Callable, middleware: typing.Iterable[Middleware]) -> ASGIApp:

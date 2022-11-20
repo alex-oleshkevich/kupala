@@ -7,8 +7,8 @@ from starlette.testclient import TestClient
 from starlette.types import ASGIApp
 
 from kupala.application import App
-from kupala.http import Routes
-from kupala.http.middleware import Middleware
+from kupala.middleware import Middleware
+from kupala.routing import Routes
 
 
 class TestAppFactory(typing.Protocol):  # pragma: nocover

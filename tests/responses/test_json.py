@@ -1,8 +1,8 @@
 import typing as t
 
-from kupala.http import route
-from kupala.http.requests import Request
-from kupala.http.responses import JSONResponse
+from kupala.requests import Request
+from kupala.responses import JSONResponse
+from kupala.routing import route
 from tests.conftest import TestClientFactory
 
 

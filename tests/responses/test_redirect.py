@@ -1,10 +1,10 @@
 from starlette.middleware.sessions import SessionMiddleware
 from starlette_flash import flash
 
-from kupala.http import Routes, route
-from kupala.http.middleware import Middleware
-from kupala.http.requests import Request
-from kupala.http.responses import JSONResponse, RedirectResponse
+from kupala.middleware import Middleware
+from kupala.requests import Request
+from kupala.responses import JSONResponse, RedirectResponse
+from kupala.routing import Routes, route
 from tests.conftest import TestClientFactory
 
 

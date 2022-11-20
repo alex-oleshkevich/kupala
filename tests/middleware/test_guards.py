@@ -2,8 +2,9 @@ from starlette.testclient import TestClient
 from starlette.types import Receive, Scope, Send
 from unittest import mock
 
-from kupala.http import Request, Response
-from kupala.http.middleware.guards import GuardsMiddleware
+from kupala.middleware import GuardsMiddleware
+from kupala.requests import Request
+from kupala.responses import Response
 
 
 def test_middleware_calls_guards() -> None:

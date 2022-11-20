@@ -2,7 +2,7 @@ import pytest
 import typing as t
 
 from kupala.authentication import AnonymousUser, AuthToken, LoginState
-from kupala.http.requests import Request
+from kupala.requests import Request
 
 
 @pytest.fixture()

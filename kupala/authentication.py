@@ -9,7 +9,7 @@ from starlette.requests import HTTPConnection
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 if typing.TYPE_CHECKING:  # pragma: nocover
-    from kupala.http.responses import Response
+    from kupala.responses import Response
 
 SESSION_KEY = "__user_id__"
 REMEMBER_COOKIE_NAME = "remember_me"

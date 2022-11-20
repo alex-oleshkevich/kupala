@@ -2,10 +2,9 @@ import pytest
 from itsdangerous import URLSafeTimedSerializer
 from starlette.middleware.sessions import SessionMiddleware
 
-from kupala.http import route
-from kupala.http.exceptions import PermissionDenied
-from kupala.http.middleware import Middleware
-from kupala.http.middleware.csrf import (
+from kupala.exceptions import PermissionDenied
+from kupala.middleware import Middleware
+from kupala.middleware.csrf import (
     CSRFError,
     CSRFMiddleware,
     TokenDecodeError,
@@ -15,8 +14,9 @@ from kupala.http.middleware.csrf import (
     generate_token,
     validate_csrf_token,
 )
-from kupala.http.requests import Request
-from kupala.http.responses import PlainTextResponse
+from kupala.requests import Request
+from kupala.responses import PlainTextResponse
+from kupala.routing import route
 from tests.conftest import TestClientFactory
 
 

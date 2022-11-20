@@ -4,7 +4,7 @@ import typing
 from pathlib import Path
 from starlette.datastructures import MutableHeaders
 
-from kupala.http import Request
+from kupala.requests import Request
 from kupala.templating import Jinja2Templates, Library
 
 template = """SIMPLE TEXT
