@@ -1,9 +1,9 @@
 import pytest
+from starlette.testclient import TestClient
 from starlette.types import Receive, Scope, Send
 
 from kupala.http import PlainTextResponse, Request
 from kupala.http.middleware.method_override import MethodOverrideMiddleware
-from kupala.testclient import TestClient
 
 
 async def app(scope: Scope, receive: Receive, send: Send) -> None:

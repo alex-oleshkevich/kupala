@@ -1,11 +1,11 @@
 import pytest
+from starlette.testclient import TestClient
 from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket
 
 from kupala.http.middleware.request_limit import RequestLimitMiddleware
 from kupala.http.requests import Request
 from kupala.http.responses import PlainTextResponse
-from kupala.testclient import TestClient
 
 
 async def app(scope: Scope, receive: Receive, send: Send) -> None:

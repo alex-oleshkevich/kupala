@@ -2,11 +2,11 @@ import dataclasses
 
 import pytest
 import typing
+from starlette.testclient import TestClient
 
 from kupala.application import Kupala
 from kupala.dependencies import Injector
 from kupala.http import Request, Response, route
-from kupala.testclient import TestClient
 
 
 @dataclasses.dataclass

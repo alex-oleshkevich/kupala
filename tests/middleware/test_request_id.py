@@ -1,9 +1,9 @@
 import pytest
+from starlette.testclient import TestClient
 from starlette.types import Receive, Scope, Send
 
 from kupala.http import PlainTextResponse, Request, Routes
 from kupala.http.middleware.request_id import RequestIDMiddleware
-from kupala.testclient import TestClient
 from tests.conftest import TestAppFactory
 
 

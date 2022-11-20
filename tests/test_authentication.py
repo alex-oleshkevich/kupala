@@ -4,6 +4,7 @@ import datetime
 from itsdangerous import Signer
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import HTTPConnection
+from starlette.testclient import TestClient
 from starlette.types import ASGIApp, Receive, Scope, Send
 from unittest import mock
 
@@ -22,7 +23,6 @@ from kupala.authentication import (
     remember_me,
 )
 from kupala.http import Request, Response
-from kupala.testclient import TestClient
 
 
 @dataclasses.dataclass
