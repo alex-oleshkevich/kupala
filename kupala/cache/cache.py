@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import inspect
 import typing
-import urllib.parse
 from datetime import timedelta
 
 from kupala.cache.backends import CacheBackend, DummyCache, FileCache, InMemoryCache
@@ -21,18 +20,6 @@ _BACKENDS: dict[str, typing.Type[CacheBackend]] = {
     "dummy": DummyCache,
     "file": FileCache,
 }
-
-
-def backend_from_url(url: str) -> CacheBackend:
-    scheme = urllib.parse.urlparse(url).scheme
-    if scheme == "redis":
-        from .backends.redis import RedisCache
-
-        return RedisCache.from_url(url)
-    try:
-        return _BACKENDS[scheme].from_url(url)
-    except KeyError:
-        raise KeyError(f"Unknown backend: {scheme}://")
 
 
 class Cache:
@@ -126,22 +113,3 @@ class Cache:
 
     def _make_keys(self, keys: typing.Iterable[str]) -> typing.Iterable[str]:
         return [self._make_key(key) for key in keys]
-
-
-class CacheManager:
-    def __init__(self, caches: dict[str, Cache] | None = None, default: str = "default") -> None:
-        self._default_cache_name = default
-        self._caches = caches or {}
-
-    @property
-    def default(self) -> Cache:
-        return self.get(self._default_cache_name)
-
-    def get(self, name: str) -> Cache:
-        assert name in self._caches, f'Cache "{name}" is not configured.'
-        return self._caches[name]
-
-    def add(self, name: str, cache: Cache) -> CacheManager:
-        assert name not in self._caches, f'Cache "{name}" already configured.'
-        self._caches[name] = cache
-        return self
