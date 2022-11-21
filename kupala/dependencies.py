@@ -4,6 +4,7 @@ import dataclasses
 
 import inspect
 import typing
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.requests import Request
 
@@ -83,7 +84,7 @@ class Injector:
                 continue
 
             try:
-                injection = request.app.state.dependencies.get_dependency(annotation)
+                injection = request.state.dependencies.get_dependency(annotation)
                 type_or_coro = await injection.resolve(request)
 
                 if inspect.iscoroutine(type_or_coro):
@@ -96,3 +97,14 @@ class Injector:
             injections[param_name] = type_or_coro
 
         return injections
+
+
+class DiMiddleware:
+    def __init__(self, app: ASGIApp, injector: Injector) -> None:
+        self.app = app
+        self.injector = injector
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        scope.setdefault("state", {})
+        scope["state"]["dependencies"] = self.injector
+        await self.app(scope, receive, send)

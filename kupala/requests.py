@@ -10,9 +10,6 @@ from starlette.types import Receive, Scope, Send
 
 from kupala.authentication import AnonymousUser, AuthToken, LoginState, UserLike
 
-if typing.TYPE_CHECKING:
-    from kupala.application import App
-
 
 class QueryParams(requests.QueryParams):
     def get_bool(self, key: str, default: bool | None = None) -> bool | None:
@@ -55,10 +52,6 @@ class Request(requests.Request, typing.Generic[S, U]):
     @property
     def query_params(self) -> QueryParams:
         return QueryParams(super().query_params)
-
-    @property
-    def app(self) -> "App":
-        return self.scope["app"]
 
     @property
     def auth(self) -> AuthToken[U]:

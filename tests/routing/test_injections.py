@@ -2,10 +2,11 @@ import dataclasses
 
 import pytest
 import typing
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
 from starlette.testclient import TestClient
 
-from kupala.application import Kupala
-from kupala.dependencies import Injector
+from kupala.dependencies import DiMiddleware, Injector
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import route
@@ -59,7 +60,13 @@ def test_injects_dependencies(injector: Injector) -> None:
     async def view(request: Request, db: Db) -> Response:
         return Response(db.name)
 
-    app = Kupala(debug=True, routes=[view], dependencies=injector)
+    app = Starlette(
+        debug=True,
+        routes=[view],
+        middleware=[
+            Middleware(DiMiddleware, injector=injector),
+        ],
+    )
     client = TestClient(app=app)
     response = client.get("/")
     assert response.text == "postgres"
@@ -70,7 +77,12 @@ def test_injects_async_dependencies(injector: Injector) -> None:
     async def view(request: Request, db: ADb) -> Response:
         return Response(db.name)
 
-    app = Kupala(routes=[view], dependencies=injector)
+    app = Starlette(
+        routes=[view],
+        middleware=[
+            Middleware(DiMiddleware, injector=injector),
+        ],
+    )
     client = TestClient(app)
     response = client.get("/")
     assert response.text == "postgres"
@@ -81,7 +93,12 @@ def test_cached_dependencies(injector: Injector) -> None:
     async def view(request: Request, db: CachedDb) -> Response:
         return Response(str(id(db)))
 
-    app = Kupala(routes=[view], dependencies=injector)
+    app = Starlette(
+        routes=[view],
+        middleware=[
+            Middleware(DiMiddleware, injector=injector),
+        ],
+    )
     client = TestClient(app)
     assert client.get("/").text == client.get("/").text
 
@@ -91,7 +108,12 @@ def test_cached_async_dependencies(injector: Injector) -> None:
     async def view(request: Request, db: ACachedDb) -> Response:
         return Response(str(id(db)))
 
-    app = Kupala(routes=[view], dependencies=injector)
+    app = Starlette(
+        routes=[view],
+        middleware=[
+            Middleware(DiMiddleware, injector=injector),
+        ],
+    )
     client = TestClient(app)
     assert client.get("/").text == client.get("/").text
 
@@ -101,7 +123,12 @@ def test_injects_dependencies_and_path_params(injector: Injector) -> None:
     async def view(request: Request, db: Db, id: str) -> Response:
         return Response(db.name + id)
 
-    app = Kupala(routes=[view], dependencies=injector)
+    app = Starlette(
+        routes=[view],
+        middleware=[
+            Middleware(DiMiddleware, injector=injector),
+        ],
+    )
     client = TestClient(app)
     response = client.get("/user/42")
     assert response.text == "postgres42"
@@ -112,7 +139,12 @@ def test_handles_untyped_path_params(injector: Injector) -> None:
     async def view(request: Request, db: Db, id) -> Response:  # type: ignore[no-untyped-def]
         return Response(db.name + id)
 
-    app = Kupala(routes=[view], dependencies=injector)
+    app = Starlette(
+        routes=[view],
+        middleware=[
+            Middleware(DiMiddleware, injector=injector),
+        ],
+    )
     client = TestClient(app)
     response = client.get("/user/42")
     assert response.text == "postgres42"
@@ -123,7 +155,12 @@ def test_not_fail_for_optional_path_params(injector: Injector) -> None:
     def view(request: Request, db: Db, id: str | None = None) -> Response:
         return Response("ok")
 
-    app = Kupala(routes=[view], dependencies=injector)
+    app = Starlette(
+        routes=[view],
+        middleware=[
+            Middleware(DiMiddleware, injector=injector),
+        ],
+    )
     client = TestClient(app)
     response = client.get("/user")
     assert response.text == "ok"

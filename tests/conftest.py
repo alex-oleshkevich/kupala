@@ -2,11 +2,12 @@ import os
 import pathlib
 import pytest
 import typing
+from starlette.applications import Starlette
 from starlette.routing import BaseRoute
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp
 
-from kupala.application import App
+from kupala.dependencies import DiMiddleware, Injector
 from kupala.middleware import Middleware
 from kupala.routing import Routes
 
@@ -18,7 +19,7 @@ class TestAppFactory(typing.Protocol):  # pragma: nocover
         middleware: list[Middleware] | None = None,
         routes: Routes | typing.Iterable[BaseRoute] | None = None,
         **kwargs: typing.Any,
-    ) -> App:
+    ) -> Starlette:
         ...
 
 
@@ -37,10 +38,15 @@ class TestClientFactory(typing.Protocol):  # pragma: nocover
 
 @pytest.fixture
 def test_app_factory(tmp_path: os.PathLike) -> TestAppFactory:
-    def factory(*args: typing.Any, **kwargs: typing.Any) -> App:
+    def factory(*args: typing.Any, **kwargs: typing.Any) -> Starlette:
+        injector = Injector()
         kwargs.setdefault("debug", True)
         kwargs.setdefault("routes", Routes())
-        return App(*args, **kwargs)
+        kwargs.setdefault("middleware", [])
+        kwargs["middleware"].append(
+            Middleware(DiMiddleware, injector=injector),
+        )
+        return Starlette(*args, **kwargs)
 
     return factory
 
