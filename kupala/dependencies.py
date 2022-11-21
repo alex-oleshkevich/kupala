@@ -87,7 +87,7 @@ class Injector:
                 continue
 
             try:
-                injection = request.state.dependencies.get_dependency(annotation)
+                injection = self.get_dependency(annotation)
                 type_or_coro = await injection.resolve(request)
 
                 if inspect.iscoroutine(type_or_coro):
