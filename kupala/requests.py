@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 import typing
-from babel.core import Locale
 from starlette import requests
 from starlette.datastructures import State
 from starlette.requests import empty_receive, empty_send
@@ -99,15 +98,6 @@ class Request(requests.Request, typing.Generic[S, U]):
     def is_post(self) -> bool:
         """Test if request was made using POST command."""
         return self.method.upper() == "POST"
-
-    @property
-    def locale(self) -> Locale:
-        assert "locale" in self.scope["state"], "LocaleMiddleware must be installed to access request.locale"
-        return self.state.locale
-
-    @property
-    def language(self) -> str:
-        return self.locale.language
 
     @property
     def is_submitted(self) -> bool:

@@ -25,25 +25,18 @@ classifiers = [
 python = "^3.10"
 starlette = "*"
 Jinja2 = "^3.1"
-python-multipart = "^0.0"
-Babel = "^2.9"
+python-multipart = "*"
 itsdangerous = "^2.1.2"
-python-dotenv = "^0.20.0"
-starlette-flash = "*"
 
 [tool.poetry.group.dev.dependencies]
+Babel = "^2.9"
 pytest = "^7.1"
 pytest-asyncio = "^0.19"
-requests = "^2.28"
 pytest-coverage = "^0.0"
 black = "^22.8"
 mypy = "^0.990"
 flake8 = "^5.0.4"
 uvicorn = "^0.18"
-types-pytz = "^2022.4"
-aioredis = "^2.0"
-msgpack = "^1.0"
-starlette-babel = "^0.1.0"
 httpx = "^0.23.0"
 
 [build-system]

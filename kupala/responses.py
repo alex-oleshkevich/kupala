@@ -4,7 +4,6 @@ import typing
 from starlette import responses
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse, HTMLResponse, PlainTextResponse, Response, StreamingResponse
-from starlette_flash import flash
 
 from kupala.json import dumps as json_dump
 from kupala.requests import Request
@@ -94,16 +93,12 @@ class RedirectResponse(responses.RedirectResponse):
     @classmethod
     def to_url(
         cls,
-        request: Request,
         url: str,
-        flash_message: str,
-        flash_category: str = "success",
         *,
         status_code: int = 302,
         headers: typing.Mapping[str, typing.Any] | None = None,
         background: BackgroundTask | None = None,
     ) -> RedirectResponse:
-        flash(request).add(flash_message, flash_category)
         return cls(url, status_code=status_code, headers=headers, background=background)
 
     @classmethod
@@ -116,13 +111,9 @@ class RedirectResponse(responses.RedirectResponse):
         status_code: int = 302,
         headers: typing.Mapping[str, typing.Any] | None = None,
         background: BackgroundTask | None = None,
-        flash_message: str | None = None,
-        flash_category: str = "success",
     ) -> RedirectResponse:
         path_params = path_params or {}
         url = request.url_for(path_name, **path_params)
-        if flash_message:
-            flash(request).add(flash_message, flash_category)
         return cls(url, status_code=status_code, headers=headers, background=background)
 
     @classmethod
@@ -130,8 +121,6 @@ class RedirectResponse(responses.RedirectResponse):
         cls,
         request: Request,
         *,
-        flash_message: str | None = None,
-        flash_category: str = "success",
         headers: typing.Mapping[str, typing.Any] | None = None,
         background: BackgroundTask | None = None,
     ) -> RedirectResponse:
@@ -140,6 +129,4 @@ class RedirectResponse(responses.RedirectResponse):
         if current_origin not in redirect_to:
             redirect_to = "/"
 
-        if flash_message:
-            flash(request).add(flash_message, flash_category)
         return cls(redirect_to, status_code=302, headers=headers, background=background)
