@@ -82,9 +82,10 @@ class Injector:
             if hasattr(annotation, "__origin__"):  # generic types
                 annotation = getattr(annotation, "__origin__")
 
-            if annotation == Request or annotation == KupalaRequest:
-                injections[param_name] = request
-                continue
+            if inspect.isclass(annotation):
+                if annotation == Request or issubclass(annotation, Request):
+                    injections[param_name] = request
+                    continue
 
             try:
                 injection = self.get_dependency(annotation)
@@ -111,7 +112,7 @@ class Injector:
         else:
             response = await run_in_threadpool(callback, **view_args)
 
-        return typing.cast(ASGIApp, response)
+        return typing.cast(Response, response)
 
 
 class DiMiddleware:
