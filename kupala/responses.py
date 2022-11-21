@@ -5,7 +5,7 @@ from starlette import responses
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse, HTMLResponse, PlainTextResponse, Response, StreamingResponse
 
-from kupala.json import dumps as json_dump
+from kupala.json import dumps as json_dump, json_default as base_json_default
 from kupala.requests import Request
 
 __all__ = [
@@ -41,7 +41,7 @@ class JSONResponse(responses.JSONResponse):
         indent: int | None = 4,
         headers: typing.Mapping[str, typing.Any] | None = None,
         media_type: str | None = None,
-        json_default: typing.Callable[[typing.Any], typing.Any] | None = None,
+        json_default: typing.Callable[[typing.Any], typing.Any] = base_json_default,
         background: BackgroundTask | None = None,
     ) -> None:
         self.indent = indent
@@ -75,7 +75,7 @@ class JSONErrorResponse(JSONResponse):
         status_code: int = 400,
         indent: int = 4,
         headers: typing.Mapping[str, typing.Any] | None = None,
-        json_default: typing.Callable[[typing.Any], typing.Any] | None = None,
+        json_default: typing.Callable[[typing.Any], typing.Any] = base_json_default,
         background: BackgroundTask | None = None,
     ) -> None:
         errors = errors or {}
