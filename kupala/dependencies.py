@@ -4,9 +4,12 @@ import dataclasses
 
 import inspect
 import typing
+from starlette.concurrency import run_in_threadpool
+from starlette.requests import Request
+from starlette.responses import Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.requests import Request
+from kupala.requests import Request as KupalaRequest
 
 InjectFactory = typing.Callable[["Request"], typing.Any]
 
@@ -79,7 +82,7 @@ class Injector:
             if hasattr(annotation, "__origin__"):  # generic types
                 annotation = getattr(annotation, "__origin__")
 
-            if annotation == Request:
+            if annotation == Request or annotation == KupalaRequest:
                 injections[param_name] = request
                 continue
 
@@ -97,6 +100,18 @@ class Injector:
             injections[param_name] = type_or_coro
 
         return injections
+
+    async def dispatch_view(self, request: Request, callback: typing.Callable) -> Response:
+        request.__class__ = KupalaRequest
+        signature = inspect.signature(callback)
+        parameters = dict(signature.parameters)
+        view_args = await self.generate_injections(request, parameters)
+        if inspect.iscoroutinefunction(callback):
+            response = await callback(**view_args)
+        else:
+            response = await run_in_threadpool(callback, **view_args)
+
+        return typing.cast(ASGIApp, response)
 
 
 class DiMiddleware:

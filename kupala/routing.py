@@ -57,19 +57,16 @@ class Routes(typing.Iterable[Route]):
 
 
 def create_view_dispatcher(fn: typing.Callable) -> typing.Callable[[Request], typing.Awaitable[ASGIApp]]:
-    signature = inspect.signature(fn)
-    parameters = dict(signature.parameters)
-
     @functools.wraps(fn)
     async def view_decorator(request: Request) -> ASGIApp:
-        # make sure view receives our request class
         request.__class__ = Request
-        view_args = await request.state.dependencies.generate_injections(request, parameters)
+        if dispatcher := getattr(request.state, "dependencies", None):
+            return await dispatcher.dispatch_view(request, fn)
 
         if inspect.iscoroutinefunction(fn):
-            response = await fn(**view_args)
+            response = await fn(request)
         else:
-            response = await run_in_threadpool(fn, **view_args)
+            response = await run_in_threadpool(fn, request)
 
         return typing.cast(ASGIApp, response)
 
