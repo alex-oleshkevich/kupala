@@ -257,6 +257,18 @@ def test_choices() -> None:
     assert Collection(items).choices("item_name", "item_id") == [(1, "one"), (2, "two"), (3, "three")]
 
 
+def test_choices_attr_getter() -> None:
+    items = [
+        {"item_id": 1, "item_name": "one"},
+        {"item_id": 2, "item_name": "two"},
+        {"item_id": 3, "item_name": "three"},
+    ]
+    assert Collection(items).choices(
+        label_attr=lambda x: x["item_name"],
+        value_attr=lambda x: x["item_id"],
+    ) == [(1, "one"), (2, "two"), (3, "three")]
+
+
 def test_choices_dict() -> None:
     items = [
         {"item_id": 1, "item_name": "one"},

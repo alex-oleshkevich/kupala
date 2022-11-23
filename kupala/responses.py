@@ -39,7 +39,7 @@ class JSONResponse(responses.JSONResponse):
         *,
         status_code: int = 200,
         indent: int | None = 4,
-        headers: typing.Mapping[str, typing.Any] | None = None,
+        headers: typing.Dict[str, str] | None = None,
         media_type: str | None = None,
         json_default: typing.Callable[[typing.Any], typing.Any] = base_json_default,
         background: BackgroundTask | None = None,
@@ -74,7 +74,7 @@ class JSONErrorResponse(JSONResponse):
         error_code: str = "",
         status_code: int = 400,
         indent: int = 4,
-        headers: typing.Mapping[str, typing.Any] | None = None,
+        headers: typing.Dict[str, str] | None = None,
         json_default: typing.Callable[[typing.Any], typing.Any] = base_json_default,
         background: BackgroundTask | None = None,
     ) -> None:

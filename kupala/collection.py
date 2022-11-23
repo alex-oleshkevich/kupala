@@ -21,7 +21,14 @@ def chunked(items: typing.Iterable[E], size: int) -> typing.Generator[list[E], N
         yield result
 
 
-def attribute_reader(obj: typing.Any, attr: str, default: typing.Any = None) -> typing.Any:
+def attribute_reader(
+    obj: typing.Any,
+    attr: str | typing.Callable[[typing.Any], typing.Any],
+    default: typing.Any = None,
+) -> typing.Any:
+    if callable(attr):
+        return attr(obj)
+
     if hasattr(obj, "__getitem__"):
         return obj.get(attr, default)
     return getattr(obj, attr, default)
@@ -113,8 +120,12 @@ class Collection(typing.Generic[E]):
 
         return {key(item): item for item in self}
 
-    def choices(self, label_col: str = "name", value_col: str = "id") -> Choices:
-        return [(attribute_reader(item, value_col), attribute_reader(item, label_col)) for item in self]
+    def choices(
+        self,
+        label_attr: str | typing.Callable[[typing.Any], typing.Any] = "name",
+        value_attr: str | typing.Callable[[typing.Any], typing.Any] = "id",
+    ) -> Choices:
+        return [(attribute_reader(item, value_attr), attribute_reader(item, label_attr)) for item in self]
 
     def choices_dict(
         self, label_col: str = "name", value_col: str = "id", label_key: str = "label", value_key: str = "value"
