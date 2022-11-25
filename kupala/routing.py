@@ -28,6 +28,9 @@ class Routes(typing.Iterable[Route]):
     def __init__(self, routes: typing.Iterable[Route] | None = None) -> None:
         self._routes: list[Route] = list(routes or [])
 
+    def add(self, route: Route) -> None:
+        self._routes.append(route)
+
     def route(
         self,
         path: str,
@@ -37,7 +40,7 @@ class Routes(typing.Iterable[Route]):
     ) -> typing.Callable:
         def decorator(fn: typing.Callable) -> typing.Callable:
             route_ = route(path, methods=methods, name=name)(fn)
-            self._routes.append(route_)
+            self.add(route_)
             return fn
 
         return decorator
