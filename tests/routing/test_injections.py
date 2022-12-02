@@ -118,6 +118,30 @@ def test_cached_async_dependencies(injector: Injector) -> None:
     assert client.get("/").text == client.get("/").text
 
 
+def annotated_db_factory(request: Request) -> Db:
+    return Db("annotated")
+
+
+AnnotatedDb = typing.Annotated[Db, annotated_db_factory]
+
+
+def test_annotation_dependencies(injector: Injector) -> None:
+    @route("/")
+    async def view(request: Request, db: AnnotatedDb) -> Response:
+        return Response(db.name)
+
+    app = Starlette(
+        debug=True,
+        routes=[view],
+        middleware=[
+            Middleware(DiMiddleware, injector=injector),
+        ],
+    )
+    client = TestClient(app=app)
+    response = client.get("/")
+    assert response.text == "annotated"
+
+
 def test_injects_dependencies_and_path_params(injector: Injector) -> None:
     @route("/user/{id}")
     async def view(request: Request, db: Db, id: str) -> Response:
@@ -164,3 +188,23 @@ def test_not_fail_for_optional_path_params(injector: Injector) -> None:
     client = TestClient(app)
     response = client.get("/user")
     assert response.text == "ok"
+
+
+def test_custom_request_class(injector: Injector) -> None:
+    class MyRequest(Request):
+        ...
+
+    @route("/")
+    async def view(request: MyRequest) -> Response:
+        return Response(request.__class__.__name__)
+
+    app = Starlette(
+        debug=True,
+        routes=[view],
+        middleware=[
+            Middleware(DiMiddleware, injector=injector),
+        ],
+    )
+    client = TestClient(app=app)
+    response = client.get("/")
+    assert response.text == "MyRequest"

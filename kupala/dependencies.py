@@ -79,6 +79,13 @@ class Injector:
             if param_name in request.path_params:
                 continue
 
+            if typing.get_origin(annotation) is typing.Annotated:
+                _, factory = typing.get_args(annotation)
+                injections[param_name] = (
+                    await factory(request) if inspect.iscoroutinefunction(factory) else factory(request)
+                )
+                continue
+
             if hasattr(annotation, "__origin__"):  # generic types
                 annotation = getattr(annotation, "__origin__")
 
@@ -107,6 +114,9 @@ class Injector:
         signature = inspect.signature(callback)
         parameters = dict(signature.parameters)
         view_args = await self.generate_injections(request, parameters)
+        if parameters.get("request"):
+            request.__class__ = parameters["request"].annotation
+
         if inspect.iscoroutinefunction(callback):
             response = await callback(**view_args)
         else:
