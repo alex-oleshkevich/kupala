@@ -72,11 +72,12 @@ class Injector:
     async def generate_injections(
         self, request: Request, parameters: dict[str, inspect.Parameter]
     ) -> dict[str, typing.Any]:
-        injections = request.path_params
+        injections = {}
         for param_name, param in parameters.items():
             annotation = param.annotation
 
             if param_name in request.path_params:
+                injections[param_name] = request.path_params[param_name]
                 continue
 
             if typing.get_origin(annotation) is typing.Annotated:

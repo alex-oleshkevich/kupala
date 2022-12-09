@@ -208,3 +208,20 @@ def test_custom_request_class(injector: Injector) -> None:
     client = TestClient(app=app)
     response = client.get("/")
     assert response.text == "MyRequest"
+
+
+def test_ignores_path_param_if_not_requested(injector: Injector) -> None:
+    @route("/{user:int}")
+    async def view() -> Response:
+        return Response("ok")
+
+    app = Starlette(
+        debug=True,
+        routes=[view],
+        middleware=[
+            Middleware(DiMiddleware, injector=injector),
+        ],
+    )
+    client = TestClient(app=app)
+    response = client.get("/1")
+    assert response.text == "ok"
