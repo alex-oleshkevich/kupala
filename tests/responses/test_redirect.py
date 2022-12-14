@@ -16,7 +16,7 @@ def test_redirect_to_path_name(test_client_factory: TestClientFactory) -> None:
     client = test_client_factory(routes=[view, about_view])
     response = client.get("/", allow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"] == "/about"
+    assert response.headers["location"] == "http://testserver/about"
 
 
 def test_redirect_to_path_name_with_path_params(test_client_factory: TestClientFactory) -> None:
@@ -31,7 +31,7 @@ def test_redirect_to_path_name_with_path_params(test_client_factory: TestClientF
     client = test_client_factory(routes=[view, about_view])
     response = client.get("/", allow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"] == "/about/42"
+    assert response.headers["location"] == "http://testserver/about/42"
 
 
 def test_redirect_to_path_name_with_query_params(test_client_factory: TestClientFactory) -> None:
@@ -46,7 +46,7 @@ def test_redirect_to_path_name_with_query_params(test_client_factory: TestClient
     client = test_client_factory(routes=[view, about_view])
     response = client.get("/", allow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"] == "/about?hello=world"
+    assert response.headers["location"] == "http://testserver/about?hello=world"
 
 
 def test_redirect_to_url(test_client_factory: TestClientFactory, routes: Routes) -> None:

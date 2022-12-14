@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 from starlette import requests
-from starlette.datastructures import State
+from starlette.datastructures import URL, State
 from starlette.requests import empty_receive, empty_send
 from starlette.types import Receive, Scope, Send
 
@@ -97,8 +97,8 @@ class Request(requests.Request, typing.Generic[S, U]):
     def is_submitted(self) -> bool:
         return self.method.lower() in ["post", "put", "patch", "delete"]
 
-    def url_for_relative(self, name: str, **path_params: typing.Any) -> str:
-        return self.app.router.url_path_for(name, **path_params)
+    def url_for(self, name: str, **path_params: typing.Any) -> URL:  # type: ignore[override]
+        return URL(super().url_for(name, **path_params))
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}: {self.method} {self.url}>"

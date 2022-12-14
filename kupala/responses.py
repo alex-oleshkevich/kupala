@@ -10,6 +10,10 @@ from kupala.json import dumps as json_dump, json_default as base_json_default
 from kupala.requests import Request
 
 __all__ = [
+    "redirect",
+    "redirect_to_path",
+    "redirect_back",
+    "empty_response",
     "JSONResponse",
     "JSONErrorResponse",
 ]
@@ -25,7 +29,7 @@ def redirect(
 ) -> RedirectResponse:
     redirect_url = URL(url)
     redirect_url = redirect_url.include_query_params(**(query_params or {}))
-    return RedirectResponse(str(redirect_url), status_code=status_code, headers=headers, background=background)
+    return RedirectResponse(redirect_url, status_code=status_code, headers=headers, background=background)
 
 
 def redirect_to_path(
@@ -38,7 +42,7 @@ def redirect_to_path(
     headers: typing.Mapping[str, str] | None = None,
     background: BackgroundTask | None = None,
 ) -> RedirectResponse:
-    redirect_url = URL(request.url_for_relative(path_name, **(path_params or {})))
+    redirect_url = request.url_for(path_name, **(path_params or {}))
     redirect_url = redirect_url.include_query_params(**(query_params or {}))
     return RedirectResponse(str(redirect_url), status_code=status_code, headers=headers, background=background)
 
