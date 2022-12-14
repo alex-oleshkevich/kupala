@@ -3,33 +3,64 @@ from __future__ import annotations
 import typing
 from starlette import responses
 from starlette.background import BackgroundTask
-from starlette.responses import FileResponse, HTMLResponse, PlainTextResponse, Response, StreamingResponse
+from starlette.datastructures import URL
+from starlette.responses import RedirectResponse, Response
 
 from kupala.json import dumps as json_dump, json_default as base_json_default
 from kupala.requests import Request
 
 __all__ = [
-    "Response",
-    "PlainTextResponse",
-    "HTMLResponse",
-    "EmptyResponse",
     "JSONResponse",
     "JSONErrorResponse",
-    "FileResponse",
-    "StreamingResponse",
-    "RedirectResponse",
 ]
 
 
-class EmptyResponse(responses.Response):
-    def __init__(
-        self,
-        *,
-        headers: typing.Mapping[str, str] | None = None,
-        media_type: str | None = None,
-        background: BackgroundTask | None = None,
-    ) -> None:
-        super().__init__(status_code=204, headers=headers, media_type=media_type, background=background)
+def redirect(
+    url: str,
+    *,
+    query_params: dict[str, str | int] | None = None,
+    status_code: int = 302,
+    headers: typing.Mapping[str, str] | None = None,
+    background: BackgroundTask | None = None,
+) -> RedirectResponse:
+    redirect_url = URL(url)
+    redirect_url = redirect_url.include_query_params(**(query_params or {}))
+    return RedirectResponse(str(redirect_url), status_code=status_code, headers=headers, background=background)
+
+
+def redirect_to_path(
+    request: Request,
+    path_name: str,
+    path_params: typing.Mapping[str, str | int] | None = None,
+    *,
+    query_params: dict[str, str | int] | None = None,
+    status_code: int = 302,
+    headers: typing.Mapping[str, str] | None = None,
+    background: BackgroundTask | None = None,
+) -> RedirectResponse:
+    redirect_url = URL(request.url_for(path_name, **(path_params or {})))
+    redirect_url = redirect_url.include_query_params(**(query_params or {}))
+    return RedirectResponse(str(redirect_url), status_code=status_code, headers=headers, background=background)
+
+
+def redirect_back(
+    request: Request,
+    *,
+    status_code: int = 302,
+    background: BackgroundTask | None = None,
+    headers: typing.Mapping[str, str] | None = None,
+) -> RedirectResponse:
+    referer = request.headers.get("referer", "")
+    if not request.url.hostname or request.url.hostname not in referer:
+        referer = ""
+    return RedirectResponse(referer, status_code=status_code, background=background, headers=headers)
+
+
+def empty_response(
+    background: BackgroundTask | None = None,
+    headers: typing.Mapping[str, str] | None = None,
+) -> Response:
+    return Response(status_code=204, background=background, headers=headers)
 
 
 class JSONResponse(responses.JSONResponse):
@@ -87,46 +118,3 @@ class JSONErrorResponse(JSONResponse):
             json_default=json_default,
             background=background,
         )
-
-
-class RedirectResponse(responses.RedirectResponse):
-    @classmethod
-    def to_url(
-        cls,
-        url: str,
-        *,
-        status_code: int = 302,
-        headers: typing.Mapping[str, typing.Any] | None = None,
-        background: BackgroundTask | None = None,
-    ) -> RedirectResponse:
-        return cls(url, status_code=status_code, headers=headers, background=background)
-
-    @classmethod
-    def to_path_name(
-        cls,
-        request: Request,
-        path_name: str,
-        path_params: typing.Mapping[str, str | int | float] | None = None,
-        *,
-        status_code: int = 302,
-        headers: typing.Mapping[str, typing.Any] | None = None,
-        background: BackgroundTask | None = None,
-    ) -> RedirectResponse:
-        path_params = path_params or {}
-        url = request.url_for(path_name, **path_params)
-        return cls(url, status_code=status_code, headers=headers, background=background)
-
-    @classmethod
-    def back(
-        cls,
-        request: Request,
-        *,
-        headers: typing.Mapping[str, typing.Any] | None = None,
-        background: BackgroundTask | None = None,
-    ) -> RedirectResponse:
-        redirect_to = request.headers.get("referer", "/")
-        current_origin = request.url.netloc
-        if current_origin not in redirect_to:
-            redirect_to = "/"
-
-        return cls(redirect_to, status_code=302, headers=headers, background=background)

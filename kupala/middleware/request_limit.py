@@ -1,8 +1,7 @@
 import typing
 from starlette import status
+from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
-
-from kupala.responses import PlainTextResponse
 
 
 class LargeEntityError(ValueError):

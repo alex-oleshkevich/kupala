@@ -1,7 +1,6 @@
 import anyio
+from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
-
-from kupala.responses import PlainTextResponse
 
 
 class TimeoutMiddleware:

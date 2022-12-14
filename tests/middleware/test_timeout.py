@@ -1,10 +1,10 @@
 import anyio
 import pytest
+from starlette.responses import PlainTextResponse
 from starlette.testclient import TestClient
 from starlette.types import Receive, Scope, Send
 
 from kupala.middleware.timeout import TimeoutMiddleware
-from kupala.responses import PlainTextResponse
 
 
 async def app(scope: Scope, receive: Receive, send: Send) -> None:
