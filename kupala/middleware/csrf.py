@@ -124,8 +124,7 @@ class CSRFMiddleware:
         return not any(
             [
                 request.method.lower() in self.safe_methods,
-                request.url_matches(*self._exclude_urls),
-                request.full_url_matches(*self._exclude_urls),
+                *[exclusion in str(request.url) for exclusion in self._exclude_urls],
             ]
         )
 

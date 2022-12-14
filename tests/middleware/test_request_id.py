@@ -11,7 +11,7 @@ from tests.conftest import TestAppFactory
 
 async def app(scope: Scope, receive: Receive, send: Send) -> None:
     request = Request(scope, receive, send)
-    await PlainTextResponse(request.id)(scope, receive, send)
+    await PlainTextResponse(request.state.request_id)(scope, receive, send)
 
 
 @pytest.mark.asyncio

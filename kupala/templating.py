@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import functools
 import jinja2
+import time
 import typing
 from jinja2.runtime import Macro
 from starlette import responses, templating
+from starlette.datastructures import URL
 
 from kupala.requests import Request
 from kupala.responses import Response
+
+_boot_time = time.time()
 
 
 class ContextProcessor(typing.Protocol):  # pragma: nocover
@@ -66,19 +70,37 @@ def media_url(request: Request, path: str, path_name: str = "media") -> str:
     return request.app.router.url_path_for(path_name, path=path)
 
 
-def static_url(request: Request, path: str, path_name: str = "static") -> str:
-    return request.app.router.url_path_for(path_name, path=path)
+def static_url(request: Request, path: str, path_name: str = "static", append_timestamp: bool = True) -> str:
+    url = URL(request.app.router.url_path_for(path_name, path=path))
+    if append_timestamp:
+        url = url.include_query_params(ts=_boot_time)
+    return str(url)
 
 
-def url_matches(request: Request, path_name: str, **path_params: typing.Any) -> bool:
-    return request.url_matches(request.app.router.url_path_for(path_name, **path_params))
+def url_for(request: Request, path_name: str, **path_params: typing.Any) -> URL:
+    url = request.app.router.url_path_for(path_name, **path_params)
+    return URL(url)
+
+
+def abs_url_for(request: Request, path_name: str, **path_params: typing.Any) -> URL:
+    url = request.absolute_url_for(path_name, **path_params)
+    return URL(url)
+
+
+def url_matches(
+    request: Request, path_name: str, path_params: dict[str, str | int] | None = None, exact: bool = False
+) -> bool:
+    target_url = request.app.router.url_path_for(path_name, **(path_params or {}))
+    if exact:
+        return target_url == request.url.path
+    return target_url in request.url.path
 
 
 def framework_processors(request: Request) -> dict[str, typing.Any]:
     return {
         "app": request.app,
-        "url": request.url_for,
-        "abs_url": request.absolute_url_for,
+        "url": functools.partial(url_for, request),
+        "abs_url": functools.partial(abs_url_for, request),
         "static_url": functools.partial(static_url, request),
         "media_url": functools.partial(media_url, request),
         "url_matches": functools.partial(url_matches, request),
@@ -101,10 +123,12 @@ class Jinja2Templates:
         status_code: int = 200,
         headers: dict[str, typing.Any] | None = None,
         content_type: str = "text/html",
+        context_processors: list[ContextProcessor] | None = None,
     ) -> responses.Response:
         context = context or {}
         context["request"] = request
-        for processor in self.context_processors:
+        context_processors = context_processors or []
+        for processor in [*self.context_processors, *context_processors]:
             context.update(processor(request))
 
         return self._templates.TemplateResponse(
@@ -114,19 +138,6 @@ class Jinja2Templates:
             headers=headers,
             media_type=content_type,
         )
-
-    def TemplateBlockResponse(
-        self,
-        template_name: str,
-        block_name: str,
-        context: dict[str, typing.Any] | None = None,
-        *,
-        status_code: int = 200,
-        headers: dict[str, typing.Any] | None = None,
-        content_type: str = "text/html",
-    ) -> Response:
-        content = self.render_block_to_string(template_name, block_name, context)
-        return Response(content=content, status_code=status_code, headers=headers, media_type=content_type)
 
     def TemplateMacroResponse(
         self,

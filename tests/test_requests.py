@@ -134,40 +134,6 @@ def test_ip(form_request: Request) -> None:
     assert form_request.ip == "0.0.0.0"
 
 
-def test_url_matches() -> None:
-    request = Request(
-        {
-            "type": "http",
-            "scheme": "http",
-            "server": (b"example.com", 80),
-            "query_string": b"csrf-token=TOKEN",
-            "path": "/account/login",
-            "headers": {},
-        }
-    )
-    assert request.url_matches(r"/account/login")
-    assert request.url_matches(r".*ogin")
-    assert request.url_matches(r"/account/*")
-    assert not request.url_matches(r"/admin")
-
-
-def test_full_url_matches() -> None:
-    request = Request(
-        {
-            "type": "http",
-            "scheme": "http",
-            "server": ("example.com", 80),
-            "query_string": b"csrf-token=TOKEN",
-            "path": "/account/login",
-            "headers": {},
-        }
-    )
-    assert request.full_url_matches(r"http://example.com")
-    assert request.full_url_matches(r"http://example.com/account/*")
-    assert request.full_url_matches(r"http://example.com/account/login")
-    assert not request.full_url_matches(r"http://another.com/account/login")
-
-
 def test_query_params() -> None:
     request = Request(
         {

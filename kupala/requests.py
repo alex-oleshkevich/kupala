@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import typing
 from starlette import requests
 from starlette.datastructures import State
@@ -42,11 +41,6 @@ class Request(requests.Request, typing.Generic[S, U]):
             request.__class__ = cls
             scope["request"] = request
         return scope["request"]
-
-    @property
-    def id(self) -> str:
-        assert "request_id" in self.scope, "RequestIDMiddleware must be installed to access request.id"
-        return self.scope["request_id"]
 
     @property
     def query_params(self) -> QueryParams:
@@ -103,31 +97,8 @@ class Request(requests.Request, typing.Generic[S, U]):
     def is_submitted(self) -> bool:
         return self.method.lower() in ["post", "put", "patch", "delete"]
 
-    def url_matches(self, *patterns: str | typing.Pattern) -> bool:
-        url = self.url.path.rstrip("/")
-        for pattern in patterns:
-            if isinstance(pattern, str):
-                pattern = pattern.rstrip("/")
-            if pattern == url:
-                return True
-            if re.search(pattern, url):
-                return True
-        return False
-
-    def full_url_matches(self, *patterns: str | typing.Pattern) -> bool:
-        for pattern in patterns:
-            if pattern == str(self.url):
-                return True
-            if re.match(pattern, str(self.url)):
-                return True
-        return False
-
-    def url_for(self, name: str, **path_params: typing.Any) -> str:
+    def url_for_relative(self, name: str, **path_params: typing.Any) -> str:
         return self.app.router.url_path_for(name, **path_params)
-
-    def absolute_url_for(self, name: str, **path_params: typing.Any) -> str:
-        path = self.app.router.url_path_for(name, **path_params)
-        return str(self.url.replace(path=path))
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}: {self.method} {self.url}>"

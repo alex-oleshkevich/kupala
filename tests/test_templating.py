@@ -76,16 +76,14 @@ def test_render_to_response_with_context_processors(jinja_env: jinja2.Environmen
     assert response.body == b"SIMPLE TEXT\nFROM CONTEXT from_context\nMAIN BLOCK CONTENT \n"
 
 
-def test_render_block_to_response(jinja_env: jinja2.Environment) -> None:
-    templates = Jinja2Templates(jinja_env)
-    response = templates.TemplateBlockResponse("index.html", "main")
-    assert response.body == b"MAIN BLOCK CONTENT "
+def test_render_to_response_with_inline_context_processors(jinja_env: jinja2.Environment) -> None:
+    def context_processor(request: Request) -> dict[str, typing.Any]:
+        return {"context_variable": "from_context"}
 
-
-def test_render_block_to_response_with_context(jinja_env: jinja2.Environment) -> None:
+    request = Request(scope={"type": "http"})
     templates = Jinja2Templates(jinja_env)
-    response = templates.TemplateBlockResponse("index.html", "main", {"block_var": "value"})
-    assert response.body == b"MAIN BLOCK CONTENT value"
+    response = templates.TemplateResponse(request, "index.html", context_processors=[context_processor])
+    assert response.body == b"SIMPLE TEXT\nFROM CONTEXT from_context\nMAIN BLOCK CONTENT \n"
 
 
 def test_render_macro_to_response(jinja_env: jinja2.Environment) -> None:

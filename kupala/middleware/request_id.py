@@ -14,7 +14,8 @@ class RequestIDMiddleware:
 
         connection = HTTPConnection(scope, receive)
         request_id = connection.headers.get("x-request-id", self.generate_id())
-        scope["request_id"] = request_id
+        scope.setdefault("state", {})
+        scope["state"]["request_id"] = request_id
 
         async def sender(message: Message) -> None:
             if message["type"] == "http.response.start":

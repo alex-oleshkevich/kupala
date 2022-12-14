@@ -6,10 +6,8 @@ import enum
 import typing
 from itsdangerous import BadSignature, Signer
 from starlette.requests import HTTPConnection
+from starlette.responses import Response
 from starlette.types import ASGIApp, Receive, Scope, Send
-
-if typing.TYPE_CHECKING:  # pragma: nocover
-    from kupala.responses import Response
 
 SESSION_KEY = "__user_id__"
 REMEMBER_COOKIE_NAME = "remember_me"
