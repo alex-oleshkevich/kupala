@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import importlib
 import inspect
 import typing
 from starlette import requests
@@ -78,6 +79,20 @@ def route(
         return route_instance
 
     return decorator
+
+
+def include(module_name: str, variable_name: str = "routes") -> Routes:
+    """
+    Include routes from another file.
+
+    Usage:
+        routes = Routes(
+            include('admin.routes'),
+            include('user.routes'),
+        )
+    """
+    mod = importlib.import_module(module_name)
+    return getattr(mod, variable_name)
 
 
 class Routes(typing.Iterable[Route]):
