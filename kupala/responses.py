@@ -54,9 +54,9 @@ def redirect_back(
     background: BackgroundTask | None = None,
     headers: typing.Mapping[str, str] | None = None,
 ) -> RedirectResponse:
-    referer = request.headers.get("referer", "")
+    referer = request.headers.get("referer", "/")
     if not request.url.hostname or request.url.hostname not in referer:
-        referer = ""
+        referer = "/"
     return RedirectResponse(referer, status_code=status_code, background=background, headers=headers)
 
 

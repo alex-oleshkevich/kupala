@@ -13,3 +13,25 @@ def test_go_back_response(test_client_factory: TestClientFactory) -> None:
     res = client.get("/", headers={"referer": "http://testserver/somepage"}, allow_redirects=False)
     assert res.status_code == 302
     assert res.headers["location"] == "http://testserver/somepage"
+
+
+def test_go_back_response_without_refererer(test_client_factory: TestClientFactory) -> None:
+    @route("/")
+    def view(request: Request) -> Response:
+        return redirect_back(request)
+
+    client = test_client_factory(routes=[view])
+    res = client.get("/", allow_redirects=False)
+    assert res.status_code == 302
+    assert res.headers["location"] == "/"
+
+
+def test_go_back_response_with_invalid_refererer(test_client_factory: TestClientFactory) -> None:
+    @route("/")
+    def view(request: Request) -> Response:
+        return redirect_back(request)
+
+    client = test_client_factory(routes=[view])
+    res = client.get("/", headers={"referer": "http://example.com"}, allow_redirects=False)
+    assert res.status_code == 302
+    assert res.headers["location"] == "/"
