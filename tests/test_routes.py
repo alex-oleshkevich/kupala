@@ -196,3 +196,16 @@ def test_routes_options(test_client_factory: TestClientFactory) -> None:
 
     client = test_client_factory(routes=routes)
     assert client.options("/").text == "ok"
+
+
+def test_routes_accepts_routes_instance(test_client_factory: TestClientFactory) -> None:
+    routes = Routes()
+
+    @routes.options("/")
+    def example_view(request: Request) -> Response:
+        return Response("ok")
+
+    routes2 = Routes([routes])
+
+    client = test_client_factory(routes=routes2)
+    assert client.options("/").text == "ok"
