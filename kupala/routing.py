@@ -28,6 +28,47 @@ async def _patch_request(request: typing.Any, request_class: Request) -> Request
     return request
 
 
+def _generate_dependency_factories(
+    parameters: dict[str, inspect.Parameter]
+) -> tuple[dict[str, typing.Callable[[Request], typing.Any]], list[str]]:
+    optionals: list[str] = []
+    factories: dict[str, typing.Callable] = {}
+    for param_name, parameter in parameters.items():
+        if param_name == "request":
+            if origin := typing.get_origin(parameter.annotation):
+                request_class = origin
+            else:
+                request_class = parameter.annotation
+
+            factories[param_name] = functools.partial(_patch_request, request_class=request_class)
+            continue
+
+        origin = typing.get_origin(parameter.annotation) or parameter.annotation
+        if inspect.isclass(origin) and issubclass(origin, requests.HTTPConnection):
+            factories[param_name] = functools.partial(_patch_request, request_class=origin)
+            continue
+
+        annotation = parameter.annotation
+        if origin is typing.Union:
+            optional = type(None) in typing.get_args(parameter.annotation)
+            if optional:
+                optionals.append(param_name)
+            annotation = next((value for value in typing.get_args(parameter.annotation) if value is not None))
+
+        if origin is typing.Annotated:
+            _, factory = typing.get_args(annotation)
+
+            async def _factory(request: Request, dependency_factory: typing.Callable) -> typing.Any:
+                return (
+                    await dependency_factory(request)
+                    if inspect.iscoroutinefunction(dependency_factory)
+                    else dependency_factory(request)
+                )
+
+            factories[param_name] = functools.partial(_factory, dependency_factory=factory)
+    return factories, optionals
+
+
 def route(
     path: str,
     *,
@@ -40,43 +81,7 @@ def route(
     def decorator(fn: typing.Callable) -> Route:
         signature = inspect.signature(fn)
         parameters = dict(signature.parameters)
-
-        factories: dict[str, typing.Callable] = {}
-        optionals: list[str] = []
-
-        for param_name, parameter in parameters.items():
-            if param_name == "request":
-                if origin := typing.get_origin(parameter.annotation):
-                    request_class = origin
-                else:
-                    request_class = parameter.annotation
-
-                factories[param_name] = functools.partial(_patch_request, request_class=request_class)
-                continue
-
-            origin = typing.get_origin(parameter.annotation) or parameter.annotation
-            if inspect.isclass(origin) and issubclass(origin, requests.HTTPConnection):
-                factories[param_name] = functools.partial(_patch_request, request_class=origin)
-                continue
-
-            annotation = parameter.annotation
-            if origin is typing.Union:
-                optional = type(None) in typing.get_args(parameter.annotation)
-                if optional:
-                    optionals.append(param_name)
-                annotation = next((value for value in typing.get_args(parameter.annotation) if value is not None))
-
-            if origin is typing.Annotated:
-                _, factory = typing.get_args(annotation)
-
-                async def _factory(request: Request, dependency_factory: typing.Callable) -> typing.Any:
-                    return (
-                        await dependency_factory(request)
-                        if inspect.iscoroutinefunction(dependency_factory)
-                        else dependency_factory(request)
-                    )
-
-                factories[param_name] = functools.partial(_factory, dependency_factory=factory)
+        factories, optionals = _generate_dependency_factories(parameters)
 
         async def endpoint_handler(request: Request) -> Response:
             fn_arguments: dict[str, typing.Any] = {}
