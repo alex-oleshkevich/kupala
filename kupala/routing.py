@@ -13,6 +13,10 @@ from kupala.guards import Guard, NextGuard
 from kupala.requests import Request
 
 
+class InjectionError(Exception):
+    ...
+
+
 def create_dispatch_chain(guards: typing.Iterable[Guard], call_next: NextGuard) -> NextGuard:
     for guard in reversed(list(guards)):
         call_next = functools.partial(guard, call_next=call_next)
@@ -62,10 +66,20 @@ def route(
                     fn_arguments[param_name] = request.path_params[param_name]
                     continue
 
+                optional = False
+                if typing.get_origin(annotation) is typing.Union:
+                    optional = type(None) in typing.get_args(annotation)
+                    annotation = next((value for value in typing.get_args(annotation) if value is not None))
+
                 # handle typing.Annotated[Class, injection_factory] dependencies
                 if typing.get_origin(annotation) is typing.Annotated:
                     _, factory = typing.get_args(annotation)
                     dependency = await factory(request) if inspect.iscoroutinefunction(factory) else factory(request)
+                    if dependency is None and not optional and param.default is not None:
+                        raise InjectionError(
+                            f'Dependency factory for argument "{param_name}" of "{fn.__name__}" returned None '
+                            f'but the "{param_name}" declared as not optional.'
+                        )
                     fn_arguments[param_name] = dependency
 
             if inspect.iscoroutinefunction(fn):

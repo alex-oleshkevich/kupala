@@ -1,12 +1,13 @@
 import dataclasses
 
+import pytest
 import typing
 from starlette.applications import Starlette
 from starlette.responses import Response
 from starlette.testclient import TestClient
 
 from kupala.requests import Request
-from kupala.routing import route
+from kupala.routing import InjectionError, route
 from tests.conftest import TestClientFactory
 
 
@@ -106,6 +107,36 @@ def test_annotation_dependencies_and_path_params() -> None:
     client = TestClient(app=app)
     response = client.get("/42")
     assert response.text == "annotated_42"
+
+
+ReturnsNone = typing.Annotated[int, lambda _: None]
+
+
+def test_optional_annotation_dependencies() -> None:
+    """It should raise InjectionError if dependency factory returns None and argument is not optional."""
+
+    @route("/")
+    async def view(value: ReturnsNone) -> Response:
+        return Response("ok")
+
+    with pytest.raises(InjectionError):
+        app = Starlette(debug=True, routes=[view])
+        client = TestClient(app=app)
+        response = client.get("/")
+        assert response.text == "ok"
+
+
+def test_optional_annotation_dependencies_with_default_value() -> None:
+    """It should inject None if dependency factory return None and argument is optional."""
+
+    @route("/")
+    async def view(value: ReturnsNone | None = None) -> Response:
+        return Response("ok" if value is None else "fail")
+
+    app = Starlette(debug=True, routes=[view])
+    client = TestClient(app=app)
+    response = client.get("/")
+    assert response.text == "ok"
 
 
 def test_handles_untyped_path_params() -> None:
