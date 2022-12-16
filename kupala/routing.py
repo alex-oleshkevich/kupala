@@ -66,14 +66,6 @@ def route(
                     _, factory = typing.get_args(annotation)
                     dependency = await factory(request) if inspect.iscoroutinefunction(factory) else factory(request)
                     fn_arguments[param_name] = dependency
-                    continue
-
-                if dispatcher := getattr(request.state, "dependencies", None):
-                    factory = dispatcher.get_dependency(annotation)
-                    type_or_coro = await factory.resolve(request)
-                    if inspect.iscoroutine(type_or_coro):
-                        type_or_coro = await type_or_coro
-                    fn_arguments[param_name] = type_or_coro
 
             if inspect.iscoroutinefunction(fn):
                 return await fn(**fn_arguments)
