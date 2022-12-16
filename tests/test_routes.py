@@ -1,3 +1,4 @@
+import typing
 from starlette.routing import Route
 
 from kupala.requests import Request
@@ -43,6 +44,34 @@ def test_custom_request_class(test_client_factory: TestClientFactory) -> None:
 
     @route("/")
     async def view(request: MyRequest) -> Response:
+        return Response(request.__class__.__name__)
+
+    client = test_client_factory(routes=[view])
+    response = client.get("/")
+    assert response.text == "MyRequest"
+
+
+def test_custom_request_class_alternate_varname(test_client_factory: TestClientFactory) -> None:
+    class MyRequest(Request):
+        ...
+
+    @route("/")
+    async def view(req: MyRequest) -> Response:
+        return Response(req.__class__.__name__)
+
+    client = test_client_factory(routes=[view])
+    response = client.get("/")
+    assert response.text == "MyRequest"
+
+
+def test_generic_request_class(test_client_factory: TestClientFactory) -> None:
+    _t = typing.TypeVar("_t")
+
+    class MyRequest(Request, typing.Generic[_t]):
+        ...
+
+    @route("/")
+    async def view(request: MyRequest[int]) -> Response:
         return Response(request.__class__.__name__)
 
     client = test_client_factory(routes=[view])

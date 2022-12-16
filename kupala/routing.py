@@ -23,6 +23,11 @@ def create_dispatch_chain(guards: typing.Iterable[Guard], call_next: NextGuard) 
     return call_next
 
 
+async def _patch_request(request: typing.Any, request_class: Request) -> Request:
+    request.__class__ = request_class
+    return request
+
+
 def route(
     path: str,
     *,
@@ -33,53 +38,63 @@ def route(
     """Convert endpoint callable into Route object."""
 
     def decorator(fn: typing.Callable) -> Route:
-        request_class = Request
         signature = inspect.signature(fn)
         parameters = dict(signature.parameters)
-        request_param_name: str = ""  # empty when endpoint does not inject request
 
-        if "request" in parameters:
-            request_param_name = "request"
-            request_class = parameters["request"].annotation or Request
-        else:
-            for param_name, param in parameters.items():
-                if inspect.isclass(param.annotation) and (
-                    param.annotation == Request or issubclass(param.annotation, requests.HTTPConnection)
-                ):
-                    request_class = param.annotation
-                    request_param_name = param_name
-                    break
+        factories: dict[str, typing.Callable] = {}
+        optionals: list[str] = []
+
+        for param_name, parameter in parameters.items():
+            if param_name == "request":
+                if origin := typing.get_origin(parameter.annotation):
+                    request_class = origin
+                else:
+                    request_class = parameter.annotation
+
+                factories[param_name] = functools.partial(_patch_request, request_class=request_class)
+                continue
+
+            origin = typing.get_origin(parameter.annotation) or parameter.annotation
+            if inspect.isclass(origin) and issubclass(origin, requests.HTTPConnection):
+                factories[param_name] = functools.partial(_patch_request, request_class=origin)
+                continue
+
+            annotation = parameter.annotation
+            if origin is typing.Union:
+                optional = type(None) in typing.get_args(parameter.annotation)
+                if optional:
+                    optionals.append(param_name)
+                annotation = next((value for value in typing.get_args(parameter.annotation) if value is not None))
+
+            if origin is typing.Annotated:
+                _, factory = typing.get_args(annotation)
+
+                async def _factory(request: Request, dependency_factory: typing.Callable) -> typing.Any:
+                    return (
+                        await dependency_factory(request)
+                        if inspect.iscoroutinefunction(dependency_factory)
+                        else dependency_factory(request)
+                    )
+
+                factories[param_name] = functools.partial(_factory, dependency_factory=factory)
 
         async def endpoint_handler(request: Request) -> Response:
             fn_arguments: dict[str, typing.Any] = {}
 
             for param_name, param in parameters.items():
-                annotation = param.annotation
-
-                if param_name == request_param_name:
-                    request.__class__ = request_class
-                    fn_arguments[request_param_name] = request
-                    continue
-
                 # if function argument is in path param, then use param value for the argument
                 if param_name in request.path_params:
                     fn_arguments[param_name] = request.path_params[param_name]
                     continue
 
-                optional = False
-                if typing.get_origin(annotation) is typing.Union:
-                    optional = type(None) in typing.get_args(annotation)
-                    annotation = next((value for value in typing.get_args(annotation) if value is not None))
-
-                # handle typing.Annotated[Class, injection_factory] dependencies
-                if typing.get_origin(annotation) is typing.Annotated:
-                    _, factory = typing.get_args(annotation)
-                    dependency = await factory(request) if inspect.iscoroutinefunction(factory) else factory(request)
-                    if dependency is None and not optional and param.default is not None:
+                if param_name in factories:
+                    dependency = await factories[param_name](request)
+                    if dependency is None and param_name not in optionals and param.default is not None:
                         raise InjectionError(
                             f'Dependency factory for argument "{param_name}" of "{fn.__name__}" returned None '
                             f'but the "{param_name}" declared as not optional.'
                         )
+
                     fn_arguments[param_name] = dependency
 
             if inspect.iscoroutinefunction(fn):

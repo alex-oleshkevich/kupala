@@ -83,7 +83,7 @@ def test_annotated_async_dependency_factory() -> None:
     assert response.text == "async_annotated"
 
 
-def test_injects_multiple_annotated_async_dependency_factories() -> None:
+def test_injects_multiple_annotated_dependency_factories() -> None:
     """It should inject multiple dependencies declared using typing.Annotated."""
 
     @route("/")
