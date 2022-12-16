@@ -83,11 +83,11 @@ def route(
 class Routes(typing.Iterable[Route]):
     def __init__(self, routes: typing.Iterable[Route | Routes] | None = None) -> None:
         self._routes: list[Route] = []
-        for route in routes or []:
-            if isinstance(route, Routes):
-                self._routes.extend(route)
+        for _route in routes or []:
+            if isinstance(_route, Routes):
+                self._routes.extend(_route)
             else:
-                self._routes.append(route)
+                self._routes.append(_route)
 
     def add(self, route: Route) -> None:
         self._routes.append(route)
