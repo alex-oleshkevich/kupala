@@ -3,12 +3,19 @@ from __future__ import annotations
 import functools
 import inspect
 import typing
+from starlette import requests
 from starlette.concurrency import run_in_threadpool
+from starlette.responses import Response
 from starlette.routing import Route
-from starlette.types import ASGIApp
 
-from kupala.guards import Guard, call_guards
+from kupala.guards import Guard, NextGuard
 from kupala.requests import Request
+
+
+def create_dispatch_chain(guards: typing.Iterable[Guard], call_next: NextGuard) -> NextGuard:
+    for guard in reversed(list(guards)):
+        call_next = functools.partial(guard, call_next=call_next)
+    return call_next
 
 
 def route(
@@ -18,10 +25,65 @@ def route(
     name: str | None = None,
     guards: list[Guard] | None = None,
 ) -> typing.Callable[[typing.Callable], Route]:
-    def decorator(fn: typing.Callable) -> Route:
-        handler = create_view_dispatcher(fn, guards or [])
+    """Convert endpoint callable into Route object."""
 
-        return Route(path=path, endpoint=handler, name=name, methods=methods)
+    def decorator(fn: typing.Callable) -> Route:
+        request_class = Request
+        signature = inspect.signature(fn)
+        parameters = dict(signature.parameters)
+        request_param_name: str = ""  # empty when endpoint does not inject request
+
+        if "request" in parameters:
+            request_param_name = "request"
+            request_class = parameters["request"].annotation or Request
+        else:
+            for param_name, param in parameters.items():
+                if inspect.isclass(param.annotation) and (
+                    param.annotation == Request or issubclass(param.annotation, requests.HTTPConnection)
+                ):
+                    request_class = param.annotation
+                    request_param_name = param_name
+                    break
+
+        async def endpoint_handler(request: Request) -> Response:
+            fn_arguments: dict[str, typing.Any] = {}
+
+            for param_name, param in parameters.items():
+                annotation = param.annotation
+
+                if param_name == request_param_name:
+                    request.__class__ = request_class
+                    fn_arguments[request_param_name] = request
+                    continue
+
+                # if function argument is in path param, then use param value for the argument
+                if param_name in request.path_params:
+                    fn_arguments[param_name] = request.path_params[param_name]
+                    continue
+
+                # handle typing.Annotated[Class, injection_factory] dependencies
+                if typing.get_origin(annotation) is typing.Annotated:
+                    _, factory = typing.get_args(annotation)
+                    dependency = await factory(request) if inspect.iscoroutinefunction(factory) else factory(request)
+                    fn_arguments[param_name] = dependency
+                    continue
+
+                if dispatcher := getattr(request.state, "dependencies", None):
+                    factory = dispatcher.get_dependency(annotation)
+                    type_or_coro = await factory.resolve(request)
+                    if inspect.iscoroutine(type_or_coro):
+                        type_or_coro = await type_or_coro
+                    fn_arguments[param_name] = type_or_coro
+
+            if inspect.iscoroutinefunction(fn):
+                return await fn(**fn_arguments)
+            else:
+                return await run_in_threadpool(fn, **fn_arguments)
+
+        chain = create_dispatch_chain(guards or [], endpoint_handler)
+
+        route_instance = Route(path=path, endpoint=chain, name=name, methods=methods)
+        return route_instance
 
     return decorator
 
@@ -66,6 +128,9 @@ class Routes(typing.Iterable[Route]):
     def delete(self, path: str, *, name: str | None = None, guards: list[Guard] | None = None) -> typing.Callable:
         return self.route(path, methods=["delete"], name=name, guards=guards)
 
+    def options(self, path: str, *, name: str | None = None, guards: list[Guard] | None = None) -> typing.Callable:
+        return self.route(path, methods=["options"], name=name, guards=guards)
+
     __call__ = route
 
     def __iter__(self) -> typing.Iterator[Route]:
@@ -78,26 +143,3 @@ class Routes(typing.Iterable[Route]):
         routes_count = len(self._routes)
         noun = "route" if routes_count == 1 else "routes"
         return f"<{self.__class__.__name__}: {routes_count} {noun}>"
-
-
-def create_view_dispatcher(
-    fn: typing.Callable,
-    guards: list[Guard],
-) -> typing.Callable[[Request], typing.Awaitable[ASGIApp]]:
-    @functools.wraps(fn)
-    async def view_decorator(request: Request) -> ASGIApp:
-        if dispatcher := getattr(request.state, "dependencies", None):
-            return await dispatcher.dispatch_view(request, fn)
-
-        request.__class__ = Request
-        if response := await call_guards(request, guards):
-            return response
-
-        if inspect.iscoroutinefunction(fn):
-            response = await fn(request)
-        else:
-            response = await run_in_threadpool(fn, request)
-
-        return typing.cast(ASGIApp, response)
-
-    return view_decorator
