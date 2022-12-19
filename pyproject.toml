@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "kupala"
 description = "A modern web framework for Python."
-version = "0.22.0"
+version = "0.23.0"
 authors = ["Alex Oleshkevich <alex.oleshkevich@gmail.com>"]
 license = "MIT"
 readme = "README.md"
