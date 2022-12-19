@@ -135,6 +135,7 @@ def route(
                         return await fn(**fn_arguments)
 
                     return await run_in_threadpool(fn, **fn_arguments)
+            assert False, "unreachable"  # https://github.com/python/mypy/issues/7726
 
         chain = create_dispatch_chain(guards or [], endpoint_handler)
 
@@ -175,7 +176,7 @@ def include_all(modules: typing.Iterable[str], variable_name: str = "routes") ->
     return Routes(routes)
 
 
-class Routes(typing.Iterable[BaseRoute]):
+class Routes(typing.Sequence[BaseRoute]):
     def __init__(self, routes: typing.Iterable[BaseRoute | Route | Routes] | None = None) -> None:
         self._routes: list[BaseRoute] = []
         for _route in routes or []:
@@ -235,3 +236,14 @@ class Routes(typing.Iterable[BaseRoute]):
         routes_count = len(self._routes)
         noun = "route" if routes_count == 1 else "routes"
         return f"<{self.__class__.__name__}: {routes_count} {noun}>"
+
+    @typing.overload
+    def __getitem__(self, index: int) -> BaseRoute:
+        ...
+
+    @typing.overload
+    def __getitem__(self, index: slice) -> typing.Sequence[BaseRoute]:
+        ...
+
+    def __getitem__(self, index: int | slice) -> BaseRoute | typing.Sequence[BaseRoute]:
+        return self._routes[index]
