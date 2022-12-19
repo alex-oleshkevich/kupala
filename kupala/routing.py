@@ -158,6 +158,24 @@ def include(module_name: str, variable_name: str = "routes") -> Routes:
     return getattr(mod, variable_name)
 
 
+def include_all(modules: typing.Iterable[str], variable_name: str = "routes") -> Routes:
+    """
+    Shortcut to import multiple modules at once.
+
+    Usage:
+        routes = Routes(
+            include_all([
+                'admin.routes',
+                'user.routes',
+            ]),
+        )
+    """
+    routes: list[Route] = []
+    for module_name in modules:
+        routes.extend(include(module_name, variable_name))
+    return Routes(routes)
+
+
 class Routes(typing.Iterable[Route]):
     def __init__(self, routes: typing.Iterable[Route | Routes] | None = None) -> None:
         self._routes: list[Route] = []
