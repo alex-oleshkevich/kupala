@@ -1,5 +1,6 @@
 import dataclasses
 
+import contextlib
 import pytest
 import typing
 from starlette.applications import Starlette
@@ -120,6 +121,64 @@ def test_injects_annotated_dependency_factories_with_dependencies() -> None:
     client = TestClient(app=app)
     response = client.get("/")
     assert response.text == "oneonetwo"
+
+
+def test_injects_yield_dependencies() -> None:
+    @contextlib.contextmanager
+    def make_dep_one(request: Request) -> typing.Generator[str, None, None]:
+        yield "one"
+
+    DepOne = typing.Annotated[str, make_dep_one]
+
+    @route("/")
+    async def view(dep: DepOne) -> Response:
+        return Response(dep)
+
+    app = Starlette(debug=True, routes=[view])
+    client = TestClient(app=app)
+    response = client.get("/")
+    assert response.text == "one"
+
+
+def test_injects_async_yield_dependencies() -> None:
+    @contextlib.asynccontextmanager
+    async def make_dep_one(request: Request) -> typing.AsyncGenerator[str, None]:
+        yield "one"
+
+    DepOne = typing.Annotated[str, make_dep_one]
+
+    @route("/")
+    async def view(dep: DepOne) -> Response:
+        return Response(dep)
+
+    app = Starlette(debug=True, routes=[view])
+    client = TestClient(app=app)
+    response = client.get("/")
+    assert response.text == "one"
+
+
+def test_injects_nested_yield_dependencies() -> None:
+    @contextlib.asynccontextmanager
+    async def make_dep_one(request: Request) -> typing.AsyncGenerator[str, None]:
+        yield "one"
+
+    DepOne = typing.Annotated[typing.AsyncContextManager[str], make_dep_one]
+
+    @contextlib.asynccontextmanager
+    async def make_dep_two(request: Request, dep: DepOne) -> typing.AsyncGenerator[str, None]:
+        async with dep as value:
+            yield value + "two"
+
+    DepTwo = typing.Annotated[str, make_dep_two]
+
+    @route("/")
+    async def view(dep: DepTwo) -> Response:
+        return Response(dep)
+
+    app = Starlette(debug=True, routes=[view])
+    client = TestClient(app=app)
+    response = client.get("/")
+    assert response.text == "onetwo"
 
 
 def test_annotation_dependencies_and_path_params() -> None:

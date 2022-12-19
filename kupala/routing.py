@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 import functools
 import importlib
 import inspect
 import typing
+from contextlib import AsyncExitStack, ExitStack
 from starlette import requests
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
@@ -104,26 +106,35 @@ def route(
         async def endpoint_handler(request: Request) -> Response:
             fn_arguments: dict[str, typing.Any] = {}
 
-            for param_name, param in parameters.items():
-                # if function argument is in path param, then use param value for the argument
-                if param_name in request.path_params:
-                    fn_arguments[param_name] = request.path_params[param_name]
-                    continue
+            with ExitStack() as sync_exit_stack:
+                async with AsyncExitStack() as async_exit_stack:
+                    for param_name, param in parameters.items():
+                        # if function argument is in path param, then use param value for the argument
+                        if param_name in request.path_params:
+                            fn_arguments[param_name] = request.path_params[param_name]
+                            continue
 
-                if param_name in factories:
-                    dependency = await factories[param_name](request)
-                    if dependency is None and param_name not in optionals and param.default is not None:
-                        raise InjectionError(
-                            f'Dependency factory for argument "{param_name}" of "{fn.__name__}" returned None '
-                            f'but the "{param_name}" declared as not optional.'
-                        )
+                        if param_name in factories:
+                            factory = await factories[param_name](request)
+                            if isinstance(factory, contextlib.AbstractAsyncContextManager):
+                                dependency = await async_exit_stack.enter_async_context(factory)
+                            elif isinstance(factory, contextlib.AbstractContextManager):
+                                dependency = sync_exit_stack.enter_context(factory)
+                            else:
+                                dependency = await factories[param_name](request)
 
-                    fn_arguments[param_name] = dependency
+                            if dependency is None and param_name not in optionals and param.default is not None:
+                                raise InjectionError(
+                                    f'Dependency factory for argument "{param_name}" of "{fn.__name__}" returned None '
+                                    f'but the "{param_name}" declared as not optional.'
+                                )
 
-            if inspect.iscoroutinefunction(fn):
-                return await fn(**fn_arguments)
-            else:
-                return await run_in_threadpool(fn, **fn_arguments)
+                            fn_arguments[param_name] = dependency
+
+                    if inspect.iscoroutinefunction(fn):
+                        return await fn(**fn_arguments)
+                    else:
+                        return await run_in_threadpool(fn, **fn_arguments)
 
         chain = create_dispatch_chain(guards or [], endpoint_handler)
 
