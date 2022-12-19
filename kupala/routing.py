@@ -9,7 +9,7 @@ from contextlib import AsyncExitStack, ExitStack
 from starlette import requests
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
-from starlette.routing import Route
+from starlette.routing import BaseRoute, Route
 
 from kupala.guards import Guard, NextGuard
 from kupala.requests import Request
@@ -133,13 +133,12 @@ def route(
 
                     if inspect.iscoroutinefunction(fn):
                         return await fn(**fn_arguments)
-                    else:
-                        return await run_in_threadpool(fn, **fn_arguments)
+
+                    return await run_in_threadpool(fn, **fn_arguments)
 
         chain = create_dispatch_chain(guards or [], endpoint_handler)
 
-        route_instance = Route(path=path, endpoint=chain, name=name, methods=methods)
-        return route_instance
+        return Route(path=path, endpoint=chain, name=name, methods=methods)
 
     return decorator
 
@@ -170,22 +169,22 @@ def include_all(modules: typing.Iterable[str], variable_name: str = "routes") ->
             ]),
         )
     """
-    routes: list[Route] = []
+    routes: list[BaseRoute] = []
     for module_name in modules:
         routes.extend(include(module_name, variable_name))
     return Routes(routes)
 
 
-class Routes(typing.Iterable[Route]):
-    def __init__(self, routes: typing.Iterable[Route | Routes] | None = None) -> None:
-        self._routes: list[Route] = []
+class Routes(typing.Iterable[BaseRoute]):
+    def __init__(self, routes: typing.Iterable[BaseRoute | Route | Routes] | None = None) -> None:
+        self._routes: list[BaseRoute] = []
         for _route in routes or []:
             if isinstance(_route, Routes):
                 self._routes.extend(_route)
             else:
                 self._routes.append(_route)
 
-    def add(self, route: Route) -> None:
+    def add(self, route: BaseRoute) -> None:
         self._routes.append(route)
 
     def route(
@@ -226,7 +225,7 @@ class Routes(typing.Iterable[Route]):
 
     __call__ = route
 
-    def __iter__(self) -> typing.Iterator[Route]:
+    def __iter__(self) -> typing.Iterator[BaseRoute]:
         return iter(self._routes)
 
     def __len__(self) -> int:

@@ -83,7 +83,7 @@ def url_for(request: Request, path_name: str, **path_params: typing.Any) -> URL:
 
 
 def abs_url_for(request: Request, path_name: str, **path_params: typing.Any) -> URL:
-    return request.url_for(path_name, **path_params)
+    return URL(request.url_for(path_name, **path_params))
 
 
 def url_matches(

@@ -52,5 +52,3 @@ repos:
         hooks:
             -   id: mypy
                 args: [ --config-file, pyproject.toml ]
-                always_run: true
-                pass_filenames: false
