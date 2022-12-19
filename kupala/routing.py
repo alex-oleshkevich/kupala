@@ -28,12 +28,47 @@ async def _patch_request(request: typing.Any, request_class: Request) -> Request
     return request
 
 
+def _generate_dependencies(fn: typing.Callable) -> tuple[dict[str, typing.Callable], list[str]]:
+    signature = inspect.signature(fn)
+    parameters = dict(signature.parameters)
+    optionals: list[str] = []
+    factories: dict[str, typing.Callable] = {}
+    for param_name, parameter in parameters.items():
+        annotation = parameter.annotation
+        origin = typing.get_origin(parameter.annotation) or parameter.annotation
+
+        if origin is typing.Union:
+            optional = type(None) in typing.get_args(parameter.annotation)
+            if optional:
+                optionals.append(param_name)
+            annotation = next((value for value in typing.get_args(parameter.annotation) if value is not None))
+
+        if origin is typing.Annotated:
+            _, factory = typing.get_args(annotation)
+            factory_dependencies, factory_optionals = _generate_dependencies(factory)
+
+            async def _factory(request: Request, dependency_factory: typing.Callable, factory_deps: dict) -> typing.Any:
+                injections = {
+                    name: await f(request) if inspect.iscoroutinefunction(f) else f(request)
+                    for name, f in factory_deps.items()
+                }
+                return (
+                    await dependency_factory(request, **injections)
+                    if inspect.iscoroutinefunction(dependency_factory)
+                    else dependency_factory(request, **injections)
+                )
+
+            factories[param_name] = functools.partial(
+                _factory, dependency_factory=factory, factory_deps=factory_dependencies
+            )
+    return factories, optionals
+
+
 def _generate_dependency_factories(
     fn: typing.Callable,
 ) -> tuple[dict[str, typing.Callable[[Request], typing.Any]], list[str], dict[str, inspect.Parameter]]:
     signature = inspect.signature(fn)
     parameters = dict(signature.parameters)
-    optionals: list[str] = []
     factories: dict[str, typing.Callable] = {}
     for param_name, parameter in parameters.items():
         if param_name == "request":
@@ -48,26 +83,9 @@ def _generate_dependency_factories(
         origin = typing.get_origin(parameter.annotation) or parameter.annotation
         if inspect.isclass(origin) and issubclass(origin, requests.HTTPConnection):
             factories[param_name] = functools.partial(_patch_request, request_class=origin)
-            continue
 
-        annotation = parameter.annotation
-        if origin is typing.Union:
-            optional = type(None) in typing.get_args(parameter.annotation)
-            if optional:
-                optionals.append(param_name)
-            annotation = next((value for value in typing.get_args(parameter.annotation) if value is not None))
-
-        if origin is typing.Annotated:
-            _, factory = typing.get_args(annotation)
-
-            async def _factory(request: Request, dependency_factory: typing.Callable) -> typing.Any:
-                return (
-                    await dependency_factory(request)
-                    if inspect.iscoroutinefunction(dependency_factory)
-                    else dependency_factory(request)
-                )
-
-            factories[param_name] = functools.partial(_factory, dependency_factory=factory)
+    _factories, optionals = _generate_dependencies(fn)
+    factories.update(_factories)
     return factories, optionals, parameters
 
 

@@ -96,6 +96,32 @@ def test_injects_multiple_annotated_dependency_factories() -> None:
     assert response.text == "annotated-async_annotated"
 
 
+def test_injects_annotated_dependency_factories_with_dependencies() -> None:
+    async def make_dep_one(request: Request) -> str:
+        return "one"
+
+    DepOne = typing.Annotated[str, make_dep_one]
+
+    def make_dep_two(request: Request, dep: DepOne) -> str:
+        return dep + "two"
+
+    DepTwo = typing.Annotated[str, make_dep_two]
+
+    def make_dep_three(request: Request, dep: DepOne, dep2: DepTwo) -> str:
+        return dep + dep2
+
+    DepThree = typing.Annotated[str, make_dep_three]
+
+    @route("/")
+    async def view(dep: DepThree) -> Response:
+        return Response(dep)
+
+    app = Starlette(debug=True, routes=[view])
+    client = TestClient(app=app)
+    response = client.get("/")
+    assert response.text == "oneonetwo"
+
+
 def test_annotation_dependencies_and_path_params() -> None:
     """It should inject dependency with factory declared using typing.Annotated and inject any requested path params."""
 
