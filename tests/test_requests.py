@@ -12,6 +12,7 @@ def form_request() -> Request:
         "method": "POST",
         "scheme": "http",
         "client": ("0.0.0.0", "8080"),
+        "path": "/",
         "headers": [
             [b"accept", b"text/html"],
             [b"content-type", b"application/x-www-form-urlencoded"],
