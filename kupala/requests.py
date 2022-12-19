@@ -61,39 +61,9 @@ class Request(requests.Request, CachedBodyMixin, typing.Generic[S, U]):
         return typing.cast(S, super().state)
 
     @property
-    def wants_json(self) -> bool:
-        """Test if request sends Accept header with 'application/json' value."""
-        return "application/json" in self.headers.get("accept", "")
-
-    @property
-    def is_json(self) -> bool:
-        return "application/json" in self.headers.get("content-type", "")
-
-    @property
-    def is_xhr(self) -> bool:
-        """
-        Is true when the request is a XMLHttpRequest. It works if JavaScript's HTTP client sets an X-Requested-With HTTP
-        header. Known frameworks: http://en.wikipedia.org/wiki/List_of_Ajax_frameworks#JavaScript.
-
-        :return:
-        """
-        return self.headers.get("x-requested-with", None) == "XMLHttpRequest"
-
-    @property
-    def ip(self) -> str:
-        """Returns the IP address of user."""
-        assert self.client, "Client address is unknown."
-        return self.client.host
-
-    @property
     def secure(self) -> bool:
         """Determine if the request served over SSL."""
         return self.scope["scheme"] == "https"
-
-    @property
-    def is_post(self) -> bool:
-        """Test if request was made using POST command."""
-        return self.method.upper() == "POST"
 
     @property
     def is_submitted(self) -> bool:

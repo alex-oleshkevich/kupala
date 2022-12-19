@@ -105,35 +105,6 @@ def test_request_is_singleton() -> None:
     assert request is request2
 
 
-def test_wants_json(json_request: Request, form_request: Request, xhr_request: Request) -> None:
-    assert json_request.wants_json
-    assert not form_request.wants_json
-    assert not xhr_request.wants_json
-
-
-def test_is_json(json_request: Request, form_request: Request, xhr_request: Request) -> None:
-    assert json_request.is_json
-    assert not form_request.is_json
-
-
-def test_is_post(json_request: Request) -> None:
-    assert json_request.is_post
-
-
-def test_secure(form_request: Request, https_request: Request) -> None:
-    assert https_request.secure
-    assert not form_request.secure
-
-
-def test_is_xhr(form_request: Request, xhr_request: Request) -> None:
-    assert xhr_request.is_xhr
-    assert not form_request.is_xhr
-
-
-def test_ip(form_request: Request) -> None:
-    assert form_request.ip == "0.0.0.0"
-
-
 def test_query_params() -> None:
     request = Request(
         {
