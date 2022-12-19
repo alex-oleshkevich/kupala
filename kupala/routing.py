@@ -29,8 +29,10 @@ async def _patch_request(request: typing.Any, request_class: Request) -> Request
 
 
 def _generate_dependency_factories(
-    parameters: dict[str, inspect.Parameter]
-) -> tuple[dict[str, typing.Callable[[Request], typing.Any]], list[str]]:
+    fn: typing.Callable,
+) -> tuple[dict[str, typing.Callable[[Request], typing.Any]], list[str], dict[str, inspect.Parameter]]:
+    signature = inspect.signature(fn)
+    parameters = dict(signature.parameters)
     optionals: list[str] = []
     factories: dict[str, typing.Callable] = {}
     for param_name, parameter in parameters.items():
@@ -66,7 +68,7 @@ def _generate_dependency_factories(
                 )
 
             factories[param_name] = functools.partial(_factory, dependency_factory=factory)
-    return factories, optionals
+    return factories, optionals, parameters
 
 
 def route(
@@ -79,9 +81,7 @@ def route(
     """Convert endpoint callable into Route object."""
 
     def decorator(fn: typing.Callable) -> Route:
-        signature = inspect.signature(fn)
-        parameters = dict(signature.parameters)
-        factories, optionals = _generate_dependency_factories(parameters)
+        factories, optionals, parameters = _generate_dependency_factories(fn)
 
         async def endpoint_handler(request: Request) -> Response:
             fn_arguments: dict[str, typing.Any] = {}
