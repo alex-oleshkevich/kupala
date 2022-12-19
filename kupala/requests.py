@@ -29,7 +29,7 @@ U = typing.TypeVar("U", bound=UserLike)
 S = typing.TypeVar("S", bound=State)
 
 
-class Request(requests.Request, typing.Generic[S, U]):
+class CachedBodyMixin:
     def __new__(cls, scope: Scope, receive: Receive = empty_receive, send: Send = empty_send) -> Request:
         if "request" not in scope:
             instance = super().__new__(cls)
@@ -42,6 +42,8 @@ class Request(requests.Request, typing.Generic[S, U]):
             scope["request"] = request
         return scope["request"]
 
+
+class Request(requests.Request, CachedBodyMixin, typing.Generic[S, U]):
     @property
     def query_params(self) -> QueryParams:
         return QueryParams(super().query_params)
