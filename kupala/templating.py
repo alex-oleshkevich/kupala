@@ -6,6 +6,7 @@ import time
 import typing
 from jinja2.runtime import Macro
 from starlette import responses, templating
+from starlette.background import BackgroundTask
 from starlette.datastructures import URL
 
 from kupala.requests import Request
@@ -123,6 +124,7 @@ class Jinja2Templates:
         headers: dict[str, typing.Any] | None = None,
         content_type: str = "text/html",
         context_processors: list[ContextProcessor] | None = None,
+        background: BackgroundTask | None = None,
     ) -> responses.Response:
         context = context or {}
         context["request"] = request
@@ -136,6 +138,7 @@ class Jinja2Templates:
             status_code=status_code,
             headers=headers,
             media_type=content_type,
+            background=background,
         )
 
     def TemplateMacroResponse(
@@ -147,9 +150,12 @@ class Jinja2Templates:
         status_code: int = 200,
         headers: dict[str, typing.Any] | None = None,
         content_type: str = "text/html",
+        background: BackgroundTask | None = None,
     ) -> Response:
         content = self.render_macro_to_string(template_name, macro_name, macro_kwargs)
-        return Response(content=content, status_code=status_code, headers=headers, media_type=content_type)
+        return Response(
+            content=content, status_code=status_code, headers=headers, media_type=content_type, background=background
+        )
 
     def macro(self, template_name: str, macro_name: str) -> Macro:
         return getattr(self.get_template(template_name).module, macro_name)
