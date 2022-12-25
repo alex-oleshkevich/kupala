@@ -64,7 +64,7 @@ def test_form_data(test_client_factory: TestClientFactory) -> None:
 
 def test_current_user(test_client_factory: TestClientFactory) -> None:
     @dataclasses.dataclass
-    class User:
+    class User(UserLike):
         name: str = "root"
 
     @route("/")
