@@ -163,6 +163,7 @@ class AuthenticationMiddleware:
                 break
 
         scope["auth"] = auth_token
+        scope["user"] = auth_token.user
         await self.app(scope, receive, send)
 
 

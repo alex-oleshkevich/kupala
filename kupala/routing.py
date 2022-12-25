@@ -91,11 +91,11 @@ def _generate_dependencies(fn: typing.Callable) -> tuple[dict[str, typing.Callab
             annotation = next((value for value in typing.get_args(parameter.annotation) if value is not None))
 
         if origin is typing.Annotated:
-            _, factory = typing.get_args(annotation)
+            decorated_type, factory = typing.get_args(annotation)
             factory_dependencies, factory_optionals = _generate_dependencies(factory)
             factories[param_name] = Factory(
                 param_name=param_name,
-                origin=origin,
+                origin=decorated_type,
                 parameter=parameter,
                 factory=factory,
                 dependencies=factory_dependencies,
