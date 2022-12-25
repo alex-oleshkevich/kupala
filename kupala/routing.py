@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import contextlib
 import dataclasses
+
+import contextlib
 import functools
 import importlib
 import inspect
 import typing
 from contextlib import AsyncExitStack, ExitStack
-
 from starlette import requests
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
@@ -46,17 +46,32 @@ async def _patch_request(request: typing.Any, request_class: Request) -> Request
 class Factory:
     factory: typing.Callable
     dependencies: dict
+    param_name: str
+    origin: type
+    parameter: inspect.Parameter
 
     async def __call__(self, request: Request) -> typing.Any:
-        injections = {
-            name: await f(request) if inspect.iscoroutinefunction(f) or inspect.iscoroutinefunction(
-                getattr(f, '__call__', None)) else f(request)
-            for name, f in self.dependencies.items()
-        }
+        async def resolve(f: typing.Callable) -> typing.Any:
+            return (
+                await f(request)
+                if inspect.iscoroutinefunction(f) or inspect.iscoroutinefunction(getattr(f, "__call__", None))
+                else f(request)
+            )
+
+        injections = {name: await resolve(f) for name, f in self.dependencies.items()}
+
+        context = Context(
+            request=request,
+            param_name=self.param_name,
+            origin=self.origin,
+            parameter=self.parameter,
+            default_value=self.parameter.default,
+            optional=False,
+        )
         return (
-            await self.factory(request, **injections)
+            await self.factory(context, **injections)
             if inspect.iscoroutinefunction(self.factory)
-            else self.factory(request, **injections)
+            else self.factory(context, **injections)
         )
 
 
@@ -78,22 +93,13 @@ def _generate_dependencies(fn: typing.Callable) -> tuple[dict[str, typing.Callab
         if origin is typing.Annotated:
             _, factory = typing.get_args(annotation)
             factory_dependencies, factory_optionals = _generate_dependencies(factory)
-
-            # async def _factory(request: Request, dependency_factory: typing.Callable, factory_deps: dict) -> typing.Any:
-            #     injections = {
-            #         name: await f(request) if inspect.iscoroutinefunction(f) else f(request)
-            #         for name, f in factory_deps.items()
-            #     }
-            #     return (
-            #         await dependency_factory(request, **injections)
-            #         if inspect.iscoroutinefunction(dependency_factory)
-            #         else dependency_factory(request, **injections)
-            #     )
-
-            factories[param_name] = Factory(factory=factory, dependencies=factory_dependencies)
-            # factories[param_name] = functools.partial(
-            #     _factory, dependency_factory=factory, factory_deps=factory_dependencies
-            # )
+            factories[param_name] = Factory(
+                param_name=param_name,
+                origin=origin,
+                parameter=parameter,
+                factory=factory,
+                dependencies=factory_dependencies,
+            )
     return factories, optionals
 
 
