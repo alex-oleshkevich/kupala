@@ -195,7 +195,7 @@ def is_authenticated(connection: HTTPConnection) -> bool:
 
 
 def confirm_login(connection: HTTPConnection) -> None:
-    if connection.scope["auth"].is_authenticated:  #
+    if connection.scope["auth"].is_authenticated:
         connection.scope["auth"].change_state(LoginState.FRESH)
 
 
