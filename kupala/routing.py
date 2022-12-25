@@ -103,6 +103,7 @@ def route(
     def decorator(fn: typing.Callable) -> Route:
         factories, optionals, parameters = _generate_dependency_factories(fn)
 
+        @functools.wraps(fn)
         async def endpoint_handler(request: Request) -> Response:
             fn_arguments: dict[str, typing.Any] = {}
 
