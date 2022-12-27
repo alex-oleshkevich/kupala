@@ -202,7 +202,8 @@ def test_middleware_authenticates_via_remember_me() -> None:
     )
 
     signer = Signer("key!")
-    assert client.get("/", cookies={"remember_me": signer.sign("id").decode()}).text == "yes"
+    client.cookies.set("remember_me", signer.sign("id").decode())
+    assert client.get("/").text == "yes"
 
 
 def test_middleware_not_authenticates_invalid_users_via_remember_me() -> None:
@@ -240,7 +241,8 @@ def test_middleware_not_authenticates_invalid_users_via_remember_me() -> None:
     )
 
     signer = Signer("key!")
-    assert client.get("/", cookies={"remember_me": signer.sign("id").decode()}).text == "no"
+    client.cookies.set("remember_me", signer.sign("id").decode())
+    assert client.get("/").text == "no"
 
 
 def test_middleware_remember_me_not_fails_on_tampered_cookie() -> None:
@@ -277,7 +279,8 @@ def test_middleware_remember_me_not_fails_on_tampered_cookie() -> None:
         ),
     )
 
-    assert client.get("/", cookies={"remember_me": "bad cookie"}).text == "no"
+    client.cookies.set("remember_me", "bad cookie")
+    assert client.get("/").text == "no"
 
 
 def test_middleware_on_success() -> None:

@@ -1,10 +1,10 @@
 from kupala.requests import Request
 from kupala.responses import JSONResponse, RedirectResponse, redirect, redirect_to_path
 from kupala.routing import Routes, route
-from tests.conftest import TestClientFactory
+from tests.conftest import ClientFactory
 
 
-def test_redirect_to_path_name(test_client_factory: TestClientFactory) -> None:
+def test_redirect_to_path_name(test_client_factory: ClientFactory) -> None:
     @route("/")
     def view(request: Request) -> RedirectResponse:
         return redirect_to_path(request, path_name="about")
@@ -14,12 +14,12 @@ def test_redirect_to_path_name(test_client_factory: TestClientFactory) -> None:
         return JSONResponse({})
 
     client = test_client_factory(routes=[view, about_view])
-    response = client.get("/", allow_redirects=False)
+    response = client.get("/", follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["location"] == "http://testserver/about"
 
 
-def test_redirect_to_path_name_with_path_params(test_client_factory: TestClientFactory) -> None:
+def test_redirect_to_path_name_with_path_params(test_client_factory: ClientFactory) -> None:
     @route("/")
     def view(request: Request) -> RedirectResponse:
         return redirect_to_path(request, path_name="about", path_params={"id": 42})
@@ -29,12 +29,12 @@ def test_redirect_to_path_name_with_path_params(test_client_factory: TestClientF
         return JSONResponse({})
 
     client = test_client_factory(routes=[view, about_view])
-    response = client.get("/", allow_redirects=False)
+    response = client.get("/", follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["location"] == "http://testserver/about/42"
 
 
-def test_redirect_to_path_name_with_query_params(test_client_factory: TestClientFactory) -> None:
+def test_redirect_to_path_name_with_query_params(test_client_factory: ClientFactory) -> None:
     @route("/")
     def view(request: Request) -> RedirectResponse:
         return redirect_to_path(request, path_name="about", query_params={"hello": "world"})
@@ -44,12 +44,12 @@ def test_redirect_to_path_name_with_query_params(test_client_factory: TestClient
         return JSONResponse({})
 
     client = test_client_factory(routes=[view, about_view])
-    response = client.get("/", allow_redirects=False)
+    response = client.get("/", follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["location"] == "http://testserver/about?hello=world"
 
 
-def test_redirect_to_url(test_client_factory: TestClientFactory, routes: Routes) -> None:
+def test_redirect_to_url(test_client_factory: ClientFactory, routes: Routes) -> None:
     @route("/")
     def view(request: Request) -> RedirectResponse:
         return redirect("/about")
@@ -61,17 +61,17 @@ def test_redirect_to_url(test_client_factory: TestClientFactory, routes: Routes)
     client = test_client_factory(
         routes=[view, about_view],
     )
-    response = client.get("/", allow_redirects=True)
+    response = client.get("/", follow_redirects=True)
     assert response.status_code == 200
     assert response.json() == "ok"
 
 
-def test_redirect_to_url_with_query_params(test_client_factory: TestClientFactory, routes: Routes) -> None:
+def test_redirect_to_url_with_query_params(test_client_factory: ClientFactory, routes: Routes) -> None:
     @route("/")
     def view(request: Request) -> RedirectResponse:
         return redirect("/about", query_params={"hello": "world"})
 
     client = test_client_factory(routes=[view])
-    response = client.get("/", allow_redirects=False)
+    response = client.get("/", follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["location"] == "/about?hello=world"

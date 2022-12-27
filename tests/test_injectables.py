@@ -7,10 +7,10 @@ from starlette.responses import Response
 from kupala.authentication import AuthenticationMiddleware, AuthToken, LoginState, UserLike
 from kupala.injectables import JSON, Auth, CurrentUser, FormData, FromQuery
 from kupala.routing import route
-from tests.conftest import TestClientFactory
+from tests.conftest import ClientFactory
 
 
-def test_from_query(test_client_factory: TestClientFactory) -> None:
+def test_from_query(test_client_factory: ClientFactory) -> None:
     @dataclasses.dataclass
     class CustomQueryParams:
         search: str = ""
@@ -32,7 +32,7 @@ def test_from_query(test_client_factory: TestClientFactory) -> None:
     assert response.text == "query"
 
 
-def test_json_body(test_client_factory: TestClientFactory) -> None:
+def test_json_body(test_client_factory: ClientFactory) -> None:
     @dataclasses.dataclass
     class BodyPayload:
         search: str = ""
@@ -47,7 +47,7 @@ def test_json_body(test_client_factory: TestClientFactory) -> None:
     assert response.text == BodyPayload.__name__
 
 
-def test_form_data(test_client_factory: TestClientFactory) -> None:
+def test_form_data(test_client_factory: ClientFactory) -> None:
     @dataclasses.dataclass
     class BodyPayload:
         search: str = ""
@@ -62,7 +62,7 @@ def test_form_data(test_client_factory: TestClientFactory) -> None:
     assert response.text == BodyPayload.__name__
 
 
-def test_current_user(test_client_factory: TestClientFactory) -> None:
+def test_current_user(test_client_factory: ClientFactory) -> None:
     @dataclasses.dataclass
     class User(UserLike):
         name: str = "root"
@@ -84,7 +84,7 @@ def test_current_user(test_client_factory: TestClientFactory) -> None:
     assert response.text == "root"
 
 
-def test_auth_token(test_client_factory: TestClientFactory) -> None:
+def test_auth_token(test_client_factory: ClientFactory) -> None:
     @dataclasses.dataclass
     class User(UserLike):
         name: str = "root"

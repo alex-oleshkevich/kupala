@@ -11,7 +11,7 @@ from kupala.middleware import Middleware
 from kupala.routing import Routes
 
 
-class TestAppFactory(typing.Protocol):  # pragma: nocover
+class AppFactory(typing.Protocol):  # pragma: nocover
     def __call__(
         self,
         debug: bool = True,
@@ -22,7 +22,7 @@ class TestAppFactory(typing.Protocol):  # pragma: nocover
         ...
 
 
-class TestClientFactory(typing.Protocol):  # pragma: nocover
+class ClientFactory(typing.Protocol):  # pragma: nocover
     def __call__(
         self,
         debug: bool = True,
@@ -36,7 +36,7 @@ class TestClientFactory(typing.Protocol):  # pragma: nocover
 
 
 @pytest.fixture
-def test_app_factory(tmp_path: os.PathLike) -> TestAppFactory:
+def test_app_factory(tmp_path: os.PathLike) -> AppFactory:
     def factory(*args: typing.Any, **kwargs: typing.Any) -> Starlette:
         kwargs.setdefault("debug", True)
         kwargs.setdefault("routes", Routes())
@@ -47,13 +47,13 @@ def test_app_factory(tmp_path: os.PathLike) -> TestAppFactory:
 
 
 @pytest.fixture
-def test_client_factory(test_app_factory: TestAppFactory) -> TestClientFactory:
+def test_client_factory(test_app_factory: AppFactory) -> ClientFactory:
     def factory(**kwargs: typing.Any) -> TestClient:
         raise_server_exceptions = kwargs.pop("raise_server_exceptions", True)
         app = kwargs.pop("app", test_app_factory(**kwargs))
         return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
-    return typing.cast(TestClientFactory, factory)
+    return typing.cast(ClientFactory, factory)
 
 
 @pytest.fixture

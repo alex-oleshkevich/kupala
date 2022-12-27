@@ -10,7 +10,7 @@ class TimeoutMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         try:
-            async with anyio.fail_after(self.timeout):
+            with anyio.fail_after(self.timeout):
                 await self.app(scope, receive, send)
         except TimeoutError:
             response = PlainTextResponse("Gateway Timeout", status_code=504)

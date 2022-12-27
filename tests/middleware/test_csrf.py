@@ -17,7 +17,7 @@ from kupala.middleware.csrf import (
 )
 from kupala.requests import Request
 from kupala.routing import route
-from tests.conftest import TestClientFactory
+from tests.conftest import ClientFactory
 
 
 @pytest.fixture()
@@ -65,7 +65,7 @@ def test_validate_csrf_token_mismatch(csrf_token: str, csrf_timed_token: str) ->
     assert str(ex.value) == "CSRF tokens do not match."
 
 
-def test_middleware_needs_session(test_client_factory: TestClientFactory) -> None:
+def test_middleware_needs_session(test_client_factory: ClientFactory) -> None:
     client = test_client_factory(
         middleware=[
             Middleware(CSRFMiddleware, secret_key="secret"),
@@ -76,7 +76,7 @@ def test_middleware_needs_session(test_client_factory: TestClientFactory) -> Non
     assert str(ex.value) == "CsrfMiddleware requires SessionMiddleware."
 
 
-def test_middleware_checks_access(test_client_factory: TestClientFactory) -> None:
+def test_middleware_checks_access(test_client_factory: ClientFactory) -> None:
     @route("/", methods=["post", "get", "head", "put", "delete", "patch", "options"])
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
@@ -125,7 +125,7 @@ def test_middleware_checks_access(test_client_factory: TestClientFactory) -> Non
     assert client.delete("/", headers={"x-csrf-token": token}).status_code == 200
 
 
-def test_middleware_allow_from_whitelist(test_client_factory: TestClientFactory) -> None:
+def test_middleware_allow_from_whitelist(test_client_factory: ClientFactory) -> None:
     @route("/", methods=["post", "options"])
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
@@ -150,7 +150,7 @@ def test_middleware_allow_from_whitelist(test_client_factory: TestClientFactory)
     assert client.post("/login").status_code == 200
 
 
-def test_middleware_allow_from_whitelist_using_full_url(test_client_factory: TestClientFactory) -> None:
+def test_middleware_allow_from_whitelist_using_full_url(test_client_factory: ClientFactory) -> None:
     @route("/", methods=["post"])
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)
@@ -166,7 +166,7 @@ def test_middleware_allow_from_whitelist_using_full_url(test_client_factory: Tes
     assert client.post("/").status_code == 200
 
 
-def test_middleware_injects_template_context(test_client_factory: TestClientFactory) -> None:
+def test_middleware_injects_template_context(test_client_factory: ClientFactory) -> None:
     @route("/", methods=["post"])
     def view(request: Request) -> PlainTextResponse:
         return PlainTextResponse(request.state.csrf_timed_token)

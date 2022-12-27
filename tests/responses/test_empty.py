@@ -3,10 +3,10 @@ from starlette.responses import Response
 from kupala.requests import Request
 from kupala.responses import empty_response
 from kupala.routing import route
-from tests.conftest import TestClientFactory
+from tests.conftest import ClientFactory
 
 
-def test_empty(test_client_factory: TestClientFactory) -> None:
+def test_empty(test_client_factory: ClientFactory) -> None:
     @route("/")
     def view(request: Request) -> Response:
         return empty_response()

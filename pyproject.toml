@@ -109,6 +109,4 @@ norecursedirs = [
 addopts = "--tb=short -s --no-cov-on-fail"
 testpaths = ["tests"]
 filterwarnings = [
-    "ignore::UserWarning",
-    "ignore::DeprecationWarning",
 ]

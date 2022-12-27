@@ -3,7 +3,7 @@ import typing as t
 from kupala.requests import Request
 from kupala.responses import JSONResponse
 from kupala.routing import route
-from tests.conftest import TestClientFactory
+from tests.conftest import ClientFactory
 
 
 class CustomObject:
@@ -15,7 +15,7 @@ def _default(o: t.Any) -> t.Any:
         return "<custom>"
 
 
-def test_json(test_client_factory: TestClientFactory) -> None:
+def test_json(test_client_factory: ClientFactory) -> None:
     @route("/")
     def view(request: Request) -> JSONResponse:
         return JSONResponse({"user": "root"})
@@ -26,7 +26,7 @@ def test_json(test_client_factory: TestClientFactory) -> None:
     assert response.json() == {"user": "root"}
 
 
-def test_custom_default(test_client_factory: TestClientFactory) -> None:
+def test_custom_default(test_client_factory: ClientFactory) -> None:
     @route("/")
     def view(request: Request) -> JSONResponse:
         return JSONResponse(
@@ -41,7 +41,7 @@ def test_custom_default(test_client_factory: TestClientFactory) -> None:
     assert response.json() == {"object": "<custom>"}
 
 
-def test_json_indents(test_client_factory: TestClientFactory) -> None:
+def test_json_indents(test_client_factory: ClientFactory) -> None:
     @route("/")
     def view(request: Request) -> JSONResponse:
         return JSONResponse({"user": {"details": {"name": "root"}}}, indent=4)

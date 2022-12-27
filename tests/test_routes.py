@@ -4,7 +4,7 @@ from starlette.routing import Route
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes, route
-from tests.conftest import TestClientFactory
+from tests.conftest import ClientFactory
 
 
 @route("/")
@@ -27,7 +27,7 @@ def test_iterable(routes: Routes) -> None:
     assert len(list(routes)) == 2
 
 
-def test_route(test_client_factory: TestClientFactory) -> None:
+def test_route(test_client_factory: ClientFactory) -> None:
     @route("/")
     def index(_: Request) -> Response:
         return Response("ok")
@@ -38,7 +38,7 @@ def test_route(test_client_factory: TestClientFactory) -> None:
     assert response.text == "ok"
 
 
-def test_custom_request_class(test_client_factory: TestClientFactory) -> None:
+def test_custom_request_class(test_client_factory: ClientFactory) -> None:
     class MyRequest(Request):
         ...
 
@@ -51,7 +51,7 @@ def test_custom_request_class(test_client_factory: TestClientFactory) -> None:
     assert response.text == "MyRequest"
 
 
-def test_custom_request_class_alternate_varname(test_client_factory: TestClientFactory) -> None:
+def test_custom_request_class_alternate_varname(test_client_factory: ClientFactory) -> None:
     class MyRequest(Request):
         ...
 
@@ -64,7 +64,7 @@ def test_custom_request_class_alternate_varname(test_client_factory: TestClientF
     assert response.text == "MyRequest"
 
 
-def test_generic_request_class(test_client_factory: TestClientFactory) -> None:
+def test_generic_request_class(test_client_factory: ClientFactory) -> None:
     _t = typing.TypeVar("_t")
 
     class MyRequest(Request, typing.Generic[_t]):
@@ -83,13 +83,13 @@ def example_view(request: Request) -> Response:
     return Response("ok")
 
 
-def test_routes_add_route(test_client_factory: TestClientFactory) -> None:
+def test_routes_add_route(test_client_factory: ClientFactory) -> None:
     route = Route("/", example_view)
     client = test_client_factory(routes=[route])
     assert client.get("/").text == "ok"
 
 
-def test_routes_decorate_callable(test_client_factory: TestClientFactory) -> None:
+def test_routes_decorate_callable(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
     @routes.route("/")
@@ -100,7 +100,7 @@ def test_routes_decorate_callable(test_client_factory: TestClientFactory) -> Non
     assert client.get("/").text == "ok"
 
 
-def test_routes_decorate_callable_multiple_times(test_client_factory: TestClientFactory) -> None:
+def test_routes_decorate_callable_multiple_times(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
     @routes.route("/new")
@@ -113,7 +113,7 @@ def test_routes_decorate_callable_multiple_times(test_client_factory: TestClient
     assert client.get("/edit").text == "ok"
 
 
-def test_routes_is_callable(test_client_factory: TestClientFactory) -> None:
+def test_routes_is_callable(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
     @routes("/")
@@ -149,7 +149,7 @@ def test_routes_repr() -> None:
     assert repr(routes) == "<Routes: 0 routes>"
 
 
-def test_routes_get(test_client_factory: TestClientFactory) -> None:
+def test_routes_get(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
     @routes.get_or_post("/")
@@ -160,7 +160,7 @@ def test_routes_get(test_client_factory: TestClientFactory) -> None:
     assert client.get("/").text == "ok"
 
 
-def test_routes_post(test_client_factory: TestClientFactory) -> None:
+def test_routes_post(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
     @routes.get_or_post("/")
@@ -171,7 +171,7 @@ def test_routes_post(test_client_factory: TestClientFactory) -> None:
     assert client.post("/").text == "ok"
 
 
-def test_routes_get_or_post(test_client_factory: TestClientFactory) -> None:
+def test_routes_get_or_post(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
     @routes.get_or_post("/")
@@ -183,7 +183,7 @@ def test_routes_get_or_post(test_client_factory: TestClientFactory) -> None:
     assert client.post("/").text == "ok"
 
 
-def test_routes_put(test_client_factory: TestClientFactory) -> None:
+def test_routes_put(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
     @routes.put("/")
@@ -194,7 +194,7 @@ def test_routes_put(test_client_factory: TestClientFactory) -> None:
     assert client.put("/").text == "ok"
 
 
-def test_routes_patch(test_client_factory: TestClientFactory) -> None:
+def test_routes_patch(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
     @routes.patch("/")
@@ -205,7 +205,7 @@ def test_routes_patch(test_client_factory: TestClientFactory) -> None:
     assert client.patch("/").text == "ok"
 
 
-def test_routes_delete(test_client_factory: TestClientFactory) -> None:
+def test_routes_delete(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
     @routes.delete("/")
@@ -216,7 +216,7 @@ def test_routes_delete(test_client_factory: TestClientFactory) -> None:
     assert client.delete("/").text == "ok"
 
 
-def test_routes_options(test_client_factory: TestClientFactory) -> None:
+def test_routes_options(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
     @routes.options("/")
@@ -227,7 +227,7 @@ def test_routes_options(test_client_factory: TestClientFactory) -> None:
     assert client.options("/").text == "ok"
 
 
-def test_routes_accepts_routes_instance(test_client_factory: TestClientFactory) -> None:
+def test_routes_accepts_routes_instance(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
     @routes.options("/")

@@ -9,7 +9,7 @@ from starlette.testclient import TestClient
 
 from kupala.requests import Request
 from kupala.routing import InjectionError, route
-from tests.conftest import TestClientFactory
+from tests.conftest import ClientFactory
 
 
 @dataclasses.dataclass
@@ -29,7 +29,7 @@ AnnotatedDb = typing.Annotated[Db, annotated_db_factory]
 AsyncAnnotatedDb = typing.Annotated[Db, async_annotated_db_factory]
 
 
-def test_injects_path_params(test_client_factory: TestClientFactory) -> None:
+def test_injects_path_params(test_client_factory: ClientFactory) -> None:
     """It should inject path param via function arguments."""
 
     @route("/users/{id}")
@@ -42,7 +42,7 @@ def test_injects_path_params(test_client_factory: TestClientFactory) -> None:
     assert response.text == "1"
 
 
-def test_ignores_path_param_if_not_requested(test_client_factory: TestClientFactory) -> None:
+def test_ignores_path_param_if_not_requested(test_client_factory: ClientFactory) -> None:
     """It should not inject path param if view callable does not require requests it."""
 
     @route("/{user:int}")
