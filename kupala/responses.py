@@ -4,10 +4,10 @@ import typing
 from starlette import responses
 from starlette.background import BackgroundTask
 from starlette.datastructures import URL
+from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 
 from kupala.json import dumps as json_dump, json_default as base_json_default
-from kupala.requests import Request
 
 __all__ = [
     "redirect",

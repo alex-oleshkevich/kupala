@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import abc
 import datetime
 import enum
 import typing
@@ -19,7 +18,7 @@ class LoginState(str, enum.Enum):
     ANONYMOUS = "anonymous"
 
 
-class UserLike(abc.ABC):
+class UserLike:
     def get_id(self) -> str:  # pragma: nocover
         raise NotImplementedError()
 
