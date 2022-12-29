@@ -1,7 +1,6 @@
 import typing
+from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
-
-from kupala.requests import Request
 
 BODY_PARAM = "_method"
 

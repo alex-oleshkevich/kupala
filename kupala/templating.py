@@ -8,9 +8,8 @@ from jinja2.runtime import Macro
 from starlette import responses, templating
 from starlette.background import BackgroundTask
 from starlette.datastructures import URL
-
-from kupala.requests import Request
-from kupala.responses import Response
+from starlette.requests import Request
+from starlette.responses import Response
 
 _boot_time = time.time()
 

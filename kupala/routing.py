@@ -10,11 +10,11 @@ import typing
 from contextlib import AsyncExitStack, ExitStack
 from starlette import requests
 from starlette.concurrency import run_in_threadpool
+from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from kupala.guards import Guard, NextGuard
-from kupala.requests import Request
 
 
 class InjectionError(Exception):

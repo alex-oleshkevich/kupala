@@ -6,7 +6,7 @@ from itsdangerous import BadData, SignatureExpired, URLSafeTimedSerializer
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.exceptions import PermissionDenied
-from kupala.requests import Request
+from kupala.requests import Request, is_submitted
 
 CSRF_SESSION_KEY = "_csrf_token"
 CSRF_HEADER = "x-csrf-token"
@@ -115,7 +115,7 @@ class CSRFMiddleware:
         from_headers = request.headers.get(CSRF_HEADER, "")
         from_query = request.query_params.get(CSRF_QUERY_PARAM, "")
         from_form_data = ""
-        if request.is_submitted:
+        if is_submitted(request):
             form_data = await request.form()
             from_form_data = typing.cast(str, form_data.get(CSRF_POST_FIELD))
         return from_query or from_form_data or from_headers

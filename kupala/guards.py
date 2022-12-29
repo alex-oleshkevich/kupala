@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import typing
+from starlette.requests import Request
 from starlette.responses import Response
-
-from kupala.requests import Request
 
 
 class NextGuard(typing.Protocol):
