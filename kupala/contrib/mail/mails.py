@@ -6,13 +6,10 @@ from mailers import Mailer
 from mailers.message import Email, Recipients
 from starlette.applications import Starlette
 
-from kupala.contrib.mail.commands import command_group
 from kupala.contrib.mail.components import Envelope, TemplatedMailComponent
 
 
 class Mails:
-    command_group = command_group
-
     def __init__(self, mailers: dict[str, Mailer], jinja_env: jinja2.Environment | None = None) -> None:
         self.mailers = mailers
         self.jinja_env = jinja_env
