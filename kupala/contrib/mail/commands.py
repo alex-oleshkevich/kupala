@@ -5,10 +5,10 @@ import typing
 from kupala.console import async_command
 from kupala.contrib.mail.mails import Mails
 
-command_group: click.Group = click.Group("mail")
+mail_commands: click.Group = click.Group("mail")
 
 
-@command_group.command("test")
+@mail_commands.command("test")
 @click.argument("email")
 @click.option("--subject", default="This is test email")
 @click.option("--body", default="If you see this then it works. Sent at {time}.")
