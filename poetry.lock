@@ -340,6 +340,26 @@ MarkupSafe = ">=2.0"
 i18n = ["Babel (>=2.7)"]
 
 [[package]]
+name = "mailers"
+version = "3.0.0"
+description = "Email delivery for asyncio."
+category = "dev"
+optional = false
+python-versions = ">=3.8,<4.0"
+files = [
+    {file = "mailers-3.0.0-py3-none-any.whl", hash = "sha256:ab1997bf9897565e33a0c042a5b4032ca1fd3144d43ef175a704143505d33dba"},
+    {file = "mailers-3.0.0.tar.gz", hash = "sha256:a2014dfcfb4057be4861084ba1f63aea64decdd6a4478df3485c1c4cc8686ef9"},
+]
+
+[package.dependencies]
+anyio = ">=3.3.0,<4.0.0"
+
+[package.extras]
+dkim = ["dkimpy (>=1.0,<2.0)"]
+jinja2 = ["jinja2 (>=3.0,<4.0)"]
+smtp = ["aiosmtplib (>=2.0,<3.0)"]
+
+[[package]]
 name = "markupsafe"
 version = "2.1.1"
 description = "Safely add untrusted strings to HTML/XML markup."
@@ -738,4 +758,4 @@ standard = ["colorama (>=0.4)", "httptools (>=0.5.0)", "python-dotenv (>=0.13)",
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "bfeeccc1e9e0b367e7a4b765ec0c94ffd7c79ad666778f477263dbff5b3c3f3c"
+content-hash = "418de72dcb51c1da2c2af45685be1832fdc8f04fe692441c54aa2d699875c5eb"
