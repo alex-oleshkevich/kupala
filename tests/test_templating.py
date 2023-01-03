@@ -9,7 +9,16 @@ from starlette.routing import Mount
 from starlette.types import Receive, Scope, Send
 
 from kupala.requests import Request
-from kupala.templating import Jinja2Templates, abs_url_for, media_url, static_url, url_for, url_matches
+from kupala.templating import (
+    Jinja2Templates,
+    abs_url_for,
+    app_processor,
+    media_url,
+    static_url,
+    url_for,
+    url_matches,
+    url_processors,
+)
 
 template = """SIMPLE TEXT
 FROM CONTEXT {{ context_variable }}
@@ -289,3 +298,23 @@ def test_url_matches() -> None:
     assert not url_matches(request, "media", path_params={"path": "file2"})
     assert url_matches(request, "media", path_params={"path": "fil"})
     assert not url_matches(request, "media", path_params={"path": "fil"}, exact=True)
+
+
+@pytest.mark.asyncio
+async def test_app_processor(jinja_env: jinja2.Environment) -> None:
+    app = Starlette()
+    request = Request(scope={"type": "http", "app": app})
+    context = app_processor(request)
+    assert "app" in context
+
+
+@pytest.mark.asyncio
+async def test_url_processors(jinja_env: jinja2.Environment) -> None:
+    app = Starlette()
+    request = Request(scope={"type": "http", "app": app})
+    context = url_processors(request)
+    assert "url" in context
+    assert "abs_url" in context
+    assert "static_url" in context
+    assert "media_url" in context
+    assert "url_matches" in context
