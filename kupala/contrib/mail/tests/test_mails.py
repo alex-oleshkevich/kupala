@@ -51,12 +51,7 @@ async def test_sends_simple_mail(mailer: Mailer, transport: InMemoryTransport) -
 async def test_sends_templated_mail(
     mailer: Mailer, transport: InMemoryTransport, jinja_env: jinja2.Environment, templates_dir: pathlib.Path
 ) -> None:
-    (templates_dir / "text.html").write_text(
-        """
-    {% extends 'kupala/mail/base_mail.html' %}
-    {% block content %}text {{key}}{% endblock %}
-    """
-    )
+    (templates_dir / "text.html").write_text("text {{key}}")
 
     (templates_dir / "html.html").write_text(
         """

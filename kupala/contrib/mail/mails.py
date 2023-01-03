@@ -43,7 +43,7 @@ class Mails:
     ) -> None:
         assert self.jinja_env
         text_content: str | None = self.jinja_env.get_template(text_template).render(context) if text_template else None
-        html_content: str | None = self.jinja_env.get_template(html_template).render(context) if text_template else None
+        html_content: str | None = self.jinja_env.get_template(html_template).render(context) if html_template else None
         await self.send_mail(
             to=to,
             subject=subject,
