@@ -40,6 +40,7 @@ uvicorn = "^0.20"
 httpx = "^0.23.0"
 mailers = "^3.0.0"
 aiosmtplib = "^2.0.0"
+starlette-flash = "^1.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

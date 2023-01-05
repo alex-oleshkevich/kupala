@@ -729,6 +729,18 @@ anyio = ">=3.4.0,<5"
 full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart", "pyyaml"]
 
 [[package]]
+name = "starlette-flash"
+version = "1.0.1"
+description = "Flash messages for Starlette framework."
+category = "dev"
+optional = false
+python-versions = ">=3.10.0,<4.0.0"
+files = [
+    {file = "starlette_flash-1.0.1-py3-none-any.whl", hash = "sha256:006e6985969f731dee77db0fa9325044a6facd5f423c64af8fe2b74dc33c1123"},
+    {file = "starlette_flash-1.0.1.tar.gz", hash = "sha256:9c2882a1be7a1de9bb607ce4a045b5d1b9e09cfd7f8e836dd782d8a64074d8c5"},
+]
+
+[[package]]
 name = "tomli"
 version = "2.0.1"
 description = "A lil' TOML parser"
@@ -774,4 +786,4 @@ standard = ["colorama (>=0.4)", "httptools (>=0.5.0)", "python-dotenv (>=0.13)",
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "9680e2259fc983d28227295d53c3241635b8528f18cd38be7f196eb1c627ba27"
+content-hash = "6963ff1f0764f8e6197c36f75d5585c2c439661d3005b7d41001a3506d887358"
