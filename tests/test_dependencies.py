@@ -259,3 +259,16 @@ async def test_fallback() -> None:
     conn = Request({"type": "http"})
     resolver = DependencyResolver.from_callable(fn, fallback=fallback)
     assert await resolver.resolve(conn) == "one"
+
+
+@pytest.mark.asyncio
+async def test_dependency_resolve_not_caches() -> None:
+    parameter = inspect.Parameter(
+        "name",
+        kind=inspect.Parameter.KEYWORD_ONLY,
+        annotation=typing.Annotated[int, lambda context: id(context.request)],
+    )
+    dependency = Dependency.from_parameter(parameter)
+    call_1 = await dependency.resolve(Request({"type": "http"}))
+    call_2 = await dependency.resolve(Request({"type": "http"}))
+    assert call_1 != call_2

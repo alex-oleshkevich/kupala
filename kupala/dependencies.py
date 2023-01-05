@@ -35,9 +35,9 @@ class _Context:
 Context = typing.Annotated[_Context, lambda: None]
 
 
-def resolve_context(request: typing.Callable[[], Request | WebSocket], dependency: Dependency) -> Context:
+def resolve_context(request: Request | WebSocket, dependency: Dependency) -> Context:
     return Context(
-        request=request(),
+        request=request,
         type=dependency.type,
         optional=dependency.optional,
         param_name=dependency.param_name,
@@ -57,17 +57,26 @@ class Dependency:
 
     def __post_init__(self) -> None:
         self.is_async = inspect.iscoroutinefunction(self.factory)
+        self.plan = DependencyResolver.from_callable(self.factory)
+        self._context_arg_name = ""
+        for name, dependency in self.plan.dependencies.items():
+            if dependency.type == _Context:
+                self._context_arg_name = name
 
     async def resolve(self, request: Request | WebSocket) -> typing.Any:
-        if self.plan is None:
-            self.plan = DependencyResolver.from_callable(self.factory)
-            for name, dependency in self.plan.dependencies.items():
-                if dependency.type == _Context:
+        assert self.plan
+        if self._context_arg_name:
 
-                    def resolver() -> Context:
-                        return resolve_context(lambda: request, self)
+            def context_resolver() -> Context:
+                return Context(
+                    request=request,
+                    type=self.type,
+                    optional=self.optional,
+                    param_name=self.param_name,
+                    default_value=self.default_value,
+                )
 
-                    dependency.plan = DependencyResolver.from_callable(resolver)
+            self.plan.dependencies[self._context_arg_name].plan = DependencyResolver.from_callable(context_resolver)
 
         return await self.plan.resolve(request)
 
