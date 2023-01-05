@@ -39,6 +39,7 @@ flake8 = "^6.0.0"
 uvicorn = "^0.20"
 httpx = "^0.23.0"
 mailers = "^3.0.0"
+aiosmtplib = "^2.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
