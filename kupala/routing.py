@@ -1,34 +1,15 @@
 from __future__ import annotations
 
-import dataclasses
-
-import contextlib
 import functools
 import importlib
 import inspect
 import typing
-from contextlib import AsyncExitStack, ExitStack
-from starlette import requests
-from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
+from kupala.dependencies import Context, Dependency, DependencyResolver
 from kupala.guards import Guard, NextGuard
-
-
-class InjectionError(Exception):
-    ...
-
-
-@dataclasses.dataclass
-class Context:
-    request: Request
-    param_name: str
-    origin: type
-    parameter: inspect.Parameter
-    default_value: typing.Any
-    optional: bool = False
 
 
 def create_dispatch_chain(guards: typing.Iterable[Guard], call_next: NextGuard) -> NextGuard:
@@ -37,95 +18,9 @@ def create_dispatch_chain(guards: typing.Iterable[Guard], call_next: NextGuard) 
     return call_next
 
 
-async def _patch_request(request: typing.Any, request_class: Request) -> Request:
+def _patch_request(request: typing.Any, request_class: type[Request]) -> Request:
     request.__class__ = request_class
     return request
-
-
-@dataclasses.dataclass
-class Factory:
-    factory: typing.Callable
-    dependencies: dict
-    param_name: str
-    origin: type
-    parameter: inspect.Parameter
-
-    async def __call__(self, request: Request) -> typing.Any:
-        async def resolve(f: typing.Callable) -> typing.Any:
-            return (
-                await f(request)
-                if inspect.iscoroutinefunction(f) or inspect.iscoroutinefunction(getattr(f, "__call__", None))
-                else f(request)
-            )
-
-        injections = {name: await resolve(f) for name, f in self.dependencies.items()}
-
-        context = Context(
-            request=request,
-            param_name=self.param_name,
-            origin=self.origin,
-            parameter=self.parameter,
-            default_value=self.parameter.default,
-            optional=False,
-        )
-        return (
-            await self.factory(context, **injections)
-            if inspect.iscoroutinefunction(self.factory)
-            else self.factory(context, **injections)
-        )
-
-
-def _generate_dependencies(fn: typing.Callable) -> tuple[dict[str, typing.Callable], list[str]]:
-    signature = inspect.signature(fn)
-    parameters = dict(signature.parameters)
-    optionals: list[str] = []
-    factories: dict[str, typing.Callable] = {}
-    for param_name, parameter in parameters.items():
-        annotation = parameter.annotation
-        origin = typing.get_origin(parameter.annotation) or parameter.annotation
-
-        if origin is typing.Union:
-            optional = type(None) in typing.get_args(parameter.annotation)
-            if optional:
-                optionals.append(param_name)
-            annotation = next((value for value in typing.get_args(parameter.annotation) if value is not None))
-
-        if origin is typing.Annotated:
-            decorated_type, factory = typing.get_args(annotation)
-            factory_dependencies, factory_optionals = _generate_dependencies(factory)
-            factories[param_name] = Factory(
-                param_name=param_name,
-                origin=decorated_type,
-                parameter=parameter,
-                factory=factory,
-                dependencies=factory_dependencies,
-            )
-    return factories, optionals
-
-
-def _generate_dependency_factories(
-    fn: typing.Callable,
-) -> tuple[dict[str, typing.Callable[[Request], typing.Any]], list[str], dict[str, inspect.Parameter]]:
-    signature = inspect.signature(fn)
-    parameters = dict(signature.parameters)
-    factories: dict[str, typing.Callable] = {}
-    for param_name, parameter in parameters.items():
-        if param_name == "request":
-            if origin := typing.get_origin(parameter.annotation):
-                request_class = origin
-            else:
-                request_class = parameter.annotation
-
-            factories[param_name] = functools.partial(_patch_request, request_class=request_class)
-            continue
-
-        origin = typing.get_origin(parameter.annotation) or parameter.annotation
-        if inspect.isclass(origin) and issubclass(origin, requests.HTTPConnection):
-            factories[param_name] = functools.partial(_patch_request, request_class=origin)
-
-    _factories, optionals = _generate_dependencies(fn)
-    factories.update(_factories)
-    return factories, optionals, parameters
 
 
 def route(
@@ -138,42 +33,31 @@ def route(
     """Convert endpoint callable into Route object."""
 
     def decorator(fn: typing.Callable) -> Route:
-        factories, optionals, parameters = _generate_dependency_factories(fn)
+        request_class = Request
+        request_param_name: str = ""
+        signature = inspect.signature(fn)
+        for parameter in signature.parameters.values():
+            origin = typing.get_origin(parameter.annotation) or parameter.annotation
+            if origin == Request or issubclass(origin, Request):
+                request_param_name = parameter.name
+                request_class = origin
+                break
+
+        def request_factory(context: Context) -> Request:
+            return _patch_request(context.conn, request_class)
+
+        request_override = Dependency(
+            type=request_class,
+            param_name=request_param_name,
+            optional=False,
+            default_value=inspect.Parameter.empty,
+            factory=request_factory,
+        )
+        callback = DependencyResolver.from_callable(fn, overrides={request_param_name: request_override})
 
         @functools.wraps(fn)
         async def endpoint_handler(request: Request) -> Response:
-            fn_arguments: dict[str, typing.Any] = {}
-
-            with ExitStack() as sync_exit_stack:
-                async with AsyncExitStack() as async_exit_stack:
-                    for param_name, param in parameters.items():
-                        if param_name in factories:
-                            factory = await factories[param_name](request)
-                            if isinstance(factory, contextlib.AbstractAsyncContextManager):
-                                dependency = await async_exit_stack.enter_async_context(factory)
-                            elif isinstance(factory, contextlib.AbstractContextManager):
-                                dependency = sync_exit_stack.enter_context(factory)
-                            else:
-                                dependency = await factories[param_name](request)
-
-                            if dependency is None and param_name not in optionals and param.default is not None:
-                                raise InjectionError(
-                                    f'Dependency factory for argument "{param_name}" of "{fn.__name__}" returned None '
-                                    f'but the "{param_name}" declared as not optional.'
-                                )
-
-                            fn_arguments[param_name] = dependency
-                            continue
-
-                        # if function argument is in path param, then use param value for the argument
-                        if param_name in request.path_params:
-                            fn_arguments[param_name] = request.path_params[param_name]
-
-                    if inspect.iscoroutinefunction(fn):
-                        return await fn(**fn_arguments)
-
-                    return await run_in_threadpool(fn, **fn_arguments)
-            assert False, "unreachable"  # https://github.com/python/mypy/issues/7726
+            return await callback.resolve(request)
 
         chain = create_dispatch_chain(guards or [], endpoint_handler)
 

@@ -1,11 +1,12 @@
 import dataclasses
 
 import contextlib
+import inspect
 import pytest
 import typing
-from starlette.requests import HTTPConnection
+from starlette.requests import Request
 
-from kupala.dependencies import Context, InjectionPlan, InvalidInjection
+from kupala.dependencies import Context, Dependency, DependencyResolver, InvalidDependency, NotAnnotatedDependency
 
 
 @dataclasses.dataclass
@@ -37,7 +38,7 @@ def test_generates_injection_plan() -> None:
     ) -> DependencyOne:
         return dep
 
-    plan = InjectionPlan.from_callable(fn)
+    plan = DependencyResolver.from_callable(fn)
     assert "dep" in plan.dependencies
     dependency = plan.dependencies["dep"]
     assert dependency.factory == _dep_one_factory
@@ -51,14 +52,24 @@ def test_generates_injection_plan() -> None:
     assert plan.dependencies["async_dep"].is_async
 
 
+def test_requires_annotated_parameters() -> None:
+    def fn(
+        dep: DependencyOne,
+    ) -> DependencyOne:
+        return dep
+
+    with pytest.raises(NotAnnotatedDependency):
+        DependencyResolver.from_callable(fn)
+
+
 @pytest.mark.asyncio
 async def test_execute_injection_plan() -> None:
     def fn(dep: DepOne) -> str:
         return dep.value
 
-    conn = HTTPConnection({"type": "http"})
-    plan = InjectionPlan.from_callable(fn)
-    result = await plan.execute(conn)
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.resolve(conn)
     assert result == "sync"
 
 
@@ -67,9 +78,9 @@ async def test_execute_injection_plan_with_async_peer_dependency() -> None:
     def fn(dep: AsyncDepOne) -> str:
         return dep.value
 
-    conn = HTTPConnection({"type": "http"})
-    plan = InjectionPlan.from_callable(fn)
-    result = await plan.execute(conn)
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.resolve(conn)
     assert result == "async"
 
 
@@ -78,9 +89,9 @@ async def test_execute_injection_plan_with_async_dependency() -> None:
     async def fn(dep: AsyncDepOne) -> str:
         return dep.value
 
-    conn = HTTPConnection({"type": "http"})
-    plan = InjectionPlan.from_callable(fn)
-    result = await plan.execute(conn)
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.resolve(conn)
     assert result == "async"
 
 
@@ -91,10 +102,10 @@ async def test_non_optional_dependency_disallows_none_value() -> None:
     def fn(dep: Dep) -> str:
         return str(dep)
 
-    with pytest.raises(InvalidInjection, match="returned None"):
-        conn = HTTPConnection({"type": "http"})
-        plan = InjectionPlan.from_callable(fn)
-        await plan.execute(conn)
+    with pytest.raises(InvalidDependency, match="returned None"):
+        conn = Request({"type": "http"})
+        plan = DependencyResolver.from_callable(fn)
+        await plan.resolve(conn)
 
 
 @pytest.mark.asyncio
@@ -104,9 +115,9 @@ async def test_optional_dependency_allows_none_value() -> None:
     def fn(dep: Dep | None) -> str:
         return str(dep)
 
-    conn = HTTPConnection({"type": "http"})
-    plan = InjectionPlan.from_callable(fn)
-    result = await plan.execute(conn)
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.resolve(conn)
     assert result == "None"
 
 
@@ -120,9 +131,9 @@ async def test_injects_context_into_factory() -> None:
     def fn(dep: Dep) -> str:
         return dep
 
-    conn = HTTPConnection({"type": "http"})
-    plan = InjectionPlan.from_callable(fn)
-    result = await plan.execute(conn)
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.resolve(conn)
     assert result == "_Context"
 
 
@@ -141,9 +152,9 @@ async def test_resolves_nested_dependencies() -> None:
     def fn(dep: Child) -> str:
         return dep
 
-    conn = HTTPConnection({"type": "http"})
-    plan = InjectionPlan.from_callable(fn)
-    result = await plan.execute(conn)
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.resolve(conn)
     assert result == "parentchild"
 
 
@@ -158,9 +169,9 @@ async def test_sync_context_manager_dependencies() -> None:
     def fn(dep: Dep) -> str:
         return dep
 
-    conn = HTTPConnection({"type": "http"})
-    plan = InjectionPlan.from_callable(fn)
-    result = await plan.execute(conn)
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.resolve(conn)
     assert result == "dep"
 
 
@@ -181,9 +192,9 @@ async def test_sync_context_manager_dependencies_recursive() -> None:
     def fn(dep: Dep) -> str:
         return dep
 
-    conn = HTTPConnection({"type": "http"})
-    plan = InjectionPlan.from_callable(fn)
-    result = await plan.execute(conn)
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.resolve(conn)
     assert result == "basedep"
 
 
@@ -198,9 +209,9 @@ async def test_async_context_manager_dependencies() -> None:
     def fn(dep: Dep) -> str:
         return dep
 
-    conn = HTTPConnection({"type": "http"})
-    plan = InjectionPlan.from_callable(fn)
-    result = await plan.execute(conn)
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.resolve(conn)
     assert result == "dep"
 
 
@@ -221,7 +232,30 @@ async def test_async_context_manager_dependencies_recursive() -> None:
     def fn(dep: Dep) -> str:
         return dep
 
-    conn = HTTPConnection({"type": "http"})
-    plan = InjectionPlan.from_callable(fn)
-    result = await plan.execute(conn)
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.resolve(conn)
     assert result == "basedep"
+
+
+@pytest.mark.asyncio
+async def test_fallback() -> None:
+    def fn(dep: DependencyOne) -> str:
+        return dep.value
+
+    with pytest.raises(NotAnnotatedDependency):
+        DependencyResolver.from_callable(fn)
+
+    def fallback(parameter: inspect.Parameter) -> Dependency | None:
+        return Dependency(
+            type=DependencyOne,
+            param_name=parameter.name,
+            optional=False,
+            is_async=False,
+            default_value=None,
+            factory=lambda: DependencyOne("one"),
+        )
+
+    conn = Request({"type": "http"})
+    resolver = DependencyResolver.from_callable(fn, fallback=fallback)
+    assert await resolver.resolve(conn) == "one"
