@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 
+import contextlib
 import functools
 import inspect
 import typing
@@ -78,8 +79,18 @@ class InjectionPlan:
             dependencies[param_name] = value
 
         if self.is_async:
-            return await self.fn(**dependencies)
-        return await run_in_threadpool(self.fn, **dependencies)
+            result = await self.fn(**dependencies)
+        else:
+            result = await run_in_threadpool(self.fn, **dependencies)
+
+        if isinstance(result, contextlib.AbstractContextManager):
+            with result as final_result:
+                return final_result
+        if isinstance(result, contextlib.AbstractAsyncContextManager):
+            async with result as final_result:
+                return final_result
+
+        return result
 
 
 def resolve_dependencies(fn: typing.Callable) -> InjectionPlan:

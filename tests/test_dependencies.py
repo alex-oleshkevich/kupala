@@ -1,5 +1,6 @@
 import dataclasses
 
+import contextlib
 import pytest
 import typing
 from starlette.requests import HTTPConnection
@@ -62,8 +63,19 @@ async def test_execute_injection_plan() -> None:
 
 
 @pytest.mark.asyncio
-async def test_execute_injection_plan_with_async_dependency() -> None:
+async def test_execute_injection_plan_with_async_peer_dependency() -> None:
     def fn(dep: AsyncDepOne) -> str:
+        return dep.value
+
+    conn = HTTPConnection({"type": "http"})
+    plan = resolve_dependencies(fn)
+    result = await plan.execute(conn)
+    assert result == "async"
+
+
+@pytest.mark.asyncio
+async def test_execute_injection_plan_with_async_dependency() -> None:
+    async def fn(dep: AsyncDepOne) -> str:
         return dep.value
 
     conn = HTTPConnection({"type": "http"})
@@ -133,3 +145,83 @@ async def test_resolves_nested_dependencies() -> None:
     plan = resolve_dependencies(fn)
     result = await plan.execute(conn)
     assert result == "parentchild"
+
+
+@pytest.mark.asyncio
+async def test_sync_context_manager_dependencies() -> None:
+    @contextlib.contextmanager
+    def factory() -> typing.Generator[str, None, None]:
+        yield "dep"
+
+    Dep = typing.Annotated[str, factory]
+
+    def fn(dep: Dep) -> str:
+        return dep
+
+    conn = HTTPConnection({"type": "http"})
+    plan = resolve_dependencies(fn)
+    result = await plan.execute(conn)
+    assert result == "dep"
+
+
+@pytest.mark.asyncio
+async def test_sync_context_manager_dependencies_recursive() -> None:
+    @contextlib.contextmanager
+    def base_factory() -> typing.Generator[str, None, None]:
+        yield "base"
+
+    Base = typing.Annotated[str, base_factory]
+
+    @contextlib.contextmanager
+    def factory(base: Base) -> typing.Generator[str, None, None]:
+        yield base + "dep"
+
+    Dep = typing.Annotated[str, factory]
+
+    def fn(dep: Dep) -> str:
+        return dep
+
+    conn = HTTPConnection({"type": "http"})
+    plan = resolve_dependencies(fn)
+    result = await plan.execute(conn)
+    assert result == "basedep"
+
+
+@pytest.mark.asyncio
+async def test_async_context_manager_dependencies() -> None:
+    @contextlib.asynccontextmanager
+    async def factory() -> typing.AsyncGenerator[str, None]:
+        yield "dep"
+
+    Dep = typing.Annotated[str, factory]
+
+    def fn(dep: Dep) -> str:
+        return dep
+
+    conn = HTTPConnection({"type": "http"})
+    plan = resolve_dependencies(fn)
+    result = await plan.execute(conn)
+    assert result == "dep"
+
+
+@pytest.mark.asyncio
+async def test_async_context_manager_dependencies_recursive() -> None:
+    @contextlib.asynccontextmanager
+    async def base_factory() -> typing.AsyncGenerator[str, None]:
+        yield "base"
+
+    Base = typing.Annotated[str, base_factory]
+
+    @contextlib.asynccontextmanager
+    async def factory(base: Base) -> typing.AsyncGenerator[str, None]:
+        yield base + "dep"
+
+    Dep = typing.Annotated[str, factory]
+
+    def fn(dep: Dep) -> str:
+        return dep
+
+    conn = HTTPConnection({"type": "http"})
+    plan = resolve_dependencies(fn)
+    result = await plan.execute(conn)
+    assert result == "basedep"
