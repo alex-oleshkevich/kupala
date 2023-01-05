@@ -83,7 +83,7 @@ class Dependency:
             origin = typing.get_origin(annotation)
 
         if origin is not typing.Annotated:
-            if parameter.name == "context":
+            if parameter.name == "context":  # support one-line lambdas
                 annotation = Context
             else:
                 raise NotAnnotatedDependency(
