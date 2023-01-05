@@ -32,7 +32,7 @@ def test_login_required_guard_redirects_to_url(test_client_factory: ClientFactor
     )
     response = client.get("/", follow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"] == "/login"
+    assert response.headers["location"] == "/login?next=%2F"
 
 
 def test_login_required_guard_redirects_to_path(test_client_factory: ClientFactory, user: User) -> None:
@@ -52,7 +52,7 @@ def test_login_required_guard_redirects_to_path(test_client_factory: ClientFacto
     )
     response = client.get("/", follow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"] == "http://testserver/security/login/1"
+    assert response.headers["location"] == "http://testserver/security/login/1?next=%2F"
 
 
 def test_login_required_guard_redirects_to_default_route_path(test_client_factory: ClientFactory, user: User) -> None:
@@ -72,4 +72,4 @@ def test_login_required_guard_redirects_to_default_route_path(test_client_factor
     )
     response = client.get("/", follow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"] == "http://testserver/security/login"
+    assert response.headers["location"] == "http://testserver/security/login?next=%2F"
