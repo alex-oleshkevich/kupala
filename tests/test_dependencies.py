@@ -12,14 +12,14 @@ class DependencyOne:
     value: str
 
 
-def _dep_one_factory(context: Context) -> DependencyOne:
+def _dep_one_factory() -> DependencyOne:
     return DependencyOne(value="sync")
 
 
 DepOne = typing.Annotated[DependencyOne, _dep_one_factory]
 
 
-async def _async_dep_one_factory(context: Context) -> DependencyOne:
+async def _async_dep_one_factory() -> DependencyOne:
     return DependencyOne(value="async")
 
 
@@ -42,7 +42,7 @@ def test_generates_injection_plan() -> None:
     assert dependency.factory == _dep_one_factory
     assert dependency.param_name == "dep"
     assert not dependency.optional
-    assert dependency.base_type == DependencyOne
+    assert dependency.type == DependencyOne
 
     assert plan.dependencies["dep2"].optional
     assert plan.dependencies["dep3"].default_value is None
@@ -74,7 +74,7 @@ async def test_execute_injection_plan_with_async_dependency() -> None:
 
 @pytest.mark.asyncio
 async def test_non_optional_dependency_disallows_none_value() -> None:
-    Dep = typing.Annotated[DependencyOne, lambda context: None]
+    Dep = typing.Annotated[DependencyOne, lambda: None]
 
     def fn(dep: Dep) -> str:
         return str(dep)
@@ -87,7 +87,7 @@ async def test_non_optional_dependency_disallows_none_value() -> None:
 
 @pytest.mark.asyncio
 async def test_optional_dependency_allows_none_value() -> None:
-    Dep = typing.Annotated[DependencyOne, lambda context: None]
+    Dep = typing.Annotated[DependencyOne, lambda: None]
 
     def fn(dep: Dep | None) -> str:
         return str(dep)
@@ -96,3 +96,40 @@ async def test_optional_dependency_allows_none_value() -> None:
     plan = resolve_dependencies(fn)
     result = await plan.execute(conn)
     assert result == "None"
+
+
+@pytest.mark.asyncio
+async def test_injects_context_into_factory() -> None:
+    def factory(context: Context) -> str:
+        return context.__class__.__name__
+
+    Dep = typing.Annotated[str, factory]
+
+    def fn(dep: Dep) -> str:
+        return dep
+
+    conn = HTTPConnection({"type": "http"})
+    plan = resolve_dependencies(fn)
+    result = await plan.execute(conn)
+    assert result == "_Context"
+
+
+@pytest.mark.asyncio
+async def test_resolves_nested_dependencies() -> None:
+    def parent_factory() -> str:
+        return "parent"
+
+    Parent = typing.Annotated[str, parent_factory]
+
+    def child_factory(parent: Parent) -> str:
+        return parent + "child"
+
+    Child = typing.Annotated[str, child_factory]
+
+    def fn(dep: Child) -> str:
+        return dep
+
+    conn = HTTPConnection({"type": "http"})
+    plan = resolve_dependencies(fn)
+    result = await plan.execute(conn)
+    assert result == "parentchild"

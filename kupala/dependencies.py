@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import dataclasses
 
+import functools
 import inspect
 import typing
 from starlette.concurrency import run_in_threadpool
@@ -15,7 +18,7 @@ class InvalidInjection(InjectionError):
 
 
 @dataclasses.dataclass
-class Context:
+class _Context:
     conn: HTTPConnection
     param_name: str
     type: type
@@ -23,26 +26,37 @@ class Context:
     optional: bool = False
 
 
+Context = typing.Annotated[_Context, lambda: None]
+
+
+def resolve_context(conn: HTTPConnection, dependency: Dependency) -> Context:
+    return Context(
+        conn=conn,
+        type=dependency.type,
+        optional=dependency.optional,
+        param_name=dependency.param_name,
+        default_value=dependency.default_value,
+    )
+
+
 @dataclasses.dataclass
 class Dependency:
+    type: type
     param_name: str
     optional: bool
     is_async: bool
-    base_type: type
     default_value: typing.Any
-    factory: typing.Callable[[Context], typing.Any]
+    factory: typing.Callable
+    plan: InjectionPlan | None = None
 
-    async def create(self, conn: HTTPConnection) -> typing.Any:
-        context = Context(
-            conn=conn,
-            param_name=self.param_name,
-            type=self.base_type,
-            default_value=self.default_value,
-            optional=self.optional,
-        )
-        if self.is_async:
-            return await self.factory(context)
-        return await run_in_threadpool(self.factory, context)
+    async def execute(self, conn: HTTPConnection) -> typing.Any:
+        if self.plan is None:
+            self.plan = resolve_dependencies(self.factory)
+            for name, dependency in self.plan.dependencies.items():
+                if dependency.type == _Context:
+                    dependency.plan = resolve_dependencies(functools.partial(resolve_context, conn, dependency))
+
+        return await self.plan.execute(conn)
 
 
 @dataclasses.dataclass
@@ -55,7 +69,7 @@ class InjectionPlan:
     async def execute(self, conn: HTTPConnection) -> typing.Any:
         dependencies: dict[str, typing.Any] = {}
         for param_name, dependency in self.dependencies.items():
-            value = await dependency.create(conn)
+            value = await dependency.execute(conn)
             if value is None and not dependency.optional:
                 raise InvalidInjection(
                     f'Dependency factory for parameter "{param_name}" returned None '
@@ -86,7 +100,7 @@ def resolve_dependencies(fn: typing.Callable) -> InjectionPlan:
         plan.dependencies[param_name] = Dependency(
             param_name=param_name,
             factory=factory,
-            base_type=base_type,
+            type=base_type,
             optional=optional,
             default_value=parameter.default,
             is_async=inspect.iscoroutinefunction(factory),
