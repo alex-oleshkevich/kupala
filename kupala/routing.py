@@ -44,7 +44,7 @@ def route(
                 break
 
         def request_factory(context: Context) -> Request:
-            return _patch_request(context.conn, request_class)
+            return _patch_request(context.request, request_class)
 
         request_override = Dependency(
             type=request_class,

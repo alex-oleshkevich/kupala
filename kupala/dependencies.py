@@ -25,7 +25,7 @@ class NotAnnotatedDependency(DependencyError):
 
 @dataclasses.dataclass
 class _Context:
-    conn: Request | WebSocket
+    request: Request | WebSocket
     param_name: str
     type: type
     default_value: typing.Any
@@ -37,7 +37,7 @@ Context = typing.Annotated[_Context, lambda: None]
 
 def resolve_context(conn: Request | WebSocket, dependency: Dependency) -> Context:
     return Context(
-        conn=conn,
+        request=conn,
         type=dependency.type,
         optional=dependency.optional,
         param_name=dependency.param_name,
