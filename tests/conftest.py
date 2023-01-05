@@ -3,6 +3,7 @@ import pathlib
 import pytest
 import typing
 from starlette.applications import Starlette
+from starlette.authentication import SimpleUser
 from starlette.routing import BaseRoute
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp
@@ -64,3 +65,14 @@ def routes() -> Routes:
 @pytest.fixture()
 def jinja_template_path(tmp_path: os.PathLike) -> pathlib.Path:
     return pathlib.Path(str(tmp_path))
+
+
+class User(SimpleUser):
+    @property
+    def identity(self) -> str:
+        return self.username
+
+
+@pytest.fixture()
+def user() -> User:
+    return User(username="root")

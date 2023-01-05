@@ -1,172 +1,98 @@
-from __future__ import annotations
-
 import datetime
-import enum
+import itsdangerous
 import typing
-from itsdangerous import BadSignature, Signer
-from starlette.requests import HTTPConnection
-from starlette.responses import Response
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.authentication import AuthCredentials, AuthenticationBackend, BaseUser, UnauthenticatedUser
+from starlette.requests import HTTPConnection, Request
+from starlette.responses import RedirectResponse, Response
+
+from kupala.guards import Guard, NextGuard
 
 SESSION_KEY = "__user_id__"
 REMEMBER_COOKIE_NAME = "remember_me"
 
-
-class LoginState(str, enum.Enum):
-    FRESH = "fresh"
-    REMEMBERED = "remembered"
-    ANONYMOUS = "anonymous"
+ByIdUserFinder = typing.Callable[[HTTPConnection, str], typing.Awaitable[BaseUser | None]]
 
 
-class UserLike:
-    def get_id(self) -> str:  # pragma: nocover
-        raise NotImplementedError()
-
-
-class AnonymousUser(UserLike):
-    def get_id(self) -> str:
-        return ""
-
-    def __str__(self) -> str:
-        return "Anonymous"
-
-
-_T = typing.TypeVar("_T", bound=UserLike)
-
-
-class AuthToken(typing.Generic[_T]):
-    def __init__(self, user: _T, state: LoginState, scopes: list[str] | None = None) -> None:
-        self.user = user
-        self._state = state
-        self._scopes = list(scopes or [])
-
-    @property
-    def id(self) -> typing.Any:
-        return self.user.get_id()
-
-    @property
-    def is_authenticated(self) -> bool:
-        return self._state != LoginState.ANONYMOUS
-
-    @property
-    def is_anonymous(self) -> bool:
-        return self._state == LoginState.ANONYMOUS
-
-    @property
-    def is_fresh(self) -> bool:
-        return self._state == LoginState.FRESH
-
-    @property
-    def is_remembered(self) -> bool:
-        return self._state == LoginState.REMEMBERED
-
-    @property
-    def state(self) -> LoginState:
-        return self._state
-
-    @property
-    def scopes(self) -> list[str]:
-        return self._scopes
-
-    def change_state(self, new_state: LoginState) -> AuthToken:
-        self._state = new_state
-        return self
-
-    def __bool__(self) -> bool:
-        return self.is_authenticated
-
-    def __str__(self) -> str:
-        return str(self.user)
-
-    def __contains__(self, requirement: str) -> bool:
-        return requirement in self.scopes
-
-    def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}: state={self.state}, user={self.user}>"
-
-
-class Authenticator(typing.Protocol):  # pragma: nocover
-    async def __call__(self, connection: HTTPConnection) -> AuthToken | None:
+@typing.runtime_checkable
+class UserWithScopes(typing.Protocol):
+    def get_scopes(self) -> list[str]:
         ...
 
 
-ByIdUserFinder = typing.Callable[[HTTPConnection, str], typing.Awaitable[UserLike | None]]
+def get_scopes(user: BaseUser | UserWithScopes) -> list[str]:
+    if isinstance(user, UserWithScopes):
+        return user.get_scopes()
+    return []
 
 
-class SessionAuthenticator:
-    def __init__(
-        self,
-        user_loader: ByIdUserFinder,
-        *,
-        session_key: str = SESSION_KEY,
-    ) -> None:
+class LoginScopes:
+    FRESH = "login:fresh"
+    REMEMBERED = "login:remembered"
+
+
+class SessionBackend(AuthenticationBackend):
+    def __init__(self, user_loader: ByIdUserFinder) -> None:
         self.user_loader = user_loader
-        self.session_key = session_key
 
-    async def __call__(self, connection: HTTPConnection) -> AuthToken | None:
-        if user_id := connection.session.get(SESSION_KEY):
-            if user := await self.user_loader(connection, user_id):
-                return AuthToken(user=user, state=LoginState.FRESH)
+    async def authenticate(self, conn: HTTPConnection) -> tuple[AuthCredentials, BaseUser] | None:
+        user_id: str = conn.session.get(SESSION_KEY, "")
+        if user_id and (user := await self.user_loader(conn, user_id)):
+            return AuthCredentials(scopes=get_scopes(user)), user
         return None
 
 
-class RememberMeAuthenticator:
+class RememberMeBackend(AuthenticationBackend):
+    """
+    Authenticates user using "remember me" cookie.
+
+    It also adds "login:remembered" scope to distinguish between fresh and remembered logins.
+    """
+
     def __init__(
         self,
         user_loader: ByIdUserFinder,
         secret_key: str,
+        duration: datetime.timedelta | None = None,
         *,
         cookie_name: str = REMEMBER_COOKIE_NAME,
     ) -> None:
         self.secret_key = secret_key
         self.user_loader = user_loader
         self.cookie_name = cookie_name
+        self.duration = duration
 
-    async def __call__(self, connection: HTTPConnection) -> AuthToken | None:
-        if cookie_value := connection.cookies.get(self.cookie_name):
+    async def authenticate(self, conn: HTTPConnection) -> tuple[AuthCredentials, BaseUser] | None:
+        if cookie_value := conn.cookies.get(self.cookie_name):
             try:
-                signer = Signer(secret_key=self.secret_key)
-                user_id = signer.unsign(cookie_value).decode("utf8")
-                if user := await self.user_loader(connection, user_id):
-                    return AuthToken(user=user, state=LoginState.REMEMBERED)
-            except BadSignature:
+                max_age = int(self.duration.total_seconds()) if self.duration else None
+                signer = itsdangerous.TimestampSigner(secret_key=self.secret_key)
+                user_id = signer.unsign(cookie_value, max_age=max_age).decode("utf8")
+                if user := await self.user_loader(conn, user_id):
+                    return AuthCredentials(scopes=get_scopes(user) + [LoginScopes.REMEMBERED]), user
+            except itsdangerous.BadSignature:
                 return None
         return None
 
 
-class AuthenticationMiddleware:
-    def __init__(
-        self,
-        app: ASGIApp,
-        authenticators: typing.Iterable[Authenticator],
-        on_success: typing.Callable[[HTTPConnection, AuthToken], typing.Awaitable[None]] | None = None,
-    ) -> None:
-        self.app = app
-        self.on_success = on_success
-        self.authenticators = authenticators
+class ChoiceBackend(AuthenticationBackend):
+    def __init__(self, backends: list[AuthenticationBackend]) -> None:
+        self.backends = backends
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] not in {"http", "websocket"}:
-            await self.app(scope, receive, send)
-            return
-
-        auth_token = AuthToken(user=AnonymousUser(), state=LoginState.ANONYMOUS)
-        connection = HTTPConnection(scope, receive)
-
-        for authenticator in self.authenticators:
-            if token := await authenticator(connection):
-                assert isinstance(token, AuthToken), "Authenticator must return AuthToken instance or None."
-                auth_token = token
-                if self.on_success:
-                    await self.on_success(connection, auth_token)
-                break
-
-        scope["auth"] = auth_token
-        scope["user"] = auth_token.user
-        await self.app(scope, receive, send)
+    async def authenticate(self, conn: HTTPConnection) -> typing.Optional[typing.Tuple[AuthCredentials, BaseUser]]:
+        for backend in self.backends:
+            if result := await backend.authenticate(conn):
+                return result
+        return None
 
 
-async def login(connection: HTTPConnection, user: UserLike) -> AuthToken:
+def _regenerate_session_id(connection: HTTPConnection) -> None:
+    if "session_handler" in connection.scope:  # when starsessions installed
+        from starsessions import regenerate_session_id
+
+        regenerate_session_id(connection)
+
+
+async def login(connection: HTTPConnection, user: BaseUser) -> None:
     """Login user."""
 
     # Regenerate session id to prevent session fixation.
@@ -176,32 +102,35 @@ async def login(connection: HTTPConnection, user: UserLike) -> AuthToken:
     # Force session regeneration.
     _regenerate_session_id(connection)
 
-    auth_token = AuthToken(user=user, state=LoginState.FRESH)
-    connection.scope["auth"] = auth_token
-    connection.session[SESSION_KEY] = user.get_id()
-
-    return auth_token
+    connection.scope["auth"] = AuthCredentials(scopes=get_scopes(user) + [LoginScopes.FRESH])
+    connection.scope["user"] = user
+    connection.session[SESSION_KEY] = user.identity
 
 
 async def logout(connection: HTTPConnection) -> None:
     connection.session.clear()  # wipe all data
     _regenerate_session_id(connection)
-    connection.scope["auth"] = AuthToken(user=AnonymousUser(), state=LoginState.ANONYMOUS)
+    connection.scope["auth"] = AuthCredentials()
+    connection.scope["user"] = UnauthenticatedUser()
 
 
 def is_authenticated(connection: HTTPConnection) -> bool:
-    return connection.auth.is_authenticated
+    return connection.auth and connection.user.is_authenticated
 
 
 def confirm_login(connection: HTTPConnection) -> None:
-    if connection.scope["auth"].is_authenticated:
-        connection.scope["auth"].change_state(LoginState.FRESH)
+    credentials: AuthCredentials = connection.auth
+    if LoginScopes.REMEMBERED in credentials.scopes:
+        credentials.scopes.append(LoginScopes.FRESH)
+        connection.session[SESSION_KEY] = connection.user.identity
+        if LoginScopes.REMEMBERED in credentials.scopes:
+            credentials.scopes.remove(LoginScopes.REMEMBERED)
 
 
 def remember_me(
     response: Response,
     secret_key: str,
-    user: UserLike,
+    user: BaseUser,
     duration: datetime.timedelta,
     *,
     cookie_name: str = REMEMBER_COOKIE_NAME,
@@ -211,9 +140,8 @@ def remember_me(
     cookie_secure: bool = False,
     cookie_http_only: bool = True,
 ) -> Response:
-    signer = Signer(secret_key)
-    value = signer.sign(user.get_id()).decode("utf8")
-
+    signer = itsdangerous.TimestampSigner(secret_key)
+    value = signer.sign(user.identity).decode("utf8")
     response.set_cookie(
         key=cookie_name,
         value=value,
@@ -250,8 +178,20 @@ def forget_me(
     return response
 
 
-def _regenerate_session_id(connection: HTTPConnection) -> None:
-    if "session_handler" in connection.scope:  # when starsessions installed
-        from starsessions import regenerate_session_id
+def login_required(
+    redirect_url: str | None = None,
+    *,
+    path_name: str | None = "login",
+    path_params: dict[str, typing.Any] | None = None,
+) -> Guard:
+    assert redirect_url or path_name
+    path_params = path_params or {}
 
-        regenerate_session_id(connection)
+    async def guard(request: Request, call_next: NextGuard) -> Response:
+        if not request.user.is_authenticated:
+            redirect_to = redirect_url or request.url_for(path_name, **path_params)  # type: ignore[arg-type]
+            return RedirectResponse(redirect_to, 302)
+
+        return await call_next(request)
+
+    return guard

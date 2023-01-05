@@ -1,13 +1,13 @@
 import dataclasses
 
 from starlette.middleware import Middleware
-from starlette.requests import HTTPConnection
+from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.responses import Response
 
-from kupala.authentication import AuthenticationMiddleware, AuthToken, LoginState, UserLike
-from kupala.injectables import JSON, Auth, CurrentUser, FormData, FromPath, FromQuery
+from kupala.injectables import JSON, CurrentUser, FormData, FromPath, FromQuery
 from kupala.routing import route
-from tests.conftest import ClientFactory
+from tests.conftest import ClientFactory, User
+from tests.utils import DummyBackend
 
 
 def test_from_query(test_client_factory: ClientFactory) -> None:
@@ -62,44 +62,15 @@ def test_form_data(test_client_factory: ClientFactory) -> None:
     assert response.text == BodyPayload.__name__
 
 
-def test_current_user(test_client_factory: ClientFactory) -> None:
-    @dataclasses.dataclass
-    class User(UserLike):
-        name: str = "root"
-
+def test_current_user(test_client_factory: ClientFactory, user: User) -> None:
     @route("/")
     async def view(user: CurrentUser[User]) -> Response:
-        return Response(user.name)
-
-    async def dummy_authenticator(connection: HTTPConnection) -> AuthToken | None:
-        return AuthToken(user=User(), state=LoginState.FRESH)
+        return Response(user.username)
 
     client = test_client_factory(
         routes=[view],
         middleware=[
-            Middleware(AuthenticationMiddleware, authenticators=[dummy_authenticator]),
-        ],
-    )
-    response = client.get("/")
-    assert response.text == "root"
-
-
-def test_auth_token(test_client_factory: ClientFactory) -> None:
-    @dataclasses.dataclass
-    class User(UserLike):
-        name: str = "root"
-
-    @route("/")
-    async def view(auth: Auth[User]) -> Response:
-        return Response(auth.user.name)
-
-    async def dummy_authenticator(connection: HTTPConnection) -> AuthToken | None:
-        return AuthToken(user=User(), state=LoginState.FRESH)
-
-    client = test_client_factory(
-        routes=[view],
-        middleware=[
-            Middleware(AuthenticationMiddleware, authenticators=[dummy_authenticator]),
+            Middleware(AuthenticationMiddleware, backend=DummyBackend(user)),
         ],
     )
     response = client.get("/")

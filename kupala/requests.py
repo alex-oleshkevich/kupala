@@ -7,7 +7,7 @@ from starlette.types import Receive, Scope, Send
 _RT = typing.TypeVar("_RT", bound=Request)
 
 
-def _cached_new(cls: type[_RT], scope: Scope, receive: Receive = empty_receive, send: Send = empty_send) -> _RT:
+def _cached_new(cls: type[Request], scope: Scope, receive: Receive = empty_receive, send: Send = empty_send) -> Request:
     if "request" not in scope:
         instance = object.__new__(cls)
         instance.__init__(scope, receive, send)  # type: ignore
@@ -21,8 +21,8 @@ def _cached_new(cls: type[_RT], scope: Scope, receive: Receive = empty_receive, 
 
 
 class CachedBodyMixin:
-    def __new__(cls: type[_RT], *args: typing.Any, **kwargs: typing.Any) -> _RT:
-        return _cached_new(cls, *args, **kwargs)
+    def __new__(cls, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+        return _cached_new(cls, *args, **kwargs)  # type: ignore
 
 
 def is_submitted(request: Request) -> bool:

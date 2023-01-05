@@ -31,15 +31,15 @@ async def simple_asgi_app(scope: Scope, receive: Receive, send: Send) -> None:
 
 
 @pytest.fixture
-def templates(tmp_path: Path) -> Path:
+def templates_dir(tmp_path: Path) -> Path:
     template_file = tmp_path / "index.html"
     template_file.write_text(template)
     return tmp_path
 
 
 @pytest.fixture
-def jinja_env(templates: Path) -> jinja2.Environment:
-    return jinja2.Environment(loader=jinja2.FileSystemLoader(templates))
+def jinja_env(templates_dir: pathlib.Path) -> jinja2.Environment:
+    return jinja2.Environment(loader=jinja2.FileSystemLoader(templates_dir))
 
 
 def test_render_to_response(jinja_env: jinja2.Environment) -> None:
@@ -117,47 +117,47 @@ def test_accepts_custom_loader(jinja_env: jinja2.Environment, tmp_path: pathlib.
     assert templates.render_to_string("index.html") == "hello"
 
 
-def test_accepts_custom_filters(jinja_env: jinja2.Environment, templates: pathlib.Path) -> None:
+def test_accepts_custom_filters(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
     def example(value: str) -> str:
         return "filtered"
 
-    (templates / "index.html").write_text('{{ "key"|example }}')
+    (templates_dir / "index.html").write_text('{{ "key"|example }}')
     templates = Jinja2Templates(env=jinja_env, filters={"example": example})
     assert templates.render_to_string("index.html") == "filtered"
 
 
-def test_accepts_custom_tests(jinja_env: jinja2.Environment, templates: pathlib.Path) -> None:
+def test_accepts_custom_tests(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
     def is_true(value: str) -> bool:
         return value == "true"
 
-    (templates / "index.html").write_text('{{ "key" is is_true }}-{{ "true" is is_true }}')
-    templates = Jinja2Templates(env=jinja_env, tests={"is_true": is_true})
-    assert templates.render_to_string("index.html") == "False-True"
+    (templates_dir / "index.html").write_text('{{ "key" is is_true }}-{{ "true" is is_true }}')
+    templates_ext = Jinja2Templates(env=jinja_env, tests={"is_true": is_true})
+    assert templates_ext.render_to_string("index.html") == "False-True"
 
 
-def test_accepts_custom_globals(jinja_env: jinja2.Environment, templates: pathlib.Path) -> None:
-    (templates / "index.html").write_text("{{ key }}")
+def test_accepts_custom_globals(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
+    (templates_dir / "index.html").write_text("{{ key }}")
     templates = Jinja2Templates(env=jinja_env, globals={"key": "value"})
     assert templates.render_to_string("index.html") == "value"
 
 
-def test_integrates_with_starlette_babel(jinja_env: jinja2.Environment, templates: pathlib.Path) -> None:
-    (templates / "index.html").write_text("{{ key }}")
+def test_integrates_with_starlette_babel(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
+    (templates_dir / "index.html").write_text("{{ key }}")
     templates = Jinja2Templates(env=jinja_env, globals={"key": "value"})
     assert templates.render_to_string("index.html") == "value"
 
 
-def test_custom_plugins(jinja_env: jinja2.Environment, templates: pathlib.Path) -> None:
+def test_custom_plugins(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
     def plugin(env: jinja2.Environment) -> None:
         env.globals.update({"key": "value"})
 
-    (templates / "index.html").write_text("{{ key }}")
+    (templates_dir / "index.html").write_text("{{ key }}")
     templates = Jinja2Templates(env=jinja_env, plugins=[plugin])
     assert templates.render_to_string("index.html") == "value"
 
 
-def test_context_processor_decorator(jinja_env: jinja2.Environment, templates: pathlib.Path) -> None:
-    (templates / "index.html").write_text("{{ key }}")
+def test_context_processor_decorator(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
+    (templates_dir / "index.html").write_text("{{ key }}")
     request = Request(scope={"type": "http"})
     templates = Jinja2Templates(env=jinja_env)
 
@@ -169,8 +169,8 @@ def test_context_processor_decorator(jinja_env: jinja2.Environment, templates: p
     assert response.body == b"value"
 
 
-def test_filter_decorator(jinja_env: jinja2.Environment, templates: pathlib.Path) -> None:
-    (templates / "index.html").write_text("{{ key|value }}")
+def test_filter_decorator(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
+    (templates_dir / "index.html").write_text("{{ key|value }}")
     request = Request(scope={"type": "http"})
     templates = Jinja2Templates(env=jinja_env)
 
@@ -182,8 +182,8 @@ def test_filter_decorator(jinja_env: jinja2.Environment, templates: pathlib.Path
     assert response.body == b"filtered"
 
 
-def test_filter_decorator_with_custom_name(jinja_env: jinja2.Environment, templates: pathlib.Path) -> None:
-    (templates / "index.html").write_text("{{ key|to_value }}")
+def test_filter_decorator_with_custom_name(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
+    (templates_dir / "index.html").write_text("{{ key|to_value }}")
     request = Request(scope={"type": "http"})
     templates = Jinja2Templates(env=jinja_env)
 
@@ -195,8 +195,8 @@ def test_filter_decorator_with_custom_name(jinja_env: jinja2.Environment, templa
     assert response.body == b"filtered"
 
 
-def test_test_decorator(jinja_env: jinja2.Environment, templates: pathlib.Path) -> None:
-    (templates / "index.html").write_text('{{ "true" is is_bool }}')
+def test_test_decorator(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
+    (templates_dir / "index.html").write_text('{{ "true" is is_bool }}')
     request = Request(scope={"type": "http"})
     templates = Jinja2Templates(env=jinja_env)
 
@@ -208,8 +208,8 @@ def test_test_decorator(jinja_env: jinja2.Environment, templates: pathlib.Path) 
     assert response.body == b"True"
 
 
-def test_test_decorator_with_custom_name(jinja_env: jinja2.Environment, templates: pathlib.Path) -> None:
-    (templates / "index.html").write_text('{{ "true" is is_boolean }}')
+def test_test_decorator_with_custom_name(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
+    (templates_dir / "index.html").write_text('{{ "true" is is_boolean }}')
     request = Request(scope={"type": "http"})
     templates = Jinja2Templates(env=jinja_env)
 
@@ -221,11 +221,11 @@ def test_test_decorator_with_custom_name(jinja_env: jinja2.Environment, template
     assert response.body == b"True"
 
 
-def test_starlette_setup(templates: pathlib.Path) -> None:
+def test_starlette_setup(templates_dir: pathlib.Path) -> None:
     app = Starlette()
-    templates = Jinja2Templates(template_dir=templates)
+    templates = Jinja2Templates(template_dir=templates_dir)
     templates.setup(app)
-    assert isinstance(app.state.templates, Jinja2Templates)
+    assert isinstance(app.state.templates_dir, Jinja2Templates)
     assert isinstance(app.state.jinja_env, jinja2.Environment)
 
 

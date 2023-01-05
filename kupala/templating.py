@@ -134,7 +134,7 @@ class Jinja2Templates(templating.Jinja2Templates):
         macro = self.macro(template_name, macro_name)
         return macro(**(macro_kwargs or {}))
 
-    def TemplateResponse(
+    def TemplateResponse(  # type:ignore[override]
         self,
         request: Request,
         template_name: str,
@@ -189,5 +189,5 @@ class Jinja2Templates(templating.Jinja2Templates):
 
     def setup(self, app: Starlette) -> None:
         """Integrate templates and Starlette app."""
-        app.state.templates = self
+        app.state.templates_dir = self
         app.state.jinja_env = self.env

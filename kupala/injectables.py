@@ -1,7 +1,6 @@
 import typing
 from starlette.datastructures import QueryParams
 
-from kupala.authentication import AuthToken
 from kupala.routing import Context
 
 _T = typing.TypeVar("_T")
@@ -29,7 +28,6 @@ async def _from_form_data(context: Context) -> typing.Any:
 
 FormData = typing.Annotated[_T, _from_form_data]
 CurrentUser = typing.Annotated[_T, lambda context: context.request.user]
-Auth = typing.Annotated[AuthToken[_T], lambda context: context.request.auth]
 
 
 def _from_path(context: Context) -> typing.Any:

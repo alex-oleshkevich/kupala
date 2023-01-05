@@ -1,46 +1,139 @@
-import dataclasses
-
 import datetime
-from itsdangerous import Signer
+import http.cookies
+import itsdangerous
+import pytest
+import time
+from starlette.authentication import AuthCredentials, AuthenticationBackend, BaseUser
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.requests import HTTPConnection
+from starlette.requests import HTTPConnection, Request
+from starlette.responses import Response
 from starlette.testclient import TestClient
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import Receive, Scope, Send
 from unittest import mock
 
 from kupala.authentication import (
-    AnonymousUser,
-    AuthenticationMiddleware,
-    AuthToken,
-    LoginState,
-    RememberMeAuthenticator,
-    SessionAuthenticator,
-    UserLike,
+    REMEMBER_COOKIE_NAME,
+    SESSION_KEY,
+    ChoiceBackend,
+    LoginScopes,
+    RememberMeBackend,
+    SessionBackend,
     confirm_login,
+    forget_me,
     is_authenticated,
     login,
     logout,
     remember_me,
 )
-from kupala.requests import Request
-from kupala.responses import Response
+from tests.conftest import ClientFactory, User
 
 
-@dataclasses.dataclass
-class User(UserLike):
-    id: str
+class _DummyBackend(AuthenticationBackend):
+    def __init__(self, user: BaseUser | None) -> None:
+        self.user = user
 
-    def get_id(self) -> str:
-        return self.id
+    async def authenticate(self, conn: HTTPConnection) -> tuple[AuthCredentials, BaseUser] | None:
+        if self.user:
+            return AuthCredentials(), self.user
+        return None
 
-    def __str__(self) -> str:
-        return self.id
+
+@pytest.mark.asyncio
+async def test_choice_backend(test_client_factory: ClientFactory, user: User) -> None:
+    backend = ChoiceBackend(
+        [
+            _DummyBackend(None),
+            _DummyBackend(None),
+        ]
+    )
+    conn = HTTPConnection({"type": "http"})
+    assert await backend.authenticate(conn) is None
+
+    backend = ChoiceBackend(
+        [
+            _DummyBackend(None),
+            _DummyBackend(user),
+        ]
+    )
+    conn = HTTPConnection({"type": "http"})
+    result = await backend.authenticate(conn)
+    assert result
+    _, auth_user = result
+    assert auth_user == user
+
+
+@pytest.mark.asyncio
+async def test_session_backend(test_client_factory: ClientFactory, user: User) -> None:
+    async def user_loader(conn: HTTPConnection, user_id: str) -> BaseUser | None:
+        if user_id == user.identity:
+            return user
+        return None
+
+    backend = SessionBackend(user_loader=user_loader)
+    conn = HTTPConnection({"type": "http"})
+    conn.scope["session"] = {}
+    conn.session[SESSION_KEY] = "root"
+    result = await backend.authenticate(conn)
+    assert result
+    _, auth_user = result
+    assert auth_user == user
+
+    conn.session[SESSION_KEY] = ""
+    assert not await backend.authenticate(conn)
+
+
+@pytest.mark.asyncio
+async def test_remember_me_backend(test_client_factory: ClientFactory, user: User) -> None:
+    async def user_loader(conn: HTTPConnection, user_id: str) -> BaseUser | None:
+        if user_id == user.identity:
+            return user
+        return None
+
+    secret_key = "key!"
+    backend = RememberMeBackend(user_loader=user_loader, secret_key=secret_key)
+    conn = HTTPConnection({"type": "http", "headers": {}})
+    conn.cookies[REMEMBER_COOKIE_NAME] = itsdangerous.TimestampSigner(secret_key=secret_key).sign("root").decode()
+    result = await backend.authenticate(conn)
+    assert result
+    auth_credentials, auth_user = result
+    assert auth_user == user
+    assert "login:remembered" in auth_credentials.scopes
+
+
+@pytest.mark.asyncio
+async def test_remember_me_backend_checks_max_age(test_client_factory: ClientFactory, user: User) -> None:
+    async def user_loader(conn: HTTPConnection, user_id: str) -> BaseUser | None:
+        if user_id == user.identity:
+            return user
+        return None
+
+    secret_key = "key!"
+    backend = RememberMeBackend(user_loader=user_loader, secret_key=secret_key, duration=datetime.timedelta(seconds=20))
+    conn = HTTPConnection({"type": "http", "headers": {}})
+    ts = time.time()
+
+    # cookie generated 10 seconds ago
+    # remember me lifetime = 20 seconds
+    # test must pass
+    with mock.patch("itsdangerous.TimestampSigner.get_timestamp", return_value=int(ts - 10)):
+        conn.cookies[REMEMBER_COOKIE_NAME] = itsdangerous.TimestampSigner(secret_key=secret_key).sign("root").decode()
+        result = await backend.authenticate(conn)
+        assert result
+        auth_credentials, auth_user = result
+        assert auth_user == user
+
+    # cookie generated 30 seconds ago
+    # remember me lifetime = 20 seconds
+    # test must fail
+    with mock.patch("itsdangerous.TimestampSigner.get_timestamp", return_value=int(ts - 30)):
+        conn.cookies[REMEMBER_COOKIE_NAME] = itsdangerous.TimestampSigner(secret_key=secret_key).sign("root").decode()
+    assert not await backend.authenticate(conn)
 
 
 def test_login() -> None:
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
         request = Request(scope, receive, send)
-        user = User(id="id")
+        user = User(username="root")
         await login(request, user)
         authenticated = is_authenticated(request)
         await Response("yes" if authenticated else "no")(scope, receive, send)
@@ -54,12 +147,12 @@ def test_login() -> None:
 def test_logout() -> None:
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
         request = Request(scope, receive, send)
-        user = User(id="id")
+        user = User(username="root")
         await login(request, user)
         assert is_authenticated(request)
 
         await logout(request)
-        await Response("yes" if request.auth else "no")(scope, receive, send)
+        await Response("yes" if request.user.is_authenticated else "no")(scope, receive, send)
 
     client = TestClient(SessionMiddleware(app, secret_key="key!"))
     response = client.get("/")
@@ -70,279 +163,27 @@ def test_logout() -> None:
 def test_confirm_logins() -> None:
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
         request = Request(scope, receive, send)
-        user = User(id="id")
+        user = User(username="root")
         await login(request, user)
-        request.auth.change_state(LoginState.REMEMBERED)
+        request.auth.scopes.append(LoginScopes.REMEMBERED)
         confirm_login(request)
 
-        await Response(request.auth.state)(scope, receive, send)
+        is_fresh = LoginScopes.REMEMBERED not in request.auth.scopes
+        await Response("yes" if is_fresh else "no")(scope, receive, send)
 
     client = TestClient(SessionMiddleware(app, secret_key="key!"))
-    assert client.get("/").text == "fresh"
-
-
-@mock.patch("time.time", lambda: 0)
-def test_remember_me_set_cookie() -> None:
-    @dataclasses.dataclass
-    class AppLike:
-        secret_key: str
-
-    async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        scope["app"] = AppLike(secret_key="key!")
-        request = Request(scope, receive, send)
-        user = User(id="id")
-        await login(request, user)
-        response = Response("ok")
-        remember_me(response, "secret_key", user, datetime.timedelta(hours=24))
-        await response(scope, receive, send)
-
-    client = TestClient(SessionMiddleware(app, secret_key="key!"))
-    response = client.get("/")
-    assert "remember_me" in response.cookies
-
-
-def test_middleware_authenticates_via_session() -> None:
-    users = {"id": User(id="id")}
-
-    async def user_loader(connection: HTTPConnection, user_id: str) -> UserLike | None:
-        return users.get(user_id)
-
-    def init_session(app: ASGIApp) -> ASGIApp:
-        async def inner(scope: Scope, receive: Receive, send: Send) -> None:
-            request = Request(scope, receive, send)
-            request.session["__user_id__"] = "id"
-            await app(scope, receive, send)
-
-        return inner
-
-    async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        request = Request(scope, receive, send)
-        response = Response("yes" if request.auth.is_authenticated else "no")
-        await response(scope, receive, send)
-
-    client = TestClient(
-        SessionMiddleware(
-            init_session(
-                AuthenticationMiddleware(
-                    app,
-                    authenticators=[SessionAuthenticator(user_loader=user_loader)],
-                ),
-            ),
-            secret_key="key!",
-        ),
-    )
     assert client.get("/").text == "yes"
 
 
-def test_middleware_not_authenticates_invalid_users_via_session() -> None:
-    users = {"other": User(id="other")}
+def test_remember_me(user: User) -> None:
+    response = Response()
+    remember_me(response, "key!", user, duration=datetime.timedelta(seconds=10))
+    cookies: http.cookies.SimpleCookie = http.cookies.SimpleCookie(response.headers["set-cookie"])
+    assert REMEMBER_COOKIE_NAME in cookies
+    assert cookies[REMEMBER_COOKIE_NAME]["max-age"] == "10"
 
-    async def user_loader(connection: HTTPConnection, user_id: str) -> UserLike | None:
-        return users.get(user_id)
-
-    def init_session(app: ASGIApp) -> ASGIApp:
-        async def inner(scope: Scope, receive: Receive, send: Send) -> None:
-            request = Request(scope, receive, send)
-            request.session["__user_id__"] = "id"
-            await app(scope, receive, send)
-
-        return inner
-
-    async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        request = Request(scope, receive, send)
-        response = Response("yes" if request.auth.is_authenticated else "no")
-        await response(scope, receive, send)
-
-    client = TestClient(
-        SessionMiddleware(
-            init_session(
-                AuthenticationMiddleware(
-                    app,
-                    authenticators=[SessionAuthenticator(user_loader=user_loader)],
-                ),
-            ),
-            secret_key="key!",
-        ),
-    )
-    assert client.get("/").text == "no"
-
-
-def test_middleware_authenticates_via_remember_me() -> None:
-    users = {"id": User(id="id")}
-
-    @dataclasses.dataclass
-    class AppLike:
-        secret_key: str
-
-    async def user_loader(_: HTTPConnection, user_id: str) -> UserLike | None:
-        return users.get(user_id)
-
-    def init_app(app: ASGIApp) -> ASGIApp:
-        async def inner(scope: Scope, receive: Receive, send: Send) -> None:
-            scope["app"] = AppLike(secret_key="key!")
-            await app(scope, receive, send)
-
-        return inner
-
-    async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        request = Request(scope, receive, send)
-        response = Response("yes" if request.auth.is_authenticated else "no")
-        await response(scope, receive, send)
-
-    client = TestClient(
-        init_app(
-            SessionMiddleware(
-                AuthenticationMiddleware(
-                    app,
-                    authenticators=[RememberMeAuthenticator(user_loader=user_loader, secret_key="key!")],
-                ),
-                secret_key="key!",
-            ),
-        ),
-    )
-
-    signer = Signer("key!")
-    client.cookies.set("remember_me", signer.sign("id").decode())
-    assert client.get("/").text == "yes"
-
-
-def test_middleware_not_authenticates_invalid_users_via_remember_me() -> None:
-    users = {"other": User(id="other")}
-
-    @dataclasses.dataclass
-    class AppLike:
-        secret_key: str
-
-    async def user_loader(_: HTTPConnection, user_id: str) -> UserLike | None:
-        return users.get(user_id)
-
-    def init_app(app: ASGIApp) -> ASGIApp:
-        async def inner(scope: Scope, receive: Receive, send: Send) -> None:
-            scope["app"] = AppLike(secret_key="key!")
-            await app(scope, receive, send)
-
-        return inner
-
-    async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        request = Request(scope, receive, send)
-        response = Response("yes" if request.auth.is_authenticated else "no")
-        await response(scope, receive, send)
-
-    client = TestClient(
-        init_app(
-            SessionMiddleware(
-                AuthenticationMiddleware(
-                    app,
-                    authenticators=[RememberMeAuthenticator(user_loader=user_loader, secret_key="key!")],
-                ),
-                secret_key="key!",
-            ),
-        ),
-    )
-
-    signer = Signer("key!")
-    client.cookies.set("remember_me", signer.sign("id").decode())
-    assert client.get("/").text == "no"
-
-
-def test_middleware_remember_me_not_fails_on_tampered_cookie() -> None:
-    users = {"id": User(id="id")}
-
-    @dataclasses.dataclass
-    class AppLike:
-        secret_key: str
-
-    async def user_loader(_: HTTPConnection, user_id: str) -> UserLike | None:
-        return users.get(user_id)
-
-    def init_app(app: ASGIApp) -> ASGIApp:
-        async def inner(scope: Scope, receive: Receive, send: Send) -> None:
-            scope["app"] = AppLike(secret_key="key!")
-            await app(scope, receive, send)
-
-        return inner
-
-    async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        request = Request(scope, receive, send)
-        response = Response("yes" if request.auth.is_authenticated else "no")
-        await response(scope, receive, send)
-
-    client = TestClient(
-        init_app(
-            SessionMiddleware(
-                AuthenticationMiddleware(
-                    app,
-                    authenticators=[RememberMeAuthenticator(user_loader=user_loader, secret_key="key!")],
-                ),
-                secret_key="key!",
-            ),
-        ),
-    )
-
-    client.cookies.set("remember_me", "bad cookie")
-    assert client.get("/").text == "no"
-
-
-def test_middleware_on_success() -> None:
-    users = {"id": User(id="id")}
-
-    async def user_loader(_: HTTPConnection, user_id: str) -> UserLike | None:
-        return users.get(user_id)
-
-    def init_session(app: ASGIApp) -> ASGIApp:
-        async def inner(scope: Scope, receive: Receive, send: Send) -> None:
-            request = Request(scope, receive, send)
-            request.session["__user_id__"] = "id"
-            await app(scope, receive, send)
-
-        return inner
-
-    async def app(scope: Scope, receive: Receive, send: Send) -> None:
-        request = Request(scope, receive, send)
-        response = Response("yes" if request.auth.is_authenticated else "no")
-        await response(scope, receive, send)
-
-    spy = mock.AsyncMock()
-
-    client = TestClient(
-        SessionMiddleware(
-            init_session(
-                AuthenticationMiddleware(
-                    app, authenticators=[SessionAuthenticator(user_loader=user_loader)], on_success=spy
-                ),
-            ),
-            secret_key="key!",
-        ),
-    )
-    assert client.get("/").text == "yes"
-    spy.assert_called_once()
-
-
-def test_anonymous_user() -> None:
-    user = AnonymousUser()
-    assert user.get_id() == ""
-    assert str(user) == "Anonymous"
-
-
-def test_auth_token() -> None:
-    user = User(id="root")
-    token = AuthToken(user=user, state=LoginState.FRESH, scopes=["admin"])
-    assert token.id == "root"
-    assert token.is_authenticated is True
-    assert token.is_anonymous is False
-    assert token.is_fresh is True
-    assert token.is_remembered is False
-    assert token.state == LoginState.FRESH
-    assert token.scopes == ["admin"]
-    assert bool(token) is True
-    assert str(token) == "root"
-    assert repr(token) == "<AuthToken: state=fresh, user=root>"
-    assert "admin" in token
-
-    token.change_state(LoginState.ANONYMOUS)
-    assert token.is_anonymous is True
-    assert token.is_authenticated is False
-
-    token.change_state(LoginState.REMEMBERED)
-    assert token.is_remembered is True
-    assert token.is_fresh is False
+    response = Response()
+    forget_me(response)
+    cookies = http.cookies.SimpleCookie(response.headers["set-cookie"])
+    assert REMEMBER_COOKIE_NAME in cookies
+    assert cookies[REMEMBER_COOKIE_NAME]["max-age"] == "-1"
