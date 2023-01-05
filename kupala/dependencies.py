@@ -52,12 +52,33 @@ class Dependency:
 
     async def execute(self, conn: HTTPConnection) -> typing.Any:
         if self.plan is None:
-            self.plan = resolve_dependencies(self.factory)
+            self.plan = InjectionPlan.from_callable(self.factory)
             for name, dependency in self.plan.dependencies.items():
                 if dependency.type == _Context:
-                    dependency.plan = resolve_dependencies(functools.partial(resolve_context, conn, dependency))
+                    dependency.plan = InjectionPlan.from_callable(functools.partial(resolve_context, conn, dependency))
 
         return await self.plan.execute(conn)
+
+    @classmethod
+    def from_parameter(cls, parameter: inspect.Parameter) -> Dependency:
+        annotation = parameter.annotation
+        origin = typing.get_origin(parameter.annotation) or parameter.annotation
+
+        optional = False
+        if origin is typing.Union:
+            optional = type(None) in typing.get_args(parameter.annotation)
+            annotation = next((arg for arg in typing.get_args(parameter.annotation) if arg is not None))
+
+        base_type, factory = typing.get_args(annotation)
+
+        return cls(
+            param_name=parameter.name,
+            factory=factory,
+            type=base_type,
+            optional=optional,
+            default_value=parameter.default,
+            is_async=inspect.iscoroutinefunction(factory),
+        )
 
 
 @dataclasses.dataclass
@@ -92,29 +113,13 @@ class InjectionPlan:
 
         return result
 
+    @classmethod
+    def from_callable(cls, fn: typing.Callable) -> InjectionPlan:
+        signature = inspect.signature(fn)
+        parameters = dict(signature.parameters)
 
-def resolve_dependencies(fn: typing.Callable) -> InjectionPlan:
-    signature = inspect.signature(fn)
-    parameters = dict(signature.parameters)
+        plan = cls(fn=fn, return_annotation=signature.return_annotation, is_async=inspect.iscoroutinefunction(fn))
+        for param_name, parameter in parameters.items():
+            plan.dependencies[param_name] = Dependency.from_parameter(parameter)
 
-    plan = InjectionPlan(fn=fn, return_annotation=signature.return_annotation, is_async=inspect.iscoroutinefunction(fn))
-    for param_name, parameter in parameters.items():
-        optional = False
-        annotation = parameter.annotation
-        origin = typing.get_origin(parameter.annotation) or parameter.annotation
-
-        if origin is typing.Union:
-            optional = type(None) in typing.get_args(parameter.annotation)
-            annotation = next((arg for arg in typing.get_args(parameter.annotation) if arg is not None))
-
-        base_type, factory = typing.get_args(annotation)
-        plan.dependencies[param_name] = Dependency(
-            param_name=param_name,
-            factory=factory,
-            type=base_type,
-            optional=optional,
-            default_value=parameter.default,
-            is_async=inspect.iscoroutinefunction(factory),
-        )
-
-    return plan
+        return plan

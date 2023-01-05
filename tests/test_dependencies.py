@@ -5,7 +5,7 @@ import pytest
 import typing
 from starlette.requests import HTTPConnection
 
-from kupala.dependencies import Context, InvalidInjection, resolve_dependencies
+from kupala.dependencies import Context, InjectionPlan, InvalidInjection
 
 
 @dataclasses.dataclass
@@ -37,7 +37,7 @@ def test_generates_injection_plan() -> None:
     ) -> DependencyOne:
         return dep
 
-    plan = resolve_dependencies(fn)
+    plan = InjectionPlan.from_callable(fn)
     assert "dep" in plan.dependencies
     dependency = plan.dependencies["dep"]
     assert dependency.factory == _dep_one_factory
@@ -57,7 +57,7 @@ async def test_execute_injection_plan() -> None:
         return dep.value
 
     conn = HTTPConnection({"type": "http"})
-    plan = resolve_dependencies(fn)
+    plan = InjectionPlan.from_callable(fn)
     result = await plan.execute(conn)
     assert result == "sync"
 
@@ -68,7 +68,7 @@ async def test_execute_injection_plan_with_async_peer_dependency() -> None:
         return dep.value
 
     conn = HTTPConnection({"type": "http"})
-    plan = resolve_dependencies(fn)
+    plan = InjectionPlan.from_callable(fn)
     result = await plan.execute(conn)
     assert result == "async"
 
@@ -79,7 +79,7 @@ async def test_execute_injection_plan_with_async_dependency() -> None:
         return dep.value
 
     conn = HTTPConnection({"type": "http"})
-    plan = resolve_dependencies(fn)
+    plan = InjectionPlan.from_callable(fn)
     result = await plan.execute(conn)
     assert result == "async"
 
@@ -93,7 +93,7 @@ async def test_non_optional_dependency_disallows_none_value() -> None:
 
     with pytest.raises(InvalidInjection, match="returned None"):
         conn = HTTPConnection({"type": "http"})
-        plan = resolve_dependencies(fn)
+        plan = InjectionPlan.from_callable(fn)
         await plan.execute(conn)
 
 
@@ -105,7 +105,7 @@ async def test_optional_dependency_allows_none_value() -> None:
         return str(dep)
 
     conn = HTTPConnection({"type": "http"})
-    plan = resolve_dependencies(fn)
+    plan = InjectionPlan.from_callable(fn)
     result = await plan.execute(conn)
     assert result == "None"
 
@@ -121,7 +121,7 @@ async def test_injects_context_into_factory() -> None:
         return dep
 
     conn = HTTPConnection({"type": "http"})
-    plan = resolve_dependencies(fn)
+    plan = InjectionPlan.from_callable(fn)
     result = await plan.execute(conn)
     assert result == "_Context"
 
@@ -142,7 +142,7 @@ async def test_resolves_nested_dependencies() -> None:
         return dep
 
     conn = HTTPConnection({"type": "http"})
-    plan = resolve_dependencies(fn)
+    plan = InjectionPlan.from_callable(fn)
     result = await plan.execute(conn)
     assert result == "parentchild"
 
@@ -159,7 +159,7 @@ async def test_sync_context_manager_dependencies() -> None:
         return dep
 
     conn = HTTPConnection({"type": "http"})
-    plan = resolve_dependencies(fn)
+    plan = InjectionPlan.from_callable(fn)
     result = await plan.execute(conn)
     assert result == "dep"
 
@@ -182,7 +182,7 @@ async def test_sync_context_manager_dependencies_recursive() -> None:
         return dep
 
     conn = HTTPConnection({"type": "http"})
-    plan = resolve_dependencies(fn)
+    plan = InjectionPlan.from_callable(fn)
     result = await plan.execute(conn)
     assert result == "basedep"
 
@@ -199,7 +199,7 @@ async def test_async_context_manager_dependencies() -> None:
         return dep
 
     conn = HTTPConnection({"type": "http"})
-    plan = resolve_dependencies(fn)
+    plan = InjectionPlan.from_callable(fn)
     result = await plan.execute(conn)
     assert result == "dep"
 
@@ -222,6 +222,6 @@ async def test_async_context_manager_dependencies_recursive() -> None:
         return dep
 
     conn = HTTPConnection({"type": "http"})
-    plan = resolve_dependencies(fn)
+    plan = InjectionPlan.from_callable(fn)
     result = await plan.execute(conn)
     assert result == "basedep"
