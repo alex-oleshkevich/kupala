@@ -35,9 +35,9 @@ class _Context:
 Context = typing.Annotated[_Context, lambda: None]
 
 
-def resolve_context(conn: Request | WebSocket, dependency: Dependency) -> Context:
+def resolve_context(request: typing.Callable[[], Request | WebSocket], dependency: Dependency) -> Context:
     return Context(
-        request=conn,
+        request=request(),
         type=dependency.type,
         optional=dependency.optional,
         param_name=dependency.param_name,
@@ -65,7 +65,7 @@ class Dependency:
                 if dependency.type == _Context:
 
                     def resolver() -> Context:
-                        return resolve_context(request, self)
+                        return resolve_context(lambda: request, self)
 
                     dependency.plan = DependencyResolver.from_callable(resolver)
 
