@@ -147,11 +147,6 @@ def route(
             with ExitStack() as sync_exit_stack:
                 async with AsyncExitStack() as async_exit_stack:
                     for param_name, param in parameters.items():
-                        # if function argument is in path param, then use param value for the argument
-                        if param_name in request.path_params:
-                            fn_arguments[param_name] = request.path_params[param_name]
-                            continue
-
                         if param_name in factories:
                             factory = await factories[param_name](request)
                             if isinstance(factory, contextlib.AbstractAsyncContextManager):
@@ -168,6 +163,11 @@ def route(
                                 )
 
                             fn_arguments[param_name] = dependency
+                            continue
+
+                        # if function argument is in path param, then use param value for the argument
+                        if param_name in request.path_params:
+                            fn_arguments[param_name] = request.path_params[param_name]
 
                     if inspect.iscoroutinefunction(fn):
                         return await fn(**fn_arguments)

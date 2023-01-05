@@ -5,7 +5,7 @@ from starlette.requests import HTTPConnection
 from starlette.responses import Response
 
 from kupala.authentication import AuthenticationMiddleware, AuthToken, LoginState, UserLike
-from kupala.injectables import JSON, Auth, CurrentUser, FormData, FromQuery
+from kupala.injectables import JSON, Auth, CurrentUser, FormData, FromPath, FromQuery
 from kupala.routing import route
 from tests.conftest import ClientFactory
 
@@ -104,3 +104,13 @@ def test_auth_token(test_client_factory: ClientFactory) -> None:
     )
     response = client.get("/")
     assert response.text == "root"
+
+
+def test_from_path(test_client_factory: ClientFactory) -> None:
+    @route("/users/{id}")
+    async def view(id: FromPath[int]) -> Response:
+        return Response(str(id) + str(type(id).__name__))
+
+    client = test_client_factory(routes=[view])
+    response = client.get("/users/1")
+    assert response.text == "1int"

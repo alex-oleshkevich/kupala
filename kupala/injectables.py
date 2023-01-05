@@ -30,3 +30,13 @@ async def _from_form_data(context: Context) -> typing.Any:
 FormData = typing.Annotated[_T, _from_form_data]
 CurrentUser = typing.Annotated[_T, lambda context: context.request.user]
 Auth = typing.Annotated[AuthToken[_T], lambda context: context.request.auth]
+
+
+def _from_path(context: Context) -> typing.Any:
+    value = context.request.path_params.get(context.param_name)
+    if not value and not context.optional:
+        raise ValueError(f'Path param "{context.param_name}" is None and no default value defined.')
+    return context.origin(value)
+
+
+FromPath = typing.Annotated[_T, _from_path]
