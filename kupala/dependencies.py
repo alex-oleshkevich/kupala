@@ -24,7 +24,7 @@ class NotAnnotatedDependency(DependencyError):
 
 
 @dataclasses.dataclass
-class _Context:
+class Context:
     request: Request | WebSocket
     param_name: str
     type: type
@@ -32,17 +32,11 @@ class _Context:
     optional: bool = False
 
 
-Context = typing.Annotated[_Context, lambda: None]
-
-
-def resolve_context(request: Request | WebSocket, dependency: Dependency) -> Context:
-    return Context(
-        request=request,
-        type=dependency.type,
-        optional=dependency.optional,
-        param_name=dependency.param_name,
-        default_value=dependency.default_value,
-    )
+@dataclasses.dataclass
+class InvokeContext:
+    request: Request | WebSocket
+    exit_stack: contextlib.ExitStack
+    aexit_stack: contextlib.AsyncExitStack
 
 
 @dataclasses.dataclass
@@ -51,34 +45,55 @@ class Dependency:
     param_name: str
     optional: bool
     default_value: typing.Any
-    factory: typing.Callable
-    is_async: bool = False
-    plan: DependencyResolver | None = None
+    factory: typing.Callable[[Context], typing.Any]
+    dependencies: dict[str, Dependency] = dataclasses.field(default_factory=dict)
+    _requires_context: bool = False
 
     def __post_init__(self) -> None:
-        self.is_async = inspect.iscoroutinefunction(self.factory)
-        self.plan = DependencyResolver.from_callable(self.factory)
-        self._context_arg_name = ""
-        for name, dependency in self.plan.dependencies.items():
-            if dependency.type == _Context:
-                self._context_arg_name = name
+        signature = inspect.signature(self.factory, eval_str=True)
+        for parameter in signature.parameters.values():
+            if parameter.annotation == Context:
+                self._requires_context = True
+                continue
+            if parameter.annotation == parameter.empty and parameter.name in ["context", "_"]:
+                self._requires_context = True
+                continue
 
-    async def resolve(self, request: Request | WebSocket) -> typing.Any:
-        assert self.plan
-        if self._context_arg_name:
+            self.dependencies[parameter.name] = Dependency.from_parameter(parameter)
 
-            def context_resolver() -> Context:
-                return Context(
-                    request=request,
+    async def resolve(self, context: InvokeContext) -> typing.Any:
+        dependencies: dict[str, typing.Any] = {}
+        for dependency in self.dependencies.values():
+            dependencies[dependency.param_name] = await dependency.resolve(context)
+
+        args: list[typing.Any] = []
+        if self._requires_context:
+            args.append(
+                Context(
+                    request=context.request,
                     type=self.type,
                     optional=self.optional,
                     param_name=self.param_name,
                     default_value=self.default_value,
                 )
+            )
+        if inspect.iscoroutinefunction(self.factory):
+            value = await self.factory(*args, **dependencies)
+        else:
+            value = await run_in_threadpool(self.factory, *args, **dependencies)
 
-            self.plan.dependencies[self._context_arg_name].plan = DependencyResolver.from_callable(context_resolver)
+        if value is None and not self.optional:
+            raise InvalidDependency(
+                f'Dependency factory for parameter "{self.param_name}" returned None '
+                f"however parameter annotation declares it as not optional."
+            )
 
-        return await self.plan.resolve(request)
+        if isinstance(value, contextlib.AbstractContextManager):
+            return context.exit_stack.enter_context(value)
+        elif isinstance(value, contextlib.AbstractAsyncContextManager):
+            return await context.aexit_stack.enter_async_context(value)
+        else:
+            return value
 
     @classmethod
     def from_parameter(cls, parameter: inspect.Parameter) -> Dependency:
@@ -92,13 +107,10 @@ class Dependency:
             origin = typing.get_origin(annotation)
 
         if origin is not typing.Annotated:
-            if parameter.name == "context":  # support one-line lambdas
-                annotation = Context
-            else:
-                raise NotAnnotatedDependency(
-                    f'Parameter "{parameter.name}" is not an instance of typing.Annotated. '
-                    f'It is "{parameter.annotation}".'
-                )
+            raise NotAnnotatedDependency(
+                f'Parameter "{parameter.name}" is not an instance of typing.Annotated. '
+                f'It is "{parameter.annotation}".'
+            )
 
         base_type, factory = typing.get_args(annotation)
 
@@ -114,63 +126,35 @@ class Dependency:
 @dataclasses.dataclass
 class DependencyResolver:
     fn: typing.Callable
-    is_async: bool
-    return_annotation: type
     dependencies: dict[str, Dependency] = dataclasses.field(default_factory=dict)
 
-    async def resolve(self, request: Request | WebSocket) -> typing.Any:
-        dependencies: dict[str, typing.Any] = {}
-        for param_name, dependency in self.dependencies.items():
-            value = await dependency.resolve(request)
-            if value is None and not dependency.optional:
-                raise InvalidDependency(
-                    f'Dependency factory for parameter "{param_name}" returned None '
-                    f"however parameter annotation declares it as not optional."
-                )
-            dependencies[param_name] = value
-
-        if self.is_async:
-            result = await self.fn(**dependencies)
-        else:
-            result = await run_in_threadpool(self.fn, **dependencies)
-
-        if isinstance(result, contextlib.AbstractContextManager):
-            with result as final_result:
-                return final_result
-        if isinstance(result, contextlib.AbstractAsyncContextManager):
-            async with result as final_result:
-                return final_result
-
-        return result
+    async def execute(self, request: Request | WebSocket) -> typing.Any:
+        with contextlib.ExitStack() as exit_stack:
+            async with contextlib.AsyncExitStack() as aexit_stack:
+                context = InvokeContext(request=request, exit_stack=exit_stack, aexit_stack=aexit_stack)
+                dependencies = {
+                    dependency.param_name: await dependency.resolve(context)
+                    for dependency in self.dependencies.values()
+                }
+                if inspect.iscoroutinefunction(self.fn):
+                    return await self.fn(**dependencies)
+                return await run_in_threadpool(self.fn, **dependencies)
 
     @classmethod
-    def from_callable(
-        cls,
-        fn: typing.Callable,
-        fallback: typing.Callable[[inspect.Parameter], Dependency | None] | None = None,
-        overrides: dict[str, Dependency] | None = None,
-    ) -> DependencyResolver:
+    def from_callable(cls, fn: typing.Callable, overrides: dict[str, Dependency] | None = None) -> DependencyResolver:
         if isinstance(fn, functools.partial):
             raise InvalidDependency(f"Partial functions are not supported. Function: {fn}")
 
-        fn.__annotations__ = typing.get_type_hints(fn, include_extras=True)
         overrides = overrides or {}
-        signature = inspect.signature(fn)
+        signature = inspect.signature(fn, eval_str=True)
         parameters = dict(signature.parameters)
 
-        plan = cls(fn=fn, return_annotation=signature.return_annotation, is_async=inspect.iscoroutinefunction(fn))
+        plan = cls(fn=fn)
         for param_name, parameter in parameters.items():
             if param_name in overrides:
-                plan.dependencies[param_name] = overrides[param_name]
-                continue
-
-            try:
-                plan.dependencies[param_name] = Dependency.from_parameter(parameter)
-            except NotAnnotatedDependency:
-                if fallback:
-                    if dependency := fallback(parameter):
-                        plan.dependencies[param_name] = dependency
-                        continue
-                raise
+                dependency = overrides[param_name]
+            else:
+                dependency = Dependency.from_parameter(parameter)
+            plan.dependencies[param_name] = dependency
 
         return plan

@@ -46,18 +46,22 @@ def route(
         def request_factory(context: Context) -> Request:
             return _patch_request(context.request, request_class)
 
-        request_override = Dependency(
-            type=request_class,
-            param_name=request_param_name,
-            optional=False,
-            default_value=inspect.Parameter.empty,
-            factory=request_factory,
+        callback = DependencyResolver.from_callable(
+            fn,
+            overrides={
+                request_param_name: Dependency.from_parameter(
+                    inspect.Parameter(
+                        name=request_param_name,
+                        kind=inspect.Parameter.KEYWORD_ONLY,
+                        annotation=typing.Annotated[Request, request_factory],
+                    )
+                )
+            },
         )
-        callback = DependencyResolver.from_callable(fn, overrides={request_param_name: request_override})
 
         @functools.wraps(fn)
         async def endpoint_handler(request: Request) -> Response:
-            return await callback.resolve(request)
+            return await callback.execute(request)
 
         chain = create_dispatch_chain(guards or [], endpoint_handler)
 
