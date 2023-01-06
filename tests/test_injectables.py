@@ -85,3 +85,13 @@ def test_from_path(test_client_factory: ClientFactory) -> None:
     client = test_client_factory(routes=[view])
     response = client.get("/users/1")
     assert response.text == "1int"
+
+
+def test_from_path_with_optional(test_client_factory: ClientFactory) -> None:
+    @route("/users")
+    async def view(id: FromPath[int] | None = None) -> Response:
+        return Response(str(id))
+
+    client = test_client_factory(routes=[view])
+    response = client.get("/users")
+    assert response.text == "None"

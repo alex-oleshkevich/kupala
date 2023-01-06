@@ -35,8 +35,11 @@ CurrentUser = typing.Annotated[_T, lambda context: context.request.user]
 
 def _from_path(context: Context) -> typing.Any:
     value = context.request.path_params.get(context.param_name)
-    if not value and not context.optional:
-        raise ValueError(f'Path param "{context.param_name}" is None and no default value defined.')
+    if value is None:
+        if not context.optional:
+            raise ValueError(f'Path param "{context.param_name}" is None and no default value defined.')
+        return value
+
     return context.type(value)
 
 

@@ -38,7 +38,7 @@ def route(
 
         for parameter in signature.parameters.values():
             origin = typing.get_origin(parameter.annotation) or parameter.annotation
-            if origin == Request or issubclass(origin, Request):
+            if inspect.isclass(origin) and (origin == Request or issubclass(origin, Request)):
 
                 def request_factory(context: Context) -> Request:
                     return _patch_request(context.request, typing.cast(type[Request], context.type))
