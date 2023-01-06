@@ -152,7 +152,7 @@ def test_routes_repr() -> None:
 def test_routes_get(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
-    @routes.get_or_post("/")
+    @routes.get("/")
     def example_view(request: Request) -> Response:
         return Response("ok")
 
@@ -163,7 +163,7 @@ def test_routes_get(test_client_factory: ClientFactory) -> None:
 def test_routes_post(test_client_factory: ClientFactory) -> None:
     routes = Routes()
 
-    @routes.get_or_post("/")
+    @routes.post("/")
     def example_view(request: Request) -> Response:
         return Response("ok")
 

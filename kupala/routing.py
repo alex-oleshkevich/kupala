@@ -33,31 +33,26 @@ def route(
     """Convert endpoint callable into Route object."""
 
     def decorator(fn: typing.Callable) -> Route:
-        request_class = Request
-        request_param_name: str = ""
         signature = inspect.signature(fn)
+        overrides: dict[str, Dependency] = {}
+
         for parameter in signature.parameters.values():
             origin = typing.get_origin(parameter.annotation) or parameter.annotation
             if origin == Request or issubclass(origin, Request):
-                request_param_name = parameter.name
-                request_class = origin
-                break
 
-        def request_factory(context: Context) -> Request:
-            return _patch_request(context.request, request_class)
+                def request_factory(context: Context) -> Request:
+                    return _patch_request(context.request, typing.cast(type[Request], context.type))
 
-        callback = DependencyResolver.from_callable(
-            fn,
-            overrides={
-                request_param_name: Dependency.from_parameter(
+                overrides[parameter.name] = Dependency.from_parameter(
                     inspect.Parameter(
-                        name=request_param_name,
+                        name=parameter.name,
                         kind=inspect.Parameter.KEYWORD_ONLY,
-                        annotation=typing.Annotated[Request, request_factory],
+                        annotation=typing.Annotated[origin, request_factory],
                     )
                 )
-            },
-        )
+                break
+
+        callback = DependencyResolver.from_callable(fn, overrides=overrides)
 
         @functools.wraps(fn)
         async def endpoint_handler(request: Request) -> Response:
@@ -164,11 +159,11 @@ class Routes(typing.Sequence[BaseRoute]):
         return f"<{self.__class__.__name__}: {routes_count} {noun}>"
 
     @typing.overload
-    def __getitem__(self, index: int) -> BaseRoute:
+    def __getitem__(self, index: int) -> BaseRoute:  # pragma: nocover
         ...
 
     @typing.overload
-    def __getitem__(self, index: slice) -> typing.Sequence[BaseRoute]:
+    def __getitem__(self, index: slice) -> typing.Sequence[BaseRoute]:  # pragma: nocover
         ...
 
     def __getitem__(self, index: int | slice) -> BaseRoute | typing.Sequence[BaseRoute]:
