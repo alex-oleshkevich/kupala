@@ -11,6 +11,7 @@ except ImportError:
 JsonList = typing.Annotated[list, mapped_column(sa.JSON, default=list, server_default="[]", nullable=False)]
 JsonDict = typing.Annotated[dict, mapped_column(sa.JSON, default=dict, server_default="{}", nullable=False)]
 IntPk = typing.Annotated[int, mapped_column(sa.BigInteger, primary_key=True)]
+UuidPk = typing.Annotated[int, mapped_column(sa.UUID, primary_key=True)]
 Slug = typing.Annotated[str, mapped_column(sa.Text, nullable=False)]
 ShortString = typing.Annotated[str, mapped_column(sa.String(256), nullable=False, default="", server_default="")]
 LongString = typing.Annotated[str, mapped_column(sa.String(512), nullable=False, default="", server_default="")]

@@ -128,3 +128,6 @@ class Query:
     ) -> Choices:
         rows = await self.all(stmt)
         return Collection(rows).choices(label_attr=label_attr, value_attr=value_attr)
+
+
+query = Query
