@@ -6,16 +6,11 @@ from mailers import Mailer
 from mailers.message import Email, Recipients
 from starlette.applications import Starlette
 
-from kupala.contrib.mail.components import Envelope, TemplatedMailComponent
-
 
 class Mails:
     def __init__(self, mailers: dict[str, Mailer], jinja_env: jinja2.Environment | None = None) -> None:
         self.mailers = mailers
         self.jinja_env = jinja_env
-
-        if jinja_env:
-            TemplatedMailComponent.bind_jinja_environment(jinja_env)
 
     async def send_mail(
         self,
@@ -52,10 +47,6 @@ class Mails:
             html=html_content,
             mailer=mailer,
         )
-
-    async def send_component(self, to: str, subject: str, component: Envelope) -> None:
-        html_content = component.render()
-        await self.send_mail(subject=subject, to=to, html=html_content)
 
     def get_mailer(self, name: str) -> Mailer:
         return self.mailers[name]

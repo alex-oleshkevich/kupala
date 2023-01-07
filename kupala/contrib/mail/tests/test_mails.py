@@ -6,7 +6,6 @@ from mailers import InMemoryTransport, Mailer
 from starlette.applications import Starlette
 
 from kupala.contrib.mail.commands import send_test_email_command
-from kupala.contrib.mail.components import Envelope, MailComponent
 from kupala.contrib.mail.mails import Mails
 
 
@@ -72,22 +71,6 @@ async def test_sends_templated_mail(
     message = transport.mailbox[0].as_string()
     assert "text value" in message
     assert "<span>html value</span>" in message
-
-
-@pytest.mark.asyncio
-async def test_sends_componented_mail(
-    mailer: Mailer, transport: InMemoryTransport, jinja_env: jinja2.Environment
-) -> None:
-    class DummyComponent(MailComponent):
-        def render(self) -> str:
-            return "hello"
-
-    mails = Mails({"default": mailer}, jinja_env=jinja_env)
-    message = Envelope(body=DummyComponent())
-    await mails.send_component(to="root@localhost", subject="hello", component=message)
-    assert transport.mailbox
-    message_body = transport.mailbox[0].as_string()
-    assert "hello" in message_body
 
 
 def test_binds_to_starlette() -> None:
