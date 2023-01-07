@@ -54,7 +54,7 @@ async def test_sends_templated_mail(
 
     (templates_dir / "html.html").write_text(
         """
-    {% extends 'kupala/kupala_mail/base_mail.html' %}
+    {% extends 'kupala/kupala_mail/base.html' %}
     {% block content %}<span>html {{key}}</span>{% endblock %}
     """
     )
