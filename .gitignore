@@ -2,9 +2,8 @@
 __pycache__
 .venv
 .vscode
-.coverage
+.coverage*
 .idea
 dist/
 demo_app
 _private
-
