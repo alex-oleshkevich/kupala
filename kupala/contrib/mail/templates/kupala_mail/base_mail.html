@@ -13,7 +13,7 @@
     <meta name="supported-color-schemes" content="light">
     <meta http-equiv="X-UA-Compatible" content="IE=edge"> <!-- enable media queries for windows phone 8 -->
     <style>
-        {% include 'mail/mail.css' %}
+        {% include 'kupala_mail/mail.css' %}
     </style>
     <!--[if mso]>
     <noscript>
@@ -48,7 +48,7 @@
         }
     </style>
     <style>
-        {% include 'mail/overrides.css' %}
+        {% include 'kupala_mail/overrides.css' %}
     </style>
 </head>
 <body>
@@ -59,9 +59,13 @@
                 <table class="content" width="100%" cellpadding="0" cellspacing="0" role="presentation">
                     <tr>
                         <td>
-                            {% block content %}
-                                {{ content }}
+                            {% block before_main %}{% endblock %}
+                            {% block main %}
+                                {% block content %}
+                                    {{ content }}
+                                {% endblock %}
                             {% endblock %}
+                            {% block after_main %}{% endblock %}
                         </td>
                     </tr>
                 </table>

@@ -1,0 +1,19 @@
+{% macro figure(image_src, link_href) %}
+    {% include 'kupala_mail/components/figure.html' %}
+{% endmacro %}
+
+{% macro button(label, link_href, color='blue', align='center', full_width=false) %}
+    {% include 'kupala_mail/components/button.html' %}
+{% endmacro %}
+
+{% macro center() %}
+    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+        <tbody>
+        <tr>
+            <td align="left" style="text-align:center">
+                {{ caller() }}
+            </td>
+        </tr>
+        </tbody>
+    </table>
+{% endmacro %}

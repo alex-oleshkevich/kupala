@@ -5,7 +5,7 @@ import typing
 from kupala.console import async_command
 from kupala.contrib.mail.mails import Mails
 
-mail_commands: click.Group = click.Group("mail")
+mail_commands: click.Group = click.Group("kupala_mail")
 
 
 @mail_commands.command("test")
