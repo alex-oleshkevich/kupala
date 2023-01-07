@@ -52,5 +52,5 @@ repos:
         hooks:
             -   id: mypy
                 always_run: true
-                additional_dependencies: [starlette, "sqlalchemy==2.0.0b4"]
+                additional_dependencies: [starlette, "sqlalchemy==2.0.0b4", wtforms]
                 args: [ --config-file, pyproject.toml ]

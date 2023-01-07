@@ -30,7 +30,7 @@ def jinja_env(templates_dir: pathlib.Path) -> jinja2.Environment:
         loader=jinja2.ChoiceLoader(
             [
                 jinja2.FileSystemLoader(templates_dir),
-                jinja2.PackageLoader("kupala.contrib.kupala_mail"),
+                jinja2.PackageLoader("kupala.contrib.mail"),
             ]
         )
     )
@@ -54,7 +54,7 @@ async def test_sends_templated_mail(
 
     (templates_dir / "html.html").write_text(
         """
-    {% extends 'kupala/kupala_mail/base.html' %}
+    {% extends 'kupala_mail/base.html' %}
     {% block content %}<span>html {{key}}</span>{% endblock %}
     """
     )

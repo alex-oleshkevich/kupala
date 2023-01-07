@@ -42,6 +42,7 @@ mailers = "^3.0.0"
 aiosmtplib = "^2.0.0"
 starlette-flash = "^1.0.1"
 sqlalchemy = { version = "==2.0.0b4", extras = ["asyncio"] }
+wtforms = "^3.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -111,6 +112,6 @@ norecursedirs = [
     "*/migrations/*", "*/static/*", "docs", ".venv"
 ]
 addopts = "--tb=short -s --no-cov-on-fail"
-testpaths = ["tests"]
+testpaths = ["tests", "kupala/contrib"]
 filterwarnings = [
 ]
