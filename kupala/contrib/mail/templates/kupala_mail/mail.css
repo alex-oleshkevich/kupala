@@ -175,7 +175,7 @@ li {
     margin: 8px 0 0 32px;
 }
 
-small {
+small, .text-small {
     font-size: 14px;
     line-height: 18px;
 }
@@ -194,4 +194,9 @@ small {
 
 .text-right {
     text-align: right !important;
+}
+
+.logo > svg, .logo > img {
+    text-align: center;
+    height: 48px;
 }
