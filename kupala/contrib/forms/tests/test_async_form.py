@@ -6,7 +6,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from kupala.contrib.forms.forms import SUBMIT_METHODS, AsyncForm
+from kupala.contrib.forms.forms import SUBMIT_METHODS, AsyncForm, Preparable
 
 
 def sync_validator(form: wtforms.Form, field: wtforms.Field) -> None:
@@ -126,3 +126,38 @@ async def test_from_request() -> None:
     app = Starlette(routes=[Route("/", view, methods=["post"])])
     client = TestClient(app)
     assert client.post("/", data={"name": "filled"}).json() == {"name": "filled"}
+
+
+class _SimpleField(wtforms.StringField, Preparable):
+    prepared: bool = False
+
+    async def prepare(self, form: wtforms.Form) -> None:
+        self.prepared = True
+
+
+@pytest.mark.asyncio
+async def test_form_prepares_field() -> None:
+    class Form(AsyncForm):
+        name = _SimpleField()
+
+    form = Form()
+    assert not form.name.prepared
+    await form.prepare()
+    assert form.name.prepared
+
+
+@pytest.mark.asyncio
+async def test_form_prepares_nested_fields() -> None:
+    class SubForm(AsyncForm):
+        name = _SimpleField()
+
+    class Form(AsyncForm):
+        name = wtforms.FieldList(_SimpleField(), min_entries=1)
+        subform = wtforms.FormField(SubForm)
+
+    form = Form()
+    assert not form.name[0].prepared
+    assert not form.subform.form["name"].prepared
+    await form.prepare()
+    assert form.name[0].prepared
+    assert form.subform.form["name"].prepared

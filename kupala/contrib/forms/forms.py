@@ -1,3 +1,4 @@
+import abc
 import anyio
 import inspect
 import typing
@@ -21,6 +22,12 @@ async def _perform_async_validation(
         field.errors.append(ex.args[0])
     else:
         results.append(True)
+
+
+class Preparable:
+    @abc.abstractmethod
+    async def prepare(self, form: wtforms.Form) -> None:
+        ...  # pragma: nocover
 
 
 class AsyncForm(wtforms.Form):
@@ -63,6 +70,17 @@ class AsyncForm(wtforms.Form):
                     tg.start_soon(_perform_async_validation, completed, self, field, validator)
 
         return False not in completed
+
+    async def prepare(self) -> None:
+        async def recurse_prepare(field: wtforms.Field) -> None:
+            if isinstance(field, Preparable):
+                await field.prepare(self)
+            elif isinstance(field, (wtforms.FieldList, wtforms.FormField)):
+                for subfield in field:
+                    await recurse_prepare(subfield)
+
+        for field in self._fields.values():
+            await recurse_prepare(field)
 
     @classmethod
     async def from_request(
