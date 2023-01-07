@@ -196,7 +196,7 @@ small, .text-small {
     text-align: right !important;
 }
 
-.logo > svg, .logo > img {
+.logo svg, .logo img {
     text-align: center;
     height: 48px;
 }
