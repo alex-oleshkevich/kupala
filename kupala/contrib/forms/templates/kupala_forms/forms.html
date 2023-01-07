@@ -1,0 +1,104 @@
+{% macro form_input(field) %}
+    {{ field }}
+{% endmacro %}
+
+{% macro form_help(field) %}
+    {% if field.description %}
+        <div class="form-help">{{ field.description }}</div>
+    {% endif %}
+{% endmacro %}
+
+{% macro form_label(field) %}
+    <label for="{{ field.label.field_id }}">
+        {{ field.label.text }}
+        {% if field.flags.required %}
+            <span class="text-red-500">*</span>
+        {% endif %}
+    </label>
+{% endmacro %}
+
+{% macro form_errors(field) %}
+    <ul class="form-errors">
+        {% for error in field.errors %}
+            <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+{% endmacro %}
+
+{% macro form_field(field, input=null, label=null) %}
+    {% if field.type == 'BooleanField' %}
+        {{ checkbox_field(field, label) }}
+    {% elif field.type == 'HiddenField' %}
+        {{ form_input(field) }}
+    {% elif field.type == 'MultipleFileField' %}
+        {{ multiple_file_field(field) }}
+    {% elif field.type == 'FormField' %}
+        {{ form_form_field(field) }}
+    {% else %}
+        <div class="form-group">
+            {{ label if label else form_label(field) }}
+            {{ input if input else form_input(field) }}
+            {{ form_help(field) if field.description else '' }}
+            {{ form_errors(field) if field.errors else '' }}
+        </div>
+    {% endif %}
+{% endmacro %}
+
+{% macro checkbox_input(field, label='') %}
+    <div class="form-check">
+        {{ form_input(field) }}
+        {{ label if label else form_label(field) }}
+    </div>
+{% endmacro %}
+
+{% macro checkbox_field(field, label) %}
+    <div class="form-group">
+        {{ checkbox_input(field, label) }}
+        {{ form_help(field) if field.description else '' }}
+        {{ form_errors(field) if field.errors else '' }}
+    </div>
+{% endmacro %}
+
+{% macro radio_input(field, horizontal=false) %}
+    <div class="{{ 'flex gap-5 flex-row' if horizontal else '' }}">
+        {% for value, label in field.choices %}
+            <div class="form-check">
+                <input
+                    type="radio"
+                    value="{{ value }}"
+                    name="{{ field.name }}"
+                    {% if value == field.data %}checked{% endif %}
+                    id="{{ field.label.field_id }}-{{ value }}">
+                <label for="{{ field.label.field_id }}-{{ value }}" class="form-check-label">{{ label }}</label>
+            </div>
+        {% endfor %}
+    </div>
+{% endmacro %}
+
+{% macro radio_field(field, horizontal=false) %}
+    <div class="form-group form-group-radio">
+        {{ form_label(field) }}
+        {{ radio_input(field, horizontal) }}
+        {{ form_help(field) if field.description else '' }}
+        {{ form_errors(field) if field.errors else '' }}
+    </div>
+{% endmacro %}
+
+{% macro multi_checkboxes_input(field) %}
+    <div class="flex items-start gap-2 flex-col">
+        {% for value, label in field.choices %}
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <input
+                    type="checkbox"
+                    {% if field.data and value in field.data %}checked{% endif %}
+                    name="{{ field.name }}" id="{{ field.id }}-{{ value }}" value="{{ value }}">
+                <label for="{{ field.id }}-{{ value }}">{{ label }}</label>
+            </div>
+        {% endfor %}
+    </div>
+{% endmacro %}
+
+{% macro multi_checkboxes_field(field) %}
+    {% set input = multi_checkboxes_input(field) %}
+    {{ form_field(field, input) }}
+{% endmacro %}
