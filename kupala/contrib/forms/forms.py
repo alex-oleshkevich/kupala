@@ -1,4 +1,3 @@
-import abc
 import anyio
 import inspect
 import typing
@@ -6,6 +5,7 @@ import wtforms
 from multidict import MultiDict
 from starlette.requests import Request
 
+from kupala.contrib.forms.fields import Preparable
 from kupala.contrib.forms.validators import AsyncValidator
 
 _F = typing.TypeVar("_F", bound=wtforms.Form)
@@ -22,12 +22,6 @@ async def _perform_async_validation(
         field.errors.append(ex.args[0])
     else:
         results.append(True)
-
-
-class Preparable:
-    @abc.abstractmethod
-    async def prepare(self, form: wtforms.Form) -> None:
-        ...  # pragma: nocover
 
 
 class AsyncForm(wtforms.Form):

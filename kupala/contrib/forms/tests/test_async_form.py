@@ -6,7 +6,8 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from kupala.contrib.forms.forms import SUBMIT_METHODS, AsyncForm, Preparable
+from kupala.contrib.forms.fields import Preparable
+from kupala.contrib.forms.forms import SUBMIT_METHODS, AsyncForm
 
 
 def sync_validator(form: wtforms.Form, field: wtforms.Field) -> None:
