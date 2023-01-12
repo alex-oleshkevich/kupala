@@ -14,9 +14,6 @@ class Query:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    def select(self, *args: typing.Any, **kwargs: typing.Any) -> sa.Select:
-        return sa.Select(*args, **kwargs)
-
     @typing.overload
     async def one(self, stmt: TypedReturnsRows[_ROW]) -> _ROW:
         ...
