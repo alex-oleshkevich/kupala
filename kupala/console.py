@@ -39,6 +39,9 @@ class StyledPrinter:
         click.echo(pprint.pformat(value, indent=4, compact=True), file=self.file)
 
 
+printer = StyledPrinter()
+
+
 def async_command(fn: typing.Callable[_PS, typing.Awaitable[_RT]]) -> typing.Callable[_PS, _RT | None]:
     @functools.wraps(fn)
     def decorator(*args: _PS.args, **kwargs: _PS.kwargs) -> _RT | None:
@@ -95,11 +98,20 @@ class Group(click.Group):
             cmd.callback = wrap_callback(cmd.callback)
         super().add_command(cmd, name)
 
+    @typing.overload
+    def group(self, __func: typing.Callable[..., typing.Any]) -> click.Group:
+        ...
+
+    @typing.overload
     def group(
         self, *args: typing.Any, **kwargs: typing.Any
-    ) -> typing.Union[  # type: ignore[override]
-        typing.Callable[[typing.Callable[..., typing.Any]], click.Group], click.Group
-    ]:
+    ) -> typing.Callable[[typing.Callable[..., typing.Any]], click.Group]:
+        ...
+
+    def group(
+        self, *args: typing.Any, **kwargs: typing.Any
+    ) -> typing.Union[typing.Callable[[typing.Callable[..., typing.Any]], click.Group], click.Group]:
+
         func: typing.Callable | None = None
         if args and callable(args[0]):
             func = args[0]
@@ -116,11 +128,19 @@ class Group(click.Group):
 
         return decorator
 
+    @typing.overload
+    def command(self, __func: typing.Callable[..., typing.Any]) -> click.Command:
+        ...
+
+    @typing.overload
     def command(
         self, *args: typing.Any, **kwargs: typing.Any
-    ) -> typing.Union[  # type: ignore[override]
-        click.Command, typing.Callable[[typing.Callable[..., typing.Any]], click.Command]
-    ]:
+    ) -> typing.Callable[[typing.Callable[..., typing.Any]], click.Command]:
+        ...
+
+    def command(
+        self, *args: typing.Any, **kwargs: typing.Any
+    ) -> typing.Union[click.Command, typing.Callable[[typing.Callable[..., typing.Any]], click.Command]]:
         func: typing.Callable | None = None
 
         if args and callable(args[0]):

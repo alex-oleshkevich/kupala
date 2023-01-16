@@ -163,8 +163,10 @@ class Collection(typing.Generic[E]):
     def __contains__(self, item: E) -> bool:
         return item in self.items
 
-    def __eq__(self, other: typing.Any) -> bool:
-        return self.items == other.items
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Collection):
+            return self.items == other.items
+        raise ValueError("Not comparable.")
 
     def __reversed__(self) -> Collection[E]:
         return Collection(reversed(list(self)))

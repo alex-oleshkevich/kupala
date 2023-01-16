@@ -15,11 +15,11 @@ class Query:
         self.session = session
 
     @typing.overload
-    async def one(self, stmt: TypedReturnsRows[_ROW]) -> _ROW:
+    async def one(self, stmt: TypedReturnsRows[_ROW]) -> _ROW:  # pragma: no cover
         ...
 
     @typing.overload
-    async def one(self, stmt: sa.Executable) -> typing.Any:
+    async def one(self, stmt: sa.Executable) -> typing.Any:  # pragma: no cover
         ...
 
     async def one(self, stmt: sa.Executable) -> typing.Any:
@@ -27,11 +27,11 @@ class Query:
         return result.one()
 
     @typing.overload
-    async def one_or_none(self, stmt: TypedReturnsRows[_ROW]) -> _ROW | None:
+    async def one_or_none(self, stmt: TypedReturnsRows[_ROW]) -> _ROW | None:  # pragma: no cover
         ...
 
     @typing.overload
-    async def one_or_none(self, stmt: sa.Executable) -> typing.Any | None:
+    async def one_or_none(self, stmt: sa.Executable) -> typing.Any | None:  # pragma: no cover
         ...
 
     async def one_or_none(self, stmt: sa.Executable) -> typing.Any | None:
@@ -39,23 +39,25 @@ class Query:
         return result.one_or_none()
 
     @typing.overload
-    async def one_or_new(self, stmt: TypedReturnsRows[_ROW], new_object: typing.Any) -> _ROW:
+    async def one_or_default(
+        self, stmt: TypedReturnsRows[_ROW], default_object: typing.Any
+    ) -> _ROW:  # pragma: no cover
         ...
 
     @typing.overload
-    async def one_or_new(self, stmt: sa.Executable, new_object: typing.Any) -> typing.Any:
+    async def one_or_default(self, stmt: sa.Executable, default_object: typing.Any) -> typing.Any:  # pragma: no cover
         ...
 
-    async def one_or_new(self, stmt: sa.Executable, new_object: typing.Any) -> typing.Any:
+    async def one_or_default(self, stmt: sa.Executable, default_object: typing.Any) -> typing.Any:
         result = await self.session.scalars(stmt)
-        return result.one_or_none() or new_object
+        return result.one_or_none() or default_object
 
     @typing.overload
-    async def one_or_raise(self, stmt: TypedReturnsRows[_ROW], exc: BaseException) -> _ROW:
+    async def one_or_raise(self, stmt: TypedReturnsRows[_ROW], exc: BaseException) -> _ROW:  # pragma: no cover
         ...
 
     @typing.overload
-    async def one_or_raise(self, stmt: sa.Executable, exc: BaseException) -> typing.Any:
+    async def one_or_raise(self, stmt: sa.Executable, exc: BaseException) -> typing.Any:  # pragma: no cover
         ...
 
     async def one_or_raise(self, stmt: sa.Executable, exc: BaseException) -> typing.Any:
@@ -65,11 +67,11 @@ class Query:
         return result
 
     @typing.overload
-    async def all(self, stmt: TypedReturnsRows[_ROW]) -> Collection[_ROW]:
+    async def all(self, stmt: TypedReturnsRows[_ROW]) -> Collection[_ROW]:  # pragma: no cover
         ...
 
     @typing.overload
-    async def all(self, stmt: sa.Executable) -> Collection[typing.Any]:
+    async def all(self, stmt: sa.Executable) -> Collection[typing.Any]:  # pragma: no cover
         ...
 
     async def all(self, stmt: sa.Executable) -> Collection[typing.Any]:
@@ -77,11 +79,15 @@ class Query:
         return Collection(result.all())
 
     @typing.overload
-    async def iterator(self, stmt: TypedReturnsRows[_ROW], batch_size: int = 1000) -> typing.AsyncGenerator[_ROW, None]:
+    async def iterator(
+        self, stmt: TypedReturnsRows[_ROW], batch_size: int = 1000
+    ) -> typing.AsyncGenerator[_ROW, None]:  # pragma: no cover
         yield  # type: ignore[misc]
 
     @typing.overload
-    async def iterator(self, stmt: sa.Executable, batch_size: int = 1000) -> typing.AsyncGenerator[typing.Any, None]:
+    async def iterator(
+        self, stmt: sa.Executable, batch_size: int = 1000
+    ) -> typing.AsyncGenerator[typing.Any, None]:  # pragma: no cover
         yield
 
     async def iterator(self, stmt: sa.Executable, batch_size: int = 1000) -> typing.AsyncGenerator[typing.Any, None]:
@@ -97,17 +103,21 @@ class Query:
         return result.one() is True
 
     async def count(self, stmt: typing.Any) -> int:
-        stmt = sa.select(sa.func.count("*")).select_from(stmt)
+        stmt = sa.select(sa.func.count()).select_from(stmt.subquery())
         result = await self.session.scalars(stmt)
         count = result.one()
         return int(count) if count else 0
 
     @typing.overload
-    async def paginate(self, stmt: TypedReturnsRows[_ROW], page: int = 1, page_size: int = 50) -> Page[_ROW]:
+    async def paginate(
+        self, stmt: TypedReturnsRows[_ROW], page: int = 1, page_size: int = 50
+    ) -> Page[_ROW]:  # pragma: no cover
         ...
 
     @typing.overload
-    async def paginate(self, stmt: sa.Executable, page: int = 1, page_size: int = 50) -> Page[typing.Any]:
+    async def paginate(
+        self, stmt: sa.Executable, page: int = 1, page_size: int = 50
+    ) -> Page[typing.Any]:  # pragma: no cover
         ...
 
     async def paginate(self, stmt: sa.Executable, page: int = 1, page_size: int = 50) -> Page[typing.Any]:
