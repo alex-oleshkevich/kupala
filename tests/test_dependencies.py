@@ -268,19 +268,9 @@ async def test_dependency_resolve_not_caches() -> None:
         annotation=typing.Annotated[int, lambda context: id(context.request)],
     )
     dependency = Dependency.from_parameter(parameter)
-    with contextlib.ExitStack() as exit_stack:
-        async with contextlib.AsyncExitStack() as aexit_stack:
-            call_1 = await dependency.resolve(
-                InvokeContext(
-                    extras={"request": Request({"type": "http"})}, exit_stack=exit_stack, aexit_stack=aexit_stack
-                )
-            )
-            call_2 = await dependency.resolve(
-                InvokeContext(
-                    extras={"request": Request({"type": "http"})}, exit_stack=exit_stack, aexit_stack=aexit_stack
-                )
-            )
-            assert call_1 != call_2
+    call_1 = await dependency.resolve(InvokeContext(extras={"request": Request({"type": "http"})}))
+    call_2 = await dependency.resolve(InvokeContext(extras={"request": Request({"type": "http"})}))
+    assert call_1 != call_2
 
 
 @pytest.mark.asyncio

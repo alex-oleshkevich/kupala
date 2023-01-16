@@ -34,9 +34,11 @@ class Context:
 
 @dataclasses.dataclass
 class InvokeContext:
-    exit_stack: contextlib.ExitStack
-    aexit_stack: contextlib.AsyncExitStack
     extras: dict[str, typing.Any]
+
+    def __post_init__(self) -> None:
+        self.exit_stack = contextlib.ExitStack()
+        self.aexit_stack = contextlib.AsyncExitStack()
 
     @property
     def request(self) -> Request | WebSocket:
@@ -133,9 +135,9 @@ class DependencyResolver:
     dependencies: dict[str, Dependency] = dataclasses.field(default_factory=dict)
 
     async def execute(self, request: Request | WebSocket | None) -> typing.Any:
-        with contextlib.ExitStack() as exit_stack:
-            async with contextlib.AsyncExitStack() as aexit_stack:
-                context = InvokeContext(extras={"request": request}, exit_stack=exit_stack, aexit_stack=aexit_stack)
+        context = InvokeContext(extras={"request": request})
+        with context.exit_stack:
+            async with context.aexit_stack:
                 dependencies = {
                     dependency.param_name: await dependency.resolve(context)
                     for dependency in self.dependencies.values()
