@@ -4,10 +4,11 @@ import contextlib
 import inspect
 import pytest
 import typing
+from starlette.applications import Starlette
 from starlette.requests import Request
 
 from kupala.dependencies import (
-    Context,
+    Argument,
     Dependency,
     DependencyResolver,
     InvalidDependency,
@@ -21,14 +22,14 @@ class DependencyOne:
     value: str
 
 
-def _dep_one_factory(context: Context) -> DependencyOne:
+def _dep_one_factory(context: Argument) -> DependencyOne:
     return DependencyOne(value="sync")
 
 
 DepOne = typing.Annotated[DependencyOne, _dep_one_factory]
 
 
-async def _async_dep_one_factory(context: Context) -> DependencyOne:
+async def _async_dep_one_factory(context: Argument) -> DependencyOne:
     return DependencyOne(value="async")
 
 
@@ -73,9 +74,10 @@ async def test_execute_injection_plan() -> None:
     def fn(dep: DepOne) -> str:
         return dep.value
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(fn)
-    result = await plan.execute(conn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "sync"
 
 
@@ -84,9 +86,10 @@ async def test_execute_injection_plan_with_async_peer_dependency() -> None:
     def fn(dep: AsyncDepOne) -> str:
         return dep.value
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(fn)
-    result = await plan.execute(conn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "async"
 
 
@@ -95,9 +98,10 @@ async def test_execute_injection_plan_with_async_dependency() -> None:
     async def fn(dep: AsyncDepOne) -> str:
         return dep.value
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(fn)
-    result = await plan.execute(conn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "async"
 
 
@@ -109,9 +113,10 @@ async def test_non_optional_dependency_disallows_none_value() -> None:
         return str(dep)
 
     with pytest.raises(InvalidDependency, match="returned None"):
+        app = Starlette()
         conn = Request({"type": "http"})
         plan = DependencyResolver.from_callable(fn)
-        await plan.execute(conn)
+        await plan.execute(InvokeContext(request=conn, app=app))
 
 
 @pytest.mark.asyncio
@@ -121,26 +126,28 @@ async def test_optional_dependency_allows_none_value() -> None:
     def fn(dep: Dep | None) -> str:
         return str(dep)
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(fn)
-    result = await plan.execute(conn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "None"
 
 
 @pytest.mark.asyncio
 async def test_injects_context_into_factory() -> None:
-    def factory(context: Context) -> str:
-        return context.__class__.__name__
+    def factory(argument: Argument) -> str:
+        return argument.__class__.__name__
 
     Dep = typing.Annotated[str, factory]
 
     def fn(dep: Dep) -> str:
         return dep
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(fn)
-    result = await plan.execute(conn)
-    assert result == "Context"
+    result = await plan.execute(InvokeContext(request=conn, app=app))
+    assert result == "Argument"
 
 
 @pytest.mark.asyncio
@@ -153,20 +160,21 @@ async def test_not_injects_context_into_factory() -> None:
     def fn(dep: Dep) -> str:
         return dep
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(fn)
-    result = await plan.execute(conn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "none"
 
 
 @pytest.mark.asyncio
 async def test_resolves_nested_dependencies() -> None:
-    def parent_factory(context: Context) -> str:
+    def parent_factory(context: Argument) -> str:
         return "parent"
 
     Parent = typing.Annotated[str, parent_factory]
 
-    def child_factory(context: Context, parent: Parent) -> str:
+    def child_factory(context: Argument, parent: Parent) -> str:
         return parent + "child"
 
     Child = typing.Annotated[str, child_factory]
@@ -174,16 +182,17 @@ async def test_resolves_nested_dependencies() -> None:
     def fn(dep: Child) -> str:
         return dep
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(fn)
-    result = await plan.execute(conn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "parentchild"
 
 
 @pytest.mark.asyncio
 async def test_sync_context_manager_dependencies() -> None:
     @contextlib.contextmanager
-    def factory(context: Context) -> typing.Generator[str, None, None]:
+    def factory(context: Argument) -> typing.Generator[str, None, None]:
         yield "dep"
 
     Dep = typing.Annotated[str, factory]
@@ -191,22 +200,23 @@ async def test_sync_context_manager_dependencies() -> None:
     def fn(dep: Dep) -> str:
         return dep
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(fn)
-    result = await plan.execute(conn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "dep"
 
 
 @pytest.mark.asyncio
 async def test_sync_context_manager_dependencies_recursive() -> None:
     @contextlib.contextmanager
-    def base_factory(context: Context) -> typing.Generator[str, None, None]:
+    def base_factory(context: Argument) -> typing.Generator[str, None, None]:
         yield "base"
 
     Base = typing.Annotated[str, base_factory]
 
     @contextlib.contextmanager
-    def factory(context: Context, base: Base) -> typing.Generator[str, None, None]:
+    def factory(context: Argument, base: Base) -> typing.Generator[str, None, None]:
         yield base + "dep"
 
     Dep = typing.Annotated[str, factory]
@@ -214,16 +224,17 @@ async def test_sync_context_manager_dependencies_recursive() -> None:
     def fn(dep: Dep) -> str:
         return dep
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(fn)
-    result = await plan.execute(conn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "basedep"
 
 
 @pytest.mark.asyncio
 async def test_async_context_manager_dependencies() -> None:
     @contextlib.asynccontextmanager
-    async def factory(context: Context) -> typing.AsyncGenerator[str, None]:
+    async def factory(context: Argument) -> typing.AsyncGenerator[str, None]:
         yield "dep"
 
     Dep = typing.Annotated[str, factory]
@@ -231,22 +242,23 @@ async def test_async_context_manager_dependencies() -> None:
     def fn(dep: Dep) -> str:
         return dep
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(fn)
-    result = await plan.execute(conn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "dep"
 
 
 @pytest.mark.asyncio
 async def test_async_context_manager_dependencies_recursive() -> None:
     @contextlib.asynccontextmanager
-    async def base_factory(context: Context) -> typing.AsyncGenerator[str, None]:
+    async def base_factory(context: Argument) -> typing.AsyncGenerator[str, None]:
         yield "base"
 
     Base = typing.Annotated[str, base_factory]
 
     @contextlib.asynccontextmanager
-    async def factory(context: Context, base: Base) -> typing.AsyncGenerator[str, None]:
+    async def factory(context: Argument, base: Base) -> typing.AsyncGenerator[str, None]:
         yield base + "dep"
 
     Dep = typing.Annotated[str, factory]
@@ -254,9 +266,10 @@ async def test_async_context_manager_dependencies_recursive() -> None:
     def fn(dep: Dep) -> str:
         return dep
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(fn)
-    result = await plan.execute(conn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "basedep"
 
 
@@ -265,11 +278,12 @@ async def test_dependency_resolve_not_caches() -> None:
     parameter = inspect.Parameter(
         "name",
         kind=inspect.Parameter.KEYWORD_ONLY,
-        annotation=typing.Annotated[int, lambda context: id(context.request)],
+        annotation=typing.Annotated[int, lambda request: id(request)],
     )
+    app = Starlette()
     dependency = Dependency.from_parameter(parameter)
-    call_1 = await dependency.resolve(InvokeContext(extras={"request": Request({"type": "http"})}))
-    call_2 = await dependency.resolve(InvokeContext(extras={"request": Request({"type": "http"})}))
+    call_1 = await dependency.resolve(InvokeContext(request=Request({"type": "http"}), app=app))
+    call_2 = await dependency.resolve(InvokeContext(request=Request({"type": "http"}), app=app))
     assert call_1 != call_2
 
 
@@ -286,6 +300,7 @@ async def test_dependency_overrides() -> None:
     def fn(dep: Dep) -> str:
         return dep
 
+    app = Starlette()
     conn = Request({"type": "http"})
     plan = DependencyResolver.from_callable(
         fn,
@@ -297,5 +312,41 @@ async def test_dependency_overrides() -> None:
             )
         },
     )
-    result = await plan.execute(conn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "override"
+
+
+@pytest.mark.asyncio
+async def test_injects_request_by_class() -> None:
+    def fn(request: Request) -> str:
+        return request.__class__.__name__
+
+    app = Starlette()
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
+    assert result == "Request"
+
+
+@pytest.mark.asyncio
+async def test_injects_request_by_name() -> None:
+    app = Starlette()
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(lambda request: request.__class__.__name__)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
+    assert result == "Request"
+
+
+@pytest.mark.asyncio
+async def test_injects_request_subclass() -> None:
+    class MyRequest(Request):
+        ...
+
+    def fn(request: MyRequest) -> str:
+        return request.__class__.__name__
+
+    app = Starlette()
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
+    assert result == "MyRequest"

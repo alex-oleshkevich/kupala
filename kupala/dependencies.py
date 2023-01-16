@@ -6,9 +6,9 @@ import contextlib
 import functools
 import inspect
 import typing
+from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
-from starlette.websockets import WebSocket
 
 
 class DependencyError(Exception):
@@ -24,8 +24,7 @@ class NotAnnotatedDependency(DependencyError):
 
 
 @dataclasses.dataclass
-class Context:
-    request: Request | WebSocket
+class Argument:
     param_name: str
     type: type
     default_value: typing.Any
@@ -34,15 +33,21 @@ class Context:
 
 @dataclasses.dataclass
 class InvokeContext:
-    extras: dict[str, typing.Any]
+    app: Starlette
+    request: Request | None = None
 
     def __post_init__(self) -> None:
         self.exit_stack = contextlib.ExitStack()
         self.aexit_stack = contextlib.AsyncExitStack()
 
-    @property
-    def request(self) -> Request | WebSocket:
-        return self.extras["request"]
+
+def _parse_request_from_context(context: InvokeContext) -> Request:
+    assert context.request, "Request can be injected in HTTP context only."
+    return context.request
+
+
+def _parse_app_from_context(context: InvokeContext) -> Starlette:
+    return context.app
 
 
 @dataclasses.dataclass
@@ -51,18 +56,21 @@ class Dependency:
     param_name: str
     optional: bool
     default_value: typing.Any
-    factory: typing.Callable[[Context], typing.Any]
+    factory: typing.Callable
     dependencies: dict[str, Dependency] = dataclasses.field(default_factory=dict)
-    _requires_context: bool = False
 
     def __post_init__(self) -> None:
+        self._extra_dependencies_map: dict[typing.Literal["argument"], typing.Any] = {}
+
         signature = inspect.signature(self.factory, eval_str=True)
         for parameter in signature.parameters.values():
-            if parameter.annotation == Context:
-                self._requires_context = True
-                continue
-            if parameter.annotation == parameter.empty and parameter.name in ["context", "_"]:
-                self._requires_context = True
+            if any(
+                [
+                    parameter.annotation == Argument,
+                    parameter.annotation == parameter.empty and parameter.name == "argument",
+                ]
+            ):
+                self._extra_dependencies_map["argument"] = parameter.name
                 continue
 
             self.dependencies[parameter.name] = Dependency.from_parameter(parameter)
@@ -72,21 +80,18 @@ class Dependency:
         for dependency in self.dependencies.values():
             dependencies[dependency.param_name] = await dependency.resolve(context)
 
-        args: list[typing.Any] = []
-        if self._requires_context:
-            args.append(
-                Context(
-                    request=context.request,
-                    type=self.type,
-                    optional=self.optional,
-                    param_name=self.param_name,
-                    default_value=self.default_value,
-                )
+        if param_name := self._extra_dependencies_map.get("argument"):
+            dependencies[param_name] = Argument(
+                type=self.type,
+                optional=self.optional,
+                param_name=self.param_name,
+                default_value=self.default_value,
             )
+
         if inspect.iscoroutinefunction(self.factory):
-            value = await self.factory(*args, **dependencies)
+            value = await self.factory(**dependencies)
         else:
-            value = await run_in_threadpool(self.factory, *args, **dependencies)
+            value = await run_in_threadpool(self.factory, **dependencies)
 
         if value is None and not self.optional:
             raise InvalidDependency(
@@ -112,6 +117,26 @@ class Dependency:
             annotation = next((arg for arg in typing.get_args(parameter.annotation) if arg is not None))
             origin = typing.get_origin(annotation)
 
+        # We allow simpler declaration of Context, Request, and Starlette objects.
+        # They can be injected using their classes instead of Annotated.
+        if any(
+            [
+                parameter.name in ["request", "app", "context"],
+                origin == Request,
+                origin == Argument,
+                origin == Starlette,
+                inspect.isclass(origin) and issubclass(origin, Request),
+                inspect.isclass(origin) and issubclass(origin, Starlette),
+            ]
+        ):
+            return PredefinedDependency(
+                param_name=parameter.name,
+                factory=lambda: None,
+                type=origin,
+                optional=optional,
+                default_value=parameter.default,
+            )
+
         if origin is not typing.Annotated:
             raise NotAnnotatedDependency(
                 f'Parameter "{parameter.name}" is not an instance of typing.Annotated. '
@@ -130,12 +155,34 @@ class Dependency:
 
 
 @dataclasses.dataclass
+class PredefinedDependency(Dependency):
+    async def resolve(self, context: InvokeContext) -> typing.Any:
+        if any(
+            [
+                self.type == Request or (inspect.isclass(self.type) and issubclass(self.type, Request)),
+                self.type == inspect.Parameter.empty and self.param_name == "request",
+            ]
+        ):
+            request = context.request
+            if self.type != inspect.Parameter.empty:
+                request.__class__ = self.type
+            return request
+
+        if any(
+            [
+                self.type == Starlette or (inspect.isclass(self.type) and issubclass(self.type, Starlette)),
+                self.type == inspect.Parameter.empty and self.param_name == "app",
+            ]
+        ):
+            return context.app
+
+
+@dataclasses.dataclass
 class DependencyResolver:
     fn: typing.Callable
     dependencies: dict[str, Dependency] = dataclasses.field(default_factory=dict)
 
-    async def execute(self, request: Request | WebSocket | None) -> typing.Any:
-        context = InvokeContext(extras={"request": request})
+    async def execute(self, context: InvokeContext) -> typing.Any:
         with context.exit_stack:
             async with context.aexit_stack:
                 dependencies = {

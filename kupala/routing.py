@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import functools
 import importlib
-import inspect
 import typing
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from kupala.dependencies import Context, Dependency, DependencyResolver
+from kupala.dependencies import DependencyResolver, InvokeContext
 from kupala.guards import Guard, NextGuard
 
 
@@ -33,30 +32,12 @@ def route(
     """Convert endpoint callable into Route object."""
 
     def decorator(fn: typing.Callable) -> Route:
-        signature = inspect.signature(fn)
-        overrides: dict[str, Dependency] = {}
-
-        for parameter in signature.parameters.values():
-            origin = typing.get_origin(parameter.annotation) or parameter.annotation
-            if inspect.isclass(origin) and (origin == Request or issubclass(origin, Request)):
-
-                def request_factory(context: Context) -> Request:
-                    return _patch_request(context.request, typing.cast(type[Request], context.type))
-
-                overrides[parameter.name] = Dependency.from_parameter(
-                    inspect.Parameter(
-                        name=parameter.name,
-                        kind=inspect.Parameter.KEYWORD_ONLY,
-                        annotation=typing.Annotated[origin, request_factory],
-                    )
-                )
-                break
-
-        callback = DependencyResolver.from_callable(fn, overrides=overrides)
+        callback = DependencyResolver.from_callable(fn)
 
         @functools.wraps(fn)
         async def endpoint_handler(request: Request) -> Response:
-            return await callback.execute(request)
+            context = InvokeContext(request=request, app=request.app)
+            return await callback.execute(context)
 
         chain = create_dispatch_chain(guards or [], endpoint_handler)
 
