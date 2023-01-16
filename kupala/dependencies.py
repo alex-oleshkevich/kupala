@@ -38,7 +38,6 @@ class InvokeContext:
     aexit_stack: contextlib.AsyncExitStack
     extras: dict[str, typing.Any]
 
-    # request: Request | WebSocket | None = None
     @property
     def request(self) -> Request | WebSocket:
         return self.extras["request"]

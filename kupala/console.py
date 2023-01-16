@@ -171,4 +171,6 @@ def create_console_app(app: Starlette) -> click.Group:
         context.obj = ConsoleContext(app=app)
 
     typing.cast(Group, group).populate_from_entrypoints()
+
+    app.state.cli = group
     return group
