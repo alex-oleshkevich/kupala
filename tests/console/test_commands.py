@@ -144,3 +144,19 @@ def test_populates_commands_from_entrypoint() -> None:
         result = runner.invoke(cli, ["thirdparty", "callme"], obj=ConsoleContext(app=Starlette()))
         assert result.exit_code == 0
         assert result.output == "hello\n"
+
+
+def test_injects_annotated_dependencies(root: click.Group) -> None:
+    class Dep:
+        ...
+
+    Dependency = typing.Annotated[Dep, lambda: Dep()]
+
+    @root.command()
+    def command(dep: Dependency) -> None:
+        click.echo(dep.__class__.__name__)
+
+    runner = CliRunner()
+    result = runner.invoke(command, obj=ConsoleContext(app=Starlette()))
+    assert result.exit_code == 0
+    assert result.output == "Dep\n"
