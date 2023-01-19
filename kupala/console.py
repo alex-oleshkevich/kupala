@@ -9,6 +9,8 @@ import pprint
 import typing
 from starlette.applications import Starlette
 
+from kupala.dependencies import Dependency, DependencyResolver, InvokeContext
+
 _PS = typing.ParamSpec("_PS")
 _RT = typing.TypeVar("_RT")
 
@@ -59,35 +61,36 @@ class ConsoleContext:
 
 
 def wrap_callback(callback: typing.Callable[_PS, _RT | typing.Awaitable[_RT]]) -> typing.Callable:
-    parameters = inspect.signature(callback, eval_str=True).parameters
-    context_parameter_name: str = ""
-    click_context_parameter_name: str = ""
-    for parameter in parameters.values():
-        if parameter.annotation == ConsoleContext:
-            context_parameter_name = parameter.name
-        if parameter.annotation == click.Context:
-            click_context_parameter_name = parameter.name
-
     @functools.wraps(callback)
-    def inner(context: click.Context, /, *args: _PS.args, **kwargs: _PS.kwargs) -> _RT:
-        if context_parameter_name:
-            app_context: ConsoleContext = context.obj
-            assert context.obj, "No console context object set."
-            assert isinstance(
-                context.obj, ConsoleContext
-            ), f"context.obj must be an instance of {ConsoleContext.__name__}. It is: {type(context)}."
-            kwargs[context_parameter_name] = app_context
+    def inner(context: click.Context, /, **kwargs: _PS.kwargs) -> _RT:
+        def provide(value: typing.Any) -> typing.Any:
+            return value
 
-        if click_context_parameter_name:
-            kwargs[click_context_parameter_name] = context
+        overrides = {
+            param_name: Dependency(
+                type=type(param_value),
+                param_name=param_name,
+                factory=functools.partial(provide, param_value),
+                optional=False,
+                default_value=param_value,
+            )
+            for param_name, param_value in kwargs.items()
+        }
 
-        if inspect.iscoroutinefunction(callback):
+        resolver_context = InvokeContext(app=context.obj.app)
+        resolver = DependencyResolver.from_callable(callback, overrides=overrides)
 
-            async def main() -> _RT:
-                return await typing.cast(typing.Awaitable[_RT], callback(*args, **kwargs))
+        # sync callables executed in the threadpool which has no the click.Context
+        # we have to call context as context manager to workaround it
+        if not inspect.iscoroutinefunction(callback):
 
-            return anyio.run(main)
-        return typing.cast(_RT, callback(*args, **kwargs))
+            def inner_function(**kwargs: _PS.kwargs) -> _RT | typing.Awaitable[_RT]:
+                with context:
+                    return callback(**kwargs)
+
+            resolver.fn = inner_function
+
+        return anyio.run(resolver.execute, resolver_context)
 
     return click.pass_context(inner)
 

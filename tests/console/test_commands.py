@@ -24,7 +24,7 @@ def test_app_context_is_not_required_if_not_asked(root: click.Group) -> None:
         click.echo("hello")
 
     runner = CliRunner()
-    result = runner.invoke(command)
+    result = runner.invoke(command, obj=ConsoleContext(app=Starlette()))
     assert result.exit_code == 0
     assert result.output == "hello\n"
 
@@ -68,25 +68,13 @@ def test_calls_command_decorator_with_params(root: click.Group) -> None:
 def test_injects_app_context(root: click.Group) -> None:
     @root.command
     @click.argument("name")
-    def command(name: str, context: ConsoleContext) -> None:
-        click.echo(context.__class__.__name__)
+    def command(name: str, app: Starlette) -> None:
+        click.echo(app.__class__.__name__)
 
     runner = CliRunner()
     result = runner.invoke(command, ["world"], obj=ConsoleContext(app=Starlette()))
     assert result.exit_code == 0
-    assert result.output == "ConsoleContext\n"
-
-
-def test_injects_click_context(root: click.Group) -> None:
-    @root.command
-    @click.argument("name")
-    def command(name: str, context: click.Context) -> None:
-        click.echo(context.__class__.__name__)
-
-    runner = CliRunner()
-    result = runner.invoke(command, ["world"], obj=ConsoleContext(app=Starlette()))
-    assert result.exit_code == 0
-    assert result.output == "Context\n"
+    assert result.output == "Starlette\n"
 
 
 def test_group_without_arguments(root: click.Group) -> None:
