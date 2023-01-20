@@ -79,6 +79,27 @@ def test_generic_request_class(test_client_factory: ClientFactory) -> None:
     assert response.text == "MyRequest"
 
 
+def test_custom_request_class_with_other_deps(test_client_factory: ClientFactory) -> None:
+    class Dep:
+        ...
+
+    def make_dep(request: Request) -> Dep:
+        return Dep()
+
+    DepInjection = typing.Annotated[Dep, make_dep]
+
+    class MyRequest(Request):
+        ...
+
+    @route("/")
+    async def view(req: MyRequest, dep: DepInjection) -> Response:
+        return Response(req.__class__.__name__)
+
+    client = test_client_factory(routes=[view])
+    response = client.get("/")
+    assert response.text == "MyRequest"
+
+
 def example_view(request: Request) -> Response:
     return Response("ok")
 

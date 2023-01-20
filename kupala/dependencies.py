@@ -163,9 +163,10 @@ class PredefinedDependency(Dependency):
                 self.type == inspect.Parameter.empty and self.param_name == "request",
             ]
         ):
+            assert context.request
             request = context.request
-            if self.type != inspect.Parameter.empty:
-                request.__class__ = self.type
+            if self.type != inspect.Parameter.empty and self.type != Request:
+                request = self.type(request.scope, request.receive, request._send)
             return request
 
         if any(
