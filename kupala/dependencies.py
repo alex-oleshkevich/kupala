@@ -5,6 +5,7 @@ import dataclasses
 import contextlib
 import functools
 import inspect
+import types
 import typing
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
@@ -112,10 +113,14 @@ class Dependency:
         origin = typing.get_origin(parameter.annotation) or parameter.annotation
 
         optional = False
-        if origin is typing.Union:
+        if origin is typing.Union or origin is types.UnionType:  # noqa: E721, example - (id: FromPath[int] | None)
             optional = type(None) in typing.get_args(parameter.annotation)
             annotation = next((arg for arg in typing.get_args(parameter.annotation) if arg is not None))
-            origin = typing.get_origin(annotation)
+            _origin = typing.get_origin(annotation)
+            if _origin:
+                origin = _origin
+            else:
+                origin = annotation
 
         # We allow simpler declaration of Context, Request, and Starlette objects.
         # They can be injected using their classes instead of Annotated.
@@ -163,6 +168,11 @@ class PredefinedDependency(Dependency):
                 self.type == inspect.Parameter.empty and self.param_name == "request",
             ]
         ):
+            if context.request is None:
+                if self.default_value != inspect.Parameter.empty:
+                    return self.default_value
+                return None
+
             assert context.request
             request = context.request
             if self.type != inspect.Parameter.empty and self.type != Request:

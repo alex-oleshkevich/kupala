@@ -350,3 +350,23 @@ async def test_injects_request_subclass() -> None:
     plan = DependencyResolver.from_callable(fn)
     result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "MyRequest"
+
+
+async def test_injects_optional_dependency_with_default_none() -> None:
+    @dataclasses.dataclass
+    class Dep:
+        request: Request | None
+
+    def factory(request: Request | None = None) -> Dep:
+        return Dep(request=request)
+
+    Injection = typing.Annotated[Dep, factory]
+
+    def fn(dep: Injection) -> str:
+        return dep.__class__.__name__ + dep.request.__class__.__name__
+
+    app = Starlette()
+    conn = Request({"type": "http"})
+    plan = DependencyResolver.from_callable(fn)
+    result = await plan.execute(InvokeContext(request=conn, app=app))
+    assert result == "DepRequest"
