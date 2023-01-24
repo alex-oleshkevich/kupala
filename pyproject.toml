@@ -85,7 +85,6 @@ profile = "black"
 use_parentheses = true
 
 [tool.coverage.run]
-branch = true
 source = ["kupala", "tests"]
 omit = [".venv/*"]
 
