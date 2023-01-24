@@ -67,18 +67,14 @@ jobs:
                     poetry config virtualenvs.create false
                     poetry install --no-interaction
 
-            -   name: Test with pytest
-                run: |
-                    pytest --no-cov-on-fail --cov kupala/ --cov tests/
-
             -   name: Run tests
-                run: python -m coverage run --branch --parallel-mode -m pytest
+                run: python -m coverage run --branch --parallel-mode -m pytest --cov kupala/ --cov tests/
 
             -   name: Generate coverage
                 run: |
                   python -m coverage combine
                   python -m coverage html --skip-covered --skip-empty
-                  python -m coverage report --fail-under=50
+                  python -m coverage report --fail-under=100
 
-            - name: Upload coverage
-              uses: codecov/codecov-action@v3
+            -   name: Upload coverage
+                uses: codecov/codecov-action@v3
