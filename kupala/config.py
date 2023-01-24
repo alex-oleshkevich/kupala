@@ -15,13 +15,13 @@ class Secrets:
     @typing.overload
     def get(
         self, key: str, default: typing.Any = undefined, *, cast: typing.Callable[[str], _T]
-    ) -> _T:  # pragma: nocover
+    ) -> _T:  # pragma: no cover
         ...
 
     @typing.overload
     def get(
         self, key: str, default: typing.Any = undefined, *, cast: typing.Callable[[str], str] | None = None
-    ) -> str:  # pragma: nocover
+    ) -> str:  # pragma: no cover
         ...
 
     def get(

@@ -16,7 +16,7 @@ from starlette.requests import Request
 _boot_time = time.time()
 
 
-class ContextProcessor(typing.Protocol):  # pragma: nocover
+class ContextProcessor(typing.Protocol):  # pragma: no cover
     def __call__(self, request: Request) -> typing.Mapping:
         ...
 

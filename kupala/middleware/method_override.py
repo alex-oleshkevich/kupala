@@ -10,7 +10,7 @@ class MethodOverrideMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":  # pragma: nocover
+        if scope["type"] != "http":  # pragma: no cover
             return await self.app(scope, receive, send)
 
         if scope["method"] == "POST":

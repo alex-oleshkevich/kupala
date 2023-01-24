@@ -8,7 +8,7 @@ class KupalaError(Exception):
 class HTTPException(exceptions.HTTPException, KupalaError):
     message: str | None = None
 
-    def __init__(self, status_code: int, message: str | None = None) -> None:  # pragma: nocover
+    def __init__(self, status_code: int, message: str | None = None) -> None:  # pragma: no cover
         self.message = message or self.message
         super().__init__(status_code=status_code, detail=message)  # type: ignore
 

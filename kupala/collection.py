@@ -136,11 +136,11 @@ class Collection(typing.Generic[E]):
         ]
 
     @typing.overload
-    def __getitem__(self, index: slice) -> list[E]:  # pragma: nocover
+    def __getitem__(self, index: slice) -> list[E]:  # pragma: no cover
         ...
 
     @typing.overload
-    def __getitem__(self, index: int) -> E:  # pragma: nocover
+    def __getitem__(self, index: int) -> E:  # pragma: no cover
         ...
 
     def __getitem__(self, index: int | slice) -> E | list[E]:

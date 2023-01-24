@@ -3,9 +3,9 @@ import sqlalchemy as sa
 import typing
 from sqlalchemy.orm import mapped_column
 
-try:  # pragma: nocover
+try:  # pragma: no cover
     from starlette_babel import timezone
-except ImportError:  # pragma: nocover
+except ImportError:  # pragma: no cover
     from datetime import datetime as timezone
 
 JsonList = typing.Annotated[list, mapped_column(sa.JSON, default=list, server_default="[]", nullable=False)]

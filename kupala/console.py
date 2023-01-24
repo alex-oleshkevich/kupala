@@ -102,13 +102,13 @@ class Group(click.Group):
         super().add_command(cmd, name)
 
     @typing.overload
-    def group(self, __func: typing.Callable[..., typing.Any]) -> click.Group:  # pragma: nocover
+    def group(self, __func: typing.Callable[..., typing.Any]) -> click.Group:  # pragma: no cover
         ...
 
     @typing.overload
     def group(
         self, *args: typing.Any, **kwargs: typing.Any
-    ) -> typing.Callable[[typing.Callable[..., typing.Any]], click.Group]:  # pragma: nocover
+    ) -> typing.Callable[[typing.Callable[..., typing.Any]], click.Group]:  # pragma: no cover
         ...
 
     def group(
@@ -132,13 +132,13 @@ class Group(click.Group):
         return decorator
 
     @typing.overload
-    def command(self, __func: typing.Callable[..., typing.Any]) -> click.Command:  # pragma: nocover
+    def command(self, __func: typing.Callable[..., typing.Any]) -> click.Command:  # pragma: no cover
         ...
 
     @typing.overload
     def command(
         self, *args: typing.Any, **kwargs: typing.Any
-    ) -> typing.Callable[[typing.Callable[..., typing.Any]], click.Command]:  # pragma: nocover
+    ) -> typing.Callable[[typing.Callable[..., typing.Any]], click.Command]:  # pragma: no cover
         ...
 
     def command(
@@ -170,7 +170,7 @@ class Group(click.Group):
 def create_console_app(app: Starlette) -> click.Group:
     @click.group(cls=Group)
     @click.pass_context
-    def group(context: click.Context) -> None:  # pragma: nocover
+    def group(context: click.Context) -> None:  # pragma: no cover
         context.obj = ConsoleContext(app=app)
 
     typing.cast(Group, group).populate_from_entrypoints()

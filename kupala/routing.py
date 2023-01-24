@@ -135,11 +135,11 @@ class Routes(typing.Sequence[BaseRoute]):
         return f"<{self.__class__.__name__}: {routes_count} {noun}>"
 
     @typing.overload
-    def __getitem__(self, index: int) -> BaseRoute:  # pragma: nocover
+    def __getitem__(self, index: int) -> BaseRoute:  # pragma: no cover
         ...
 
     @typing.overload
-    def __getitem__(self, index: slice) -> typing.Sequence[BaseRoute]:  # pragma: nocover
+    def __getitem__(self, index: slice) -> typing.Sequence[BaseRoute]:  # pragma: no cover
         ...
 
     def __getitem__(self, index: int | slice) -> BaseRoute | typing.Sequence[BaseRoute]:
