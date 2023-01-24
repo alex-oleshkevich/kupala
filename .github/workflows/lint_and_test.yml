@@ -72,7 +72,6 @@ jobs:
 
             -   name: Generate coverage
                 run: |
-                  python -m coverage combine
                   python -m coverage report --fail-under=100
 
             -   name: Upload coverage
