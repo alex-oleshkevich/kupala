@@ -44,7 +44,7 @@ async def test_resolves_dbsession_from_app(db_sessionmaker: async_sessionmaker) 
 
 @pytest.mark.asyncio
 async def test_fails_to_resolve_dbsession(db_sessionmaker: async_sessionmaker) -> None:
-    def fn(dbsession: DbSession) -> None:
+    def fn(dbsession: DbSession) -> None:  # pragma: nocover
         ...
 
     with pytest.raises(DependencyError, match="Cannot obtain"):

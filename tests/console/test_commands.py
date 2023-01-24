@@ -56,7 +56,7 @@ def test_calls_command_decorator_with_async_callable(root: click.Group) -> None:
 def test_calls_command_decorator_with_params(root: click.Group) -> None:
     @root.command(name="testname")
     @click.argument("name")
-    def command(name: str) -> None:
+    def command(name: str) -> None:  # pragma: nocover
         ...
 
     runner = CliRunner()

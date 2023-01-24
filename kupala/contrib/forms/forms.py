@@ -2,7 +2,7 @@ import anyio
 import inspect
 import typing
 import wtforms
-from multidict import MultiDict
+from starlette.datastructures import MultiDict
 from starlette.requests import Request
 
 from kupala.contrib.forms.fields import Preparable

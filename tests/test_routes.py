@@ -9,7 +9,7 @@ from tests.conftest import ClientFactory
 
 
 @route("/")
-async def view(request: Request) -> None:
+async def view(request: Request) -> None:  # pragma: nocover
     ...
 
 
@@ -150,7 +150,7 @@ def test_routes_is_iterable() -> None:
     routes = Routes()
 
     @routes("/")
-    def example_view(request: Request) -> None:
+    def example_view(request: Request) -> None:  # pragma: nocover
         ...
 
     assert list(routes)
@@ -160,7 +160,7 @@ def test_routes_is_sizeable() -> None:
     routes = Routes()
 
     @routes("/")
-    def example_view(request: Request) -> None:
+    def example_view(request: Request) -> None:  # pragma: nocover
         ...
 
     assert len(routes) == 1

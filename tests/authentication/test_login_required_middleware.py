@@ -21,7 +21,7 @@ class _DummyLoginBackend(AuthenticationBackend):
 
 def test_login_required_middleware_redirects_to_url(test_client_factory: ClientFactory, user: User) -> None:
     @route("/")
-    def view(request: Request) -> None:
+    def view(request: Request) -> None:  # pragma: nocover
         ...
 
     client = test_client_factory(
@@ -38,11 +38,11 @@ def test_login_required_middleware_redirects_to_url(test_client_factory: ClientF
 
 def test_login_required_middleware_redirects_to_path(test_client_factory: ClientFactory, user: User) -> None:
     @route("/")
-    def view(request: Request) -> None:
+    def view(request: Request) -> None:  # pragma: nocover
         ...
 
     @route("/security/login/{id}", name="login")
-    def login_view(request: Request) -> None:
+    def login_view(request: Request) -> None:  # pragma: nocover
         ...
 
     client = test_client_factory(
@@ -61,11 +61,11 @@ def test_login_required_middleware_redirects_to_default_route_path(
     test_client_factory: ClientFactory, user: User
 ) -> None:
     @route("/")
-    def view(request: Request) -> None:
+    def view(request: Request) -> None:  # pragma: nocover
         ...
 
     @route("/security/login", name="login")
-    def login_view(request: Request) -> None:
+    def login_view(request: Request) -> None:  # pragma: nocover
         ...
 
     client = test_client_factory(

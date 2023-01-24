@@ -44,8 +44,8 @@ def test_generates_injection_plan() -> None:
         dep2: DepOne | None,
         dep3: DepOne | None = None,
         dep4: DepOne = DependencyOne(""),
-    ) -> DependencyOne:
-        return dep
+    ) -> None:
+        ...
 
     plan = DependencyResolver.from_callable(fn)
     assert "dep" in plan.dependencies
@@ -63,8 +63,8 @@ def test_generates_injection_plan() -> None:
 def test_requires_annotated_parameters() -> None:
     def fn(
         dep: DependencyOne,
-    ) -> DependencyOne:
-        return dep
+    ) -> None:
+        ...
 
     with pytest.raises(NotAnnotatedDependency):
         DependencyResolver.from_callable(fn)
@@ -110,8 +110,8 @@ async def test_execute_injection_plan_with_async_dependency() -> None:
 async def test_non_optional_dependency_disallows_none_value() -> None:
     Dep = typing.Annotated[DependencyOne, lambda context: None]
 
-    def fn(dep: Dep) -> str:
-        return str(dep)
+    def fn(dep: Dep) -> None:
+        ...
 
     with pytest.raises(InvalidDependency, match="returned None"):
         app = Starlette()
@@ -290,7 +290,7 @@ async def test_dependency_resolve_not_caches() -> None:
 
 @pytest.mark.asyncio
 async def test_dependency_overrides() -> None:
-    def factory() -> str:
+    def factory() -> str:  # pragma: nocover
         return "dep"
 
     def override_factory() -> str:
@@ -378,12 +378,12 @@ async def test_not_supports_partial_functions() -> None:
     class Dep:
         request: Request | None
 
-    def factory(request: Request | None = None) -> Dep:
+    def factory(request: Request | None = None) -> Dep:  # pragma: nocover
         return Dep(request=request)
 
     Injection = typing.Annotated[Dep, factory]
 
-    def fn(dep: Injection) -> str:
+    def fn(dep: Injection) -> str:  # pragma: nocover
         return dep.__class__.__name__ + dep.request.__class__.__name__
 
     with pytest.raises(InvalidDependency, match="Partial functions"):

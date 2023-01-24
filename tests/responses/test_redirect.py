@@ -10,7 +10,7 @@ def test_redirect_to_path_name(test_client_factory: ClientFactory) -> None:
         return redirect_to_path(request, path_name="about")
 
     @route("/about", name="about")
-    def about_view() -> None:
+    def about_view() -> None:  # pragma: nocover
         ...
 
     client = test_client_factory(routes=[view, about_view])
@@ -25,7 +25,7 @@ def test_redirect_to_path_name_with_path_params(test_client_factory: ClientFacto
         return redirect_to_path(request, path_name="about", path_params={"id": 42})
 
     @route("/about/{id}", name="about")
-    def about_view() -> None:
+    def about_view() -> None:  # pragma: nocover
         ...
 
     client = test_client_factory(routes=[view, about_view])
@@ -40,7 +40,7 @@ def test_redirect_to_path_name_with_query_params(test_client_factory: ClientFact
         return redirect_to_path(request, path_name="about", query_params={"hello": "world"})
 
     @route("/about", name="about")
-    def about_view() -> None:
+    def about_view() -> None:  # pragma: nocover
         ...
 
     client = test_client_factory(routes=[view, about_view])
