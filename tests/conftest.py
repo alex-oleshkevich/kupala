@@ -1,3 +1,4 @@
+import asyncio
 import os
 import pytest
 import typing
@@ -70,3 +71,11 @@ class User(SimpleUser):
 @pytest.fixture()
 def user() -> User:
     return User(username="root")
+
+
+@pytest.fixture(scope="session")
+def event_loop() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.close()

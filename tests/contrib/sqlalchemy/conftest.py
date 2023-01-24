@@ -1,22 +1,11 @@
-import asyncio
 import os
 import pytest
 import typing
-from asyncio import get_event_loop
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from tests.contrib.sqlalchemy.models import Base
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@127.0.0.1/kupala_test")
-
-
-@pytest.fixture(scope="session")
-def event_loop() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
-    try:
-        yield get_event_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        yield get_event_loop()
 
 
 @pytest.fixture(scope="session")
