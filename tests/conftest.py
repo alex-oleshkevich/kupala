@@ -1,5 +1,4 @@
 import os
-import pathlib
 import pytest
 import typing
 from starlette.applications import Starlette
@@ -60,11 +59,6 @@ def test_client_factory(test_app_factory: AppFactory) -> ClientFactory:
 @pytest.fixture
 def routes() -> Routes:
     return Routes()
-
-
-@pytest.fixture()
-def jinja_template_path(tmp_path: os.PathLike) -> pathlib.Path:
-    return pathlib.Path(str(tmp_path))
 
 
 class User(SimpleUser):

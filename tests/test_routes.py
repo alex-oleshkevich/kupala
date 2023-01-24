@@ -1,25 +1,26 @@
 import typing
 from starlette.routing import Route
+from unittest import mock
 
 from kupala.requests import Request
 from kupala.responses import Response
-from kupala.routing import Routes, route
+from kupala.routing import Routes, include, include_all, route
 from tests.conftest import ClientFactory
 
 
 @route("/")
-async def view(request: Request) -> Response:
-    return Response(request.url.path)
-
-
-@route("/users", name="users")
-async def users_view(request: Request) -> Response:
-    return Response(request.url.path)
+async def view(request: Request) -> None:
+    ...
 
 
 def test_sizeable() -> None:
     routes = Routes([view, view])
     assert len(routes) == 2
+
+
+def test_getitem() -> None:
+    routes = Routes([view, view])
+    assert routes[0] == view
 
 
 def test_iterable(routes: Routes) -> None:
@@ -149,8 +150,8 @@ def test_routes_is_iterable() -> None:
     routes = Routes()
 
     @routes("/")
-    def example_view(request: Request) -> Response:
-        return Response("ok")
+    def example_view(request: Request) -> None:
+        ...
 
     assert list(routes)
 
@@ -159,8 +160,8 @@ def test_routes_is_sizeable() -> None:
     routes = Routes()
 
     @routes("/")
-    def example_view(request: Request) -> Response:
-        return Response("ok")
+    def example_view(request: Request) -> None:
+        ...
 
     assert len(routes) == 1
 
@@ -259,3 +260,21 @@ def test_routes_accepts_routes_instance(test_client_factory: ClientFactory) -> N
 
     client = test_client_factory(routes=routes2)
     assert client.options("/").text == "ok"
+
+
+def test_include() -> None:
+    class _fake_routes:
+        routes: list[Route] = mock.PropertyMock(return_value=Routes([Route("/", view)]))
+
+    with mock.patch("importlib.import_module", lambda _: _fake_routes):
+        routes = include("somemodule.routes")
+        assert len(routes) == 1
+
+
+def test_include_all() -> None:
+    class _fake_routes:
+        routes: list[Route] = mock.PropertyMock(return_value=Routes([Route("/", view)]))
+
+    with mock.patch("importlib.import_module", lambda _: _fake_routes):
+        routes = include_all(["somemodule.routes"])
+        assert len(routes) == 1

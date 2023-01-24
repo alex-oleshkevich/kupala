@@ -170,7 +170,7 @@ class Group(click.Group):
 def create_console_app(app: Starlette) -> click.Group:
     @click.group(cls=Group)
     @click.pass_context
-    def group(context: click.Context) -> None:
+    def group(context: click.Context) -> None:  # pragma: nocover
         context.obj = ConsoleContext(app=app)
 
     typing.cast(Group, group).populate_from_entrypoints()

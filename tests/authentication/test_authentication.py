@@ -66,9 +66,7 @@ async def test_choice_backend(test_client_factory: ClientFactory, user: User) ->
 @pytest.mark.asyncio
 async def test_session_backend(test_client_factory: ClientFactory, user: User) -> None:
     async def user_loader(conn: HTTPConnection, user_id: str) -> BaseUser | None:
-        if user_id == user.identity:
-            return user
-        return None
+        return user if user_id == user.identity else None
 
     backend = SessionBackend(user_loader=user_loader)
     conn = HTTPConnection({"type": "http"})
@@ -104,9 +102,7 @@ async def test_session_backend_extracts_user_scopes(test_client_factory: ClientF
 @pytest.mark.asyncio
 async def test_remember_me_backend(test_client_factory: ClientFactory, user: User) -> None:
     async def user_loader(conn: HTTPConnection, user_id: str) -> BaseUser | None:
-        if user_id == user.identity:
-            return user
-        return None
+        return user if user_id == user.identity else None
 
     secret_key = "key!"
     backend = RememberMeBackend(user_loader=user_loader, secret_key=secret_key)
@@ -134,9 +130,7 @@ async def test_remember_me_backend_not_authenticates(test_client_factory: Client
 @pytest.mark.asyncio
 async def test_remember_me_backend_checks_max_age(test_client_factory: ClientFactory, user: User) -> None:
     async def user_loader(conn: HTTPConnection, user_id: str) -> BaseUser | None:
-        if user_id == user.identity:
-            return user
-        return None
+        return user if user_id == user.identity else None
 
     secret_key = "key!"
     backend = RememberMeBackend(user_loader=user_loader, secret_key=secret_key, duration=datetime.timedelta(seconds=20))

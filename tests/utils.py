@@ -2,7 +2,7 @@ from starlette.authentication import AuthCredentials, AuthenticationBackend, Bas
 from starlette.requests import HTTPConnection
 
 
-class DummyBackend(AuthenticationBackend):
+class DummyBackend(AuthenticationBackend):  # pragma: nocover
     def __init__(self, user: BaseUser | None) -> None:
         self.user = user
 

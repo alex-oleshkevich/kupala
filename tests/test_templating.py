@@ -27,7 +27,7 @@ FROM CONTEXT {{ context_variable }}
 
 
 async def simple_asgi_app(scope: Scope, receive: Receive, send: Send) -> None:
-    pass
+    ...
 
 
 @pytest.fixture

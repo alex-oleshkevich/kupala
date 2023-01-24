@@ -17,11 +17,6 @@ def create_dispatch_chain(guards: typing.Iterable[Guard], call_next: NextGuard) 
     return call_next
 
 
-def _patch_request(request: typing.Any, request_class: type[Request]) -> Request:
-    request.__class__ = request_class
-    return request
-
-
 def route(
     path: str,
     *,

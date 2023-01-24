@@ -21,8 +21,8 @@ class _DummyLoginBackend(AuthenticationBackend):
 
 def test_login_required_guard_redirects_to_url(test_client_factory: ClientFactory, user: User) -> None:
     @route("/", guards=[login_required("/login")])
-    def view(request: Request) -> Response:
-        return Response("ok")
+    def view(request: Request) -> None:
+        ...
 
     client = test_client_factory(
         routes=[view],
@@ -37,12 +37,12 @@ def test_login_required_guard_redirects_to_url(test_client_factory: ClientFactor
 
 def test_login_required_guard_redirects_to_path(test_client_factory: ClientFactory, user: User) -> None:
     @route("/", guards=[login_required(path_name="login", path_params={"id": 1})])
-    def view(request: Request) -> Response:
-        return Response("ok")
+    def view(request: Request) -> None:
+        ...
 
     @route("/security/login/{id}", name="login")
-    def login_view(request: Request) -> Response:
-        return Response("ok")
+    def login_view(request: Request) -> None:
+        ...
 
     client = test_client_factory(
         routes=[view, login_view],
@@ -57,12 +57,12 @@ def test_login_required_guard_redirects_to_path(test_client_factory: ClientFacto
 
 def test_login_required_guard_redirects_to_default_route_path(test_client_factory: ClientFactory, user: User) -> None:
     @route("/", guards=[login_required()])
-    def view(request: Request) -> Response:
-        return Response("ok")
+    def view(request: Request) -> None:
+        ...
 
     @route("/security/login", name="login")
-    def login_view(request: Request) -> Response:
-        return Response("ok")
+    def login_view(request: Request) -> None:
+        ...
 
     client = test_client_factory(
         routes=[view, login_view],

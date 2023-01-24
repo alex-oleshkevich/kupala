@@ -57,7 +57,7 @@ def test_calls_command_decorator_with_params(root: click.Group) -> None:
     @root.command(name="testname")
     @click.argument("name")
     def command(name: str) -> None:
-        click.echo(f"hello {name}!")
+        ...
 
     runner = CliRunner()
     result = runner.invoke(command, ["--help"], obj=ConsoleContext(app=Starlette()))

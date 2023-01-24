@@ -3,7 +3,6 @@ from starlette.authentication import AuthCredentials, AuthenticationBackend, Bas
 from starlette.middleware import Middleware
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.requests import HTTPConnection, Request
-from starlette.responses import Response
 from starlette.types import Message
 from unittest import mock
 
@@ -17,15 +16,13 @@ class _DummyLoginBackend(AuthenticationBackend):
         self.user = user
 
     async def authenticate(self, conn: HTTPConnection) -> tuple[AuthCredentials, BaseUser] | None:
-        if "login" in conn.query_params:
-            return AuthCredentials(), self.user
-        return None
+        return (AuthCredentials(), self.user) if "login" in conn.query_params else None
 
 
 def test_login_required_middleware_redirects_to_url(test_client_factory: ClientFactory, user: User) -> None:
     @route("/")
-    def view(request: Request) -> Response:
-        return Response("ok")
+    def view(request: Request) -> None:
+        ...
 
     client = test_client_factory(
         routes=[view],
@@ -41,12 +38,12 @@ def test_login_required_middleware_redirects_to_url(test_client_factory: ClientF
 
 def test_login_required_middleware_redirects_to_path(test_client_factory: ClientFactory, user: User) -> None:
     @route("/")
-    def view(request: Request) -> Response:
-        return Response("ok")
+    def view(request: Request) -> None:
+        ...
 
     @route("/security/login/{id}", name="login")
-    def login_view(request: Request) -> Response:
-        return Response("ok")
+    def login_view(request: Request) -> None:
+        ...
 
     client = test_client_factory(
         routes=[view, login_view],
@@ -64,12 +61,12 @@ def test_login_required_middleware_redirects_to_default_route_path(
     test_client_factory: ClientFactory, user: User
 ) -> None:
     @route("/")
-    def view(request: Request) -> Response:
-        return Response("ok")
+    def view(request: Request) -> None:
+        ...
 
     @route("/security/login", name="login")
-    def login_view(request: Request) -> Response:
-        return Response("ok")
+    def login_view(request: Request) -> None:
+        ...
 
     client = test_client_factory(
         routes=[view, login_view],
@@ -87,10 +84,10 @@ def test_login_required_middleware_redirects_to_default_route_path(
 async def test_login_required_middleware_bypass_unsupported_request_types(
     test_client_factory: ClientFactory, user: User
 ) -> None:
-    async def receive() -> Message:
+    async def receive() -> Message:  # pragma: nocover
         return {}
 
-    async def send(message: Message) -> None:
+    async def send(message: Message) -> None:  # pragma: nocover
         ...
 
     base_app = mock.AsyncMock()
@@ -101,10 +98,10 @@ async def test_login_required_middleware_bypass_unsupported_request_types(
 
 @pytest.mark.asyncio
 async def test_login_calls_next_app_on_success(test_client_factory: ClientFactory, user: User) -> None:
-    async def receive() -> Message:
+    async def receive() -> Message:  # pragma: nocover
         return {}
 
-    async def send(message: Message) -> None:
+    async def send(message: Message) -> None:  # pragma: nocover
         ...
 
     base_app = mock.AsyncMock()
