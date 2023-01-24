@@ -44,7 +44,7 @@ def test_generates_injection_plan() -> None:
         dep2: DepOne | None,
         dep3: DepOne | None = None,
         dep4: DepOne = DependencyOne(""),
-    ) -> None:
+    ) -> None:  # pragma: nocover
         ...
 
     plan = DependencyResolver.from_callable(fn)
@@ -63,7 +63,7 @@ def test_generates_injection_plan() -> None:
 def test_requires_annotated_parameters() -> None:
     def fn(
         dep: DependencyOne,
-    ) -> None:
+    ) -> None:  # pragma: nocover
         ...
 
     with pytest.raises(NotAnnotatedDependency):
@@ -110,7 +110,7 @@ async def test_execute_injection_plan_with_async_dependency() -> None:
 async def test_non_optional_dependency_disallows_none_value() -> None:
     Dep = typing.Annotated[DependencyOne, lambda context: None]
 
-    def fn(dep: Dep) -> None:
+    def fn(dep: Dep) -> None:  # pragma: nocover
         ...
 
     with pytest.raises(InvalidDependency, match="returned None"):
