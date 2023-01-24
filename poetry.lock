@@ -891,6 +891,25 @@ files = [
 ]
 
 [[package]]
+name = "starsessions"
+version = "2.1.1"
+description = "Advanced sessions for Starlette and FastAPI frameworks"
+category = "dev"
+optional = false
+python-versions = ">=3.8.0,<4.0.0"
+files = [
+    {file = "starsessions-2.1.1-py3-none-any.whl", hash = "sha256:e3573ce6f3531b201021443fa5c7ec72d360835dcb102d384c4f87ac942005a6"},
+    {file = "starsessions-2.1.1.tar.gz", hash = "sha256:cb250de84ebc6159ad187cab69e6fe60eab11684b40349457e74dcfb7656c805"},
+]
+
+[package.dependencies]
+itsdangerous = ">=2.0.1,<3.0.0"
+starlette = ">=0,<1"
+
+[package.extras]
+redis = ["redis (>=4.2.0rc1)"]
+
+[[package]]
 name = "tomli"
 version = "2.0.1"
 description = "A lil' TOML parser"
@@ -954,4 +973,4 @@ email = ["email-validator"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "400411229c0883389268556458949b3cd32a9b963c3221d3d8514c7a9bec30ca"
+content-hash = "2d2aeb0dce3f488343b69a032086e7233117e4d4c1d3e139af621dc17e2efdd3"

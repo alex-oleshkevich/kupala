@@ -1,8 +1,11 @@
+import pytest
 from starlette.authentication import AuthCredentials, AuthenticationBackend, BaseUser
 from starlette.middleware import Middleware
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.requests import HTTPConnection, Request
 from starlette.responses import Response
+from starlette.types import Message
+from unittest import mock
 
 from kupala.authentication import LoginRequiredMiddleware
 from kupala.routing import route
@@ -78,3 +81,38 @@ def test_login_required_middleware_redirects_to_default_route_path(
     response = client.get("/", follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["location"] == "/security/login?next=%2F"
+
+
+@pytest.mark.asyncio
+async def test_login_required_middleware_bypass_unsupported_request_types(
+    test_client_factory: ClientFactory, user: User
+) -> None:
+    async def receive() -> Message:
+        return {}
+
+    async def send(message: Message) -> None:
+        ...
+
+    base_app = mock.AsyncMock()
+    app = LoginRequiredMiddleware(base_app)
+    await app({"type": "unsupported"}, receive, send)
+    base_app.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_login_calls_next_app_on_success(test_client_factory: ClientFactory, user: User) -> None:
+    async def receive() -> Message:
+        return {}
+
+    async def send(message: Message) -> None:
+        ...
+
+    base_app = mock.AsyncMock()
+    app = LoginRequiredMiddleware(base_app)
+    await app({"type": "http", "user": user}, receive, send)
+    base_app.assert_called_once()
+
+    base_app = mock.AsyncMock()
+    app = LoginRequiredMiddleware(base_app)
+    await app({"type": "websocket", "user": user}, receive, send)
+    base_app.assert_called_once()

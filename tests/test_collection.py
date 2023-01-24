@@ -1,3 +1,4 @@
+import pytest
 from typing import Any
 
 from kupala.collection import Collection
@@ -286,3 +287,12 @@ def test_iter_resets_counter() -> None:
     collection = Collection([1, 2, 3])
     assert list(collection) == [1, 2, 3]
     assert list(collection) == [1, 2, 3]
+
+
+def test_compares() -> None:
+    collection = Collection([1, 2, 3])
+    collection2 = Collection([1, 2, 3])
+    assert collection == collection2
+
+    with pytest.raises(ValueError, match="Not comparable"):
+        collection == "123"

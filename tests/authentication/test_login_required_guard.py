@@ -73,3 +73,18 @@ def test_login_required_guard_redirects_to_default_route_path(test_client_factor
     response = client.get("/", follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["location"] == "http://testserver/security/login?next=%2F"
+
+
+def test_login_required_guard_grants_access(test_client_factory: ClientFactory, user: User) -> None:
+    @route("/", guards=[login_required()])
+    def view(request: Request) -> Response:
+        return Response("ok")
+
+    client = test_client_factory(
+        routes=[view],
+        middleware=[
+            Middleware(AuthenticationMiddleware, backend=_DummyLoginBackend(user)),
+        ],
+    )
+    response = client.get("/?login", follow_redirects=False)
+    assert response.status_code == 200

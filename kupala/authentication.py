@@ -16,7 +16,7 @@ ByIdUserFinder = typing.Callable[[HTTPConnection, str], typing.Awaitable[BaseUse
 
 
 @typing.runtime_checkable
-class UserWithScopes(typing.Protocol):
+class UserWithScopes(typing.Protocol):  # pragma: nocover
     def get_scopes(self) -> list[str]:
         ...
 

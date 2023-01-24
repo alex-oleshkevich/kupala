@@ -48,8 +48,3 @@ class IntegerChoices(int, BaseChoices):
 class TextChoices(str, BaseChoices):
     def __str__(self) -> str:
         return str(self.value)
-
-    def _generate_next_value_(  # type: ignore[override]
-        name, start: int, count: int, last_values: list[typing.Any]
-    ) -> str:
-        return name
