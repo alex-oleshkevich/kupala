@@ -86,7 +86,6 @@ use_parentheses = true
 
 [tool.coverage.run]
 branch = true
-parallel-mode = true
 source = ["kupala", "tests"]
 omit = [".venv/*"]
 
