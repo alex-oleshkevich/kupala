@@ -7,6 +7,4 @@ class DummyBackend(AuthenticationBackend):  # pragma: nocover
         self.user = user
 
     async def authenticate(self, conn: HTTPConnection) -> tuple[AuthCredentials, BaseUser] | None:
-        if self.user:
-            return AuthCredentials(), self.user
-        return None
+        return (AuthCredentials(), self.user) if self.user else None

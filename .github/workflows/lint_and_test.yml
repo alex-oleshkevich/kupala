@@ -68,7 +68,7 @@ jobs:
                     poetry install --no-interaction
 
             -   name: Run tests
-                run: pytest --cov ./ --cov-report xml --cov-report term
+                run: pytest --cov ./ --cov-report xml --cov-report term --cov-report term-missing
 
             -   name: Generate coverage
                 run: |

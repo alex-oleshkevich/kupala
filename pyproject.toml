@@ -93,6 +93,7 @@ omit = [".venv/*"]
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",
+    "pragma: nocover",
     "raise NotImplementedError",
     "if typing.TYPE_CHECKING:",
     "def __repr__",
