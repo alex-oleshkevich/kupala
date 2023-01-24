@@ -7,9 +7,9 @@ from starlette.responses import PlainTextResponse, Response
 from starlette.testclient import TestClient
 
 from kupala.contrib.sqlalchemy import DbQuery, DbSession, DbSessionMiddleware, SQLAlchemy
-from kupala.contrib.sqlalchemy.tests.conftest import DATABASE_URL
 from kupala.dependencies import DependencyError, DependencyResolver, InvokeContext
 from kupala.routing import route
+from tests.contrib.sqlalchemy.conftest import DATABASE_URL
 
 
 def test_resolves_dbsession(db_sessionmaker: async_sessionmaker) -> None:

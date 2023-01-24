@@ -13,6 +13,9 @@ from kupala.middleware.csrf import (
     TokenMismatchError,
     TokenMissingError,
     generate_token,
+    get_csrf_input,
+    get_csrf_meta_tag,
+    get_csrf_token,
     validate_csrf_token,
 )
 from kupala.requests import Request
@@ -179,3 +182,21 @@ def test_middleware_injects_template_context(test_client_factory: ClientFactory)
         ],
     )
     assert client.post("/").status_code == 200
+
+
+def test_get_csrf_token_helper(test_client_factory: ClientFactory) -> None:
+    request = Request({"type": "http", "state": {"csrf_timed_token": "token"}})
+    assert get_csrf_token(request) == "token"
+
+    request = Request({"type": "http", "state": {}})
+    assert get_csrf_token(request) is None
+
+
+def test_get_csrf_input_helper(test_client_factory: ClientFactory) -> None:
+    request = Request({"type": "http", "state": {"csrf_timed_token": "token"}})
+    assert get_csrf_input(request) == '<input type="hidden" name="_token" value="token">'
+
+
+def test_get_csrf_meta_tag_helper(test_client_factory: ClientFactory) -> None:
+    request = Request({"type": "http", "state": {"csrf_timed_token": "token"}})
+    assert get_csrf_meta_tag(request) == '<meta name="csrf-token" content="token">'

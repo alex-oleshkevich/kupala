@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 from kupala.collection import Collection
 from kupala.contrib.sqlalchemy.query import Query
-from kupala.contrib.sqlalchemy.tests.models import User
+from tests.contrib.sqlalchemy.models import User
 
 
 @pytest.fixture

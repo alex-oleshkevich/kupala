@@ -296,3 +296,8 @@ def test_compares() -> None:
 
     with pytest.raises(ValueError, match="Not comparable"):
         collection == "123"
+
+
+def test_jsonable() -> None:
+    collection = Collection([1, 2, 3])
+    assert collection.__json__() == [1, 2, 3]

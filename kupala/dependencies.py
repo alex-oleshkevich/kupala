@@ -42,15 +42,6 @@ class InvokeContext:
         self.aexit_stack = contextlib.AsyncExitStack()
 
 
-def _parse_request_from_context(context: InvokeContext) -> Request:
-    assert context.request, "Request can be injected in HTTP context only."
-    return context.request
-
-
-def _parse_app_from_context(context: InvokeContext) -> Starlette:
-    return context.app
-
-
 @dataclasses.dataclass
 class Dependency:
     type: type
@@ -168,9 +159,7 @@ class PredefinedDependency(Dependency):
                 self.type == inspect.Parameter.empty and self.param_name == "request",
             ]
         ):
-            if context.request is None:
-                if self.default_value != inspect.Parameter.empty:
-                    return self.default_value
+            if context.request is None and self.optional:
                 return None
 
             assert context.request

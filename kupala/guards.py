@@ -5,7 +5,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 
-class NextGuard(typing.Protocol):
+class NextGuard(typing.Protocol):  # pragma: nocover
     async def __call__(self, request: Request) -> Response:
         ...
 

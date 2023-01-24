@@ -40,6 +40,20 @@ def test_page_no_other_pages() -> None:
     assert not page.has_other
 
 
+def test_stops_iteration_when_all_left_controls_equal_page_count() -> None:
+    page: Page = Page([], total_rows=4, page=1, page_size=2)
+    with pytest.raises(StopIteration):
+        iterator = page.iter_pages()
+        assert [x for x in iterator] == [1, 2]
+        assert next(iterator)
+
+
+def test_iterator_without_pages() -> None:
+    page: Page = Page([], total_rows=0, page=1, page_size=1)
+    with pytest.raises(StopIteration):
+        assert next(page.iter_pages())
+
+
 def test_page_start_index_for_first_page() -> None:
     rows = [1, 2]
     page = Page(rows, total_rows=2, page=1, page_size=2)
@@ -82,6 +96,7 @@ def test_page_str() -> None:
 def test_get_page_value() -> None:
     assert get_page_value(HTTPConnection({"query_string": b"", "type": "http"})) == 1
     assert get_page_value(HTTPConnection({"query_string": b"page=1", "type": "http"})) == 1
+    assert get_page_value(HTTPConnection({"query_string": b"page=text", "type": "http"})) == 1
     assert (
         get_page_value(HTTPConnection({"query_string": b"current_page=1", "type": "http"}), param_name="current_page")
         == 1
@@ -95,3 +110,4 @@ def test_get_page_size_value() -> None:
     assert (
         get_page_size_value(HTTPConnection({"query_string": b"page_size=100", "type": "http"}), max_page_size=50) == 50
     )
+    assert get_page_size_value(HTTPConnection({"query_string": b"page_size=text", "type": "http"}), default=2) == 2

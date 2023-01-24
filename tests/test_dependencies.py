@@ -1,6 +1,7 @@
 import dataclasses
 
 import contextlib
+import functools
 import inspect
 import pytest
 import typing
@@ -370,3 +371,20 @@ async def test_injects_optional_dependency_with_default_none() -> None:
     plan = DependencyResolver.from_callable(fn)
     result = await plan.execute(InvokeContext(request=conn, app=app))
     assert result == "DepRequest"
+
+
+async def test_not_supports_partial_functions() -> None:
+    @dataclasses.dataclass
+    class Dep:
+        request: Request | None
+
+    def factory(request: Request | None = None) -> Dep:
+        return Dep(request=request)
+
+    Injection = typing.Annotated[Dep, factory]
+
+    def fn(dep: Injection) -> str:
+        return dep.__class__.__name__ + dep.request.__class__.__name__
+
+    with pytest.raises(InvalidDependency, match="Partial functions"):
+        DependencyResolver.from_callable(functools.partial(fn))

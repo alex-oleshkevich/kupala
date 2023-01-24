@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kupala.contrib.sqlalchemy.tests.models import User
+from tests.contrib.sqlalchemy.models import User
 
 
 async def test_timestamps_created_at(db_session: AsyncSession) -> None:

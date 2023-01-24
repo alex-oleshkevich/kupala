@@ -1,5 +1,6 @@
 import dataclasses
 
+import pytest
 from starlette.middleware import Middleware
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.responses import Response
@@ -95,3 +96,14 @@ def test_from_path_with_optional(test_client_factory: ClientFactory) -> None:
     client = test_client_factory(routes=[view])
     response = client.get("/users")
     assert response.text == "None"
+
+
+def test_from_path_required(test_client_factory: ClientFactory) -> None:
+    @route("/users")
+    async def view(id: FromPath[int]) -> Response:
+        return Response(str(id))
+
+    with pytest.raises(ValueError, match="no default value defined"):
+        client = test_client_factory(routes=[view])
+        response = client.get("/users")
+        assert response.text == "None"

@@ -5,7 +5,7 @@ import typing
 from asyncio import get_event_loop
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
-from kupala.contrib.sqlalchemy.tests.models import Base
+from tests.contrib.sqlalchemy.models import Base
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@127.0.0.1/kupala_test")
 

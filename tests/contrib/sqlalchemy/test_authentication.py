@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import HTTPConnection
 
 from kupala.contrib.sqlalchemy.authentication import UserLoader
-from kupala.contrib.sqlalchemy.tests.models import User
+from tests.contrib.sqlalchemy.models import User
 
 
 async def test_user_loader(db_session: AsyncSession) -> None:

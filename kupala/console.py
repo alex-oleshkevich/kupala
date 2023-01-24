@@ -102,13 +102,13 @@ class Group(click.Group):
         super().add_command(cmd, name)
 
     @typing.overload
-    def group(self, __func: typing.Callable[..., typing.Any]) -> click.Group:
+    def group(self, __func: typing.Callable[..., typing.Any]) -> click.Group:  # pragma: nocover
         ...
 
     @typing.overload
     def group(
         self, *args: typing.Any, **kwargs: typing.Any
-    ) -> typing.Callable[[typing.Callable[..., typing.Any]], click.Group]:
+    ) -> typing.Callable[[typing.Callable[..., typing.Any]], click.Group]:  # pragma: nocover
         ...
 
     def group(
@@ -132,13 +132,13 @@ class Group(click.Group):
         return decorator
 
     @typing.overload
-    def command(self, __func: typing.Callable[..., typing.Any]) -> click.Command:
+    def command(self, __func: typing.Callable[..., typing.Any]) -> click.Command:  # pragma: nocover
         ...
 
     @typing.overload
     def command(
         self, *args: typing.Any, **kwargs: typing.Any
-    ) -> typing.Callable[[typing.Callable[..., typing.Any]], click.Command]:
+    ) -> typing.Callable[[typing.Callable[..., typing.Any]], click.Command]:  # pragma: nocover
         ...
 
     def command(
