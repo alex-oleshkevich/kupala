@@ -86,14 +86,19 @@ use_parentheses = true
 
 [tool.coverage.run]
 branch = true
-source = ["kupala"]
-omit = ["tests/*", ".venv/*", "*/__main__.py"]
+source = ["kupala", "tests"]
+omit = [".venv/*"]
 
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",
     "raise NotImplementedError",
     "if typing.TYPE_CHECKING:",
+    "def __repr__",
+    'if self\.debug',
+    "raise AssertionError",
+    "raise NotImplementedError",
+    '@(abc\.)?abstractmethod',
 ]
 
 [tool.mypy]

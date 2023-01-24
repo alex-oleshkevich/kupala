@@ -68,13 +68,14 @@ jobs:
                     poetry install --no-interaction
 
             -   name: Run tests
-                run: python -m coverage run --branch --parallel-mode -m pytest --cov kupala/ --cov tests/
+                run: pytest --cov ./ --cov-report xml --cov-fail-under=100
 
             -   name: Generate coverage
                 run: |
                   python -m coverage combine
-                  python -m coverage html --skip-covered --skip-empty
-                  python -m coverage report --fail-under=100
 
             -   name: Upload coverage
                 uses: codecov/codecov-action@v3
+                with:
+                    files: ./coverage.xml
+                    verbose: true
