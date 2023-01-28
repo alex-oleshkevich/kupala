@@ -11,7 +11,7 @@ UploadFilename = typing.Callable[[UploadFile], str]
 
 def generate_file_name(
     upload_file: UploadFile,
-    destination: str | UploadFilename,
+    destination: str | UploadFilename | os.PathLike,
     extra_tokens: dict["str", typing.Any] | None = None,
 ) -> str:
     """
@@ -44,5 +44,5 @@ def generate_file_name(
         "file_name": upload_file.filename,
         **extra_tokens,
     }
-    destination = destination if isinstance(destination, str) else destination(upload_file)
+    destination = destination(upload_file) if callable(destination) else str(destination)
     return destination.format(**format_tokens)

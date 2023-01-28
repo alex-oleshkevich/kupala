@@ -2,13 +2,13 @@ import anyio
 import inspect
 import typing
 import wtforms
-from starlette.datastructures import MultiDict
+from starlette.datastructures import ImmutableMultiDict
 from starlette.requests import Request
 
-from kupala.contrib.forms.fields import Initable
+from kupala.contrib.forms.fields import Initable, NeedsFinalization
 from kupala.contrib.forms.validators import AsyncValidator
 
-_F = typing.TypeVar("_F", bound=wtforms.Form)
+_F = typing.TypeVar("_F", bound="AsyncForm")
 SUBMIT_METHODS = ["POST", "PUT", "PATCH", "DELETE"]
 
 
@@ -24,15 +24,23 @@ async def _perform_async_validation(
         results.append(True)
 
 
+def iterate_form_fields(form: typing.Iterable[wtforms.Field]) -> typing.Generator[wtforms.Field, None, None]:
+    for field in form:
+        if isinstance(field, (wtforms.FieldList, wtforms.FormField)):
+            yield from iterate_form_fields(field)
+        else:
+            yield field
+
+
 class AsyncForm(wtforms.Form):
     _fields: dict[str, wtforms.Field]
 
     def __init__(
         self,
-        formdata: MultiDict | None = None,
+        formdata: ImmutableMultiDict | None = None,
         obj: typing.Any | None = None,
         data: typing.Any | None = None,
-        context: dict[str, typing.Any] | None = None,
+        context: typing.Mapping[str, typing.Any] | None = None,
         **kwargs: typing.Any,
     ):
         super().__init__(formdata=formdata, obj=obj, data=data, **kwargs)
@@ -66,15 +74,16 @@ class AsyncForm(wtforms.Form):
         return False not in completed
 
     async def prepare(self) -> None:
-        async def recurse_prepare(field: wtforms.Field) -> None:
+        for field in iterate_form_fields(self):
             if isinstance(field, Initable):
                 await field.init(self)
-            elif isinstance(field, (wtforms.FieldList, wtforms.FormField)):
-                for subfield in field:
-                    await recurse_prepare(subfield)
 
-        for field in self._fields.values():
-            await recurse_prepare(field)
+    async def populate_obj(self, obj: typing.Any) -> None:
+        for field in iterate_form_fields(self):
+            if isinstance(field, NeedsFinalization):
+                field.data = await field.finalize()
+
+        super().populate_obj(obj)
 
     @classmethod
     async def from_request(
@@ -82,16 +91,16 @@ class AsyncForm(wtforms.Form):
         request: Request,
         obj: typing.Any | None = None,
         prefix: str = "",
-        data: typing.Mapping | None = None,
-        meta: typing.Mapping | None = None,
-        context: typing.Mapping | None = None,
-        extra_filters: typing.Mapping | None = None,
+        data: typing.Mapping[str, typing.Any] | None = None,
+        meta: typing.Mapping[str, typing.Any] | None = None,
+        context: typing.Mapping[str, typing.Any] | None = None,
+        extra_filters: typing.Mapping[str, typing.Any] | None = None,
     ) -> _F:
         form_data = None
         if request.method in SUBMIT_METHODS:
             form_data = await request.form()
 
-        form = cls(
+        form: AsyncForm = cls(
             request=request,
             formdata=form_data,
             obj=obj,
@@ -101,5 +110,5 @@ class AsyncForm(wtforms.Form):
             context=context,
             extra_filters=extra_filters,
         )
-
+        await form.prepare()
         return form

@@ -1,4 +1,7 @@
+import dataclasses
+
 import pytest
+import typing
 import wtforms
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -6,8 +9,8 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from kupala.contrib.forms.fields import Initable
-from kupala.contrib.forms.forms import SUBMIT_METHODS, AsyncForm
+from kupala.contrib.forms.fields import Initable, NeedsFinalization
+from kupala.contrib.forms.forms import SUBMIT_METHODS, AsyncForm, iterate_form_fields
 
 
 def sync_validator(form: wtforms.Form, field: wtforms.Field) -> None:
@@ -129,6 +132,22 @@ async def test_from_request() -> None:
     assert client.post("/", data={"name": "filled"}).json() == {"name": "filled"}
 
 
+async def test_iterate_form_fields() -> None:
+    class SubForm(wtforms.Form):
+        subname = wtforms.StringField()
+
+    class ComplexForm(wtforms.Form):
+        name = wtforms.StringField()
+        subname = wtforms.FormField(SubForm)
+        subnames = wtforms.FieldList(wtforms.FormField(SubForm), min_entries=1)
+
+    form = ComplexForm()
+    fields = iter(iterate_form_fields(form))
+    assert next(fields).name == "name"
+    assert next(fields).name == "subname-subname"
+    assert next(fields).name == "subnames-0-subname"
+
+
 class _SimpleField(wtforms.StringField, Initable):
     prepared: bool = False
 
@@ -148,6 +167,15 @@ async def test_form_prepares_field() -> None:
 
 
 @pytest.mark.asyncio
+async def test_form_from_request_prepares_field() -> None:
+    class Form(AsyncForm):
+        name = _SimpleField()
+
+    form = await Form.from_request(Request({"type": "http", "method": "GET"}))
+    assert form.name.prepared
+
+
+@pytest.mark.asyncio
 async def test_form_prepares_nested_fields() -> None:
     class SubForm(AsyncForm):
         name = _SimpleField()
@@ -162,3 +190,22 @@ async def test_form_prepares_nested_fields() -> None:
     await form.prepare()
     assert form.name[0].prepared
     assert form.subform.form["name"].prepared
+
+
+@pytest.mark.asyncio
+async def test_populate_obj_finalizes_fields() -> None:
+    class Finalizable(wtforms.Field, NeedsFinalization):
+        async def finalize(self) -> typing.Any:
+            return "FINALIZED"
+
+    @dataclasses.dataclass
+    class Model:
+        name: str = ""
+
+    class Form(AsyncForm):
+        name = Finalizable()
+
+    model = Model(name="empty")
+    form = await Form.from_request(Request({"type": "http", "method": "GET"}))
+    await form.populate_obj(model)
+    assert model.name == "FINALIZED"
