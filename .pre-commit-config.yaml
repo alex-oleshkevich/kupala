@@ -17,7 +17,7 @@ repos:
             -   id: check-yaml
 
     -   repo: https://github.com/pycqa/isort
-        rev: 5.11.4
+        rev: 5.12.0
         hooks:
             -   id: isort
                 name: isort (python)
@@ -42,7 +42,7 @@ repos:
             -   id: flake8
 
     -   repo: https://github.com/myint/docformatter.git
-        rev: v1.5.1
+        rev: v1.6.0.rc1
         hooks:
             -   id: docformatter
                 args: [ '--in-place', '--wrap-summaries=120', '--wrap-descriptions=120', '--pre-summary-newline' ]

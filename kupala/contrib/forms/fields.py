@@ -2,7 +2,7 @@ import abc
 import wtforms
 
 
-class Preparable:
+class Initable:  # pragma: no cover
     @abc.abstractmethod
-    async def prepare(self, form: wtforms.Form) -> None:
-        ...  # pragma: no cover
+    async def init(self, form: wtforms.Form) -> None:
+        ...

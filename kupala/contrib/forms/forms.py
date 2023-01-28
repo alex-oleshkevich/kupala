@@ -5,7 +5,7 @@ import wtforms
 from starlette.datastructures import MultiDict
 from starlette.requests import Request
 
-from kupala.contrib.forms.fields import Preparable
+from kupala.contrib.forms.fields import Initable
 from kupala.contrib.forms.validators import AsyncValidator
 
 _F = typing.TypeVar("_F", bound=wtforms.Form)
@@ -67,8 +67,8 @@ class AsyncForm(wtforms.Form):
 
     async def prepare(self) -> None:
         async def recurse_prepare(field: wtforms.Field) -> None:
-            if isinstance(field, Preparable):
-                await field.prepare(self)
+            if isinstance(field, Initable):
+                await field.init(self)
             elif isinstance(field, (wtforms.FieldList, wtforms.FormField)):
                 for subfield in field:
                     await recurse_prepare(subfield)

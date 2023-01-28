@@ -6,7 +6,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from kupala.contrib.forms.fields import Preparable
+from kupala.contrib.forms.fields import Initable
 from kupala.contrib.forms.forms import SUBMIT_METHODS, AsyncForm
 
 
@@ -129,10 +129,10 @@ async def test_from_request() -> None:
     assert client.post("/", data={"name": "filled"}).json() == {"name": "filled"}
 
 
-class _SimpleField(wtforms.StringField, Preparable):
+class _SimpleField(wtforms.StringField, Initable):
     prepared: bool = False
 
-    async def prepare(self, form: wtforms.Form) -> None:
+    async def init(self, form: wtforms.Form) -> None:
         self.prepared = True
 
 
