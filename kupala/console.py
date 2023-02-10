@@ -114,7 +114,6 @@ class Group(click.Group):
     def group(
         self, *args: typing.Any, **kwargs: typing.Any
     ) -> typing.Union[typing.Callable[[typing.Callable[..., typing.Any]], click.Group], click.Group]:
-
         func: typing.Callable | None = None
         if args and callable(args[0]):
             func = args[0]

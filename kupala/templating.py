@@ -80,11 +80,11 @@ class Jinja2Templates(templating.Jinja2Templates):
         filters: dict[str, typing.Callable] | None = None,
         tests: dict[str, typing.Callable] | None = None,
         globals: dict[str, typing.Any] | None = None,
-        context_processors: list[ContextProcessor] | None = None,
+        context_processors: list[typing.Callable[[Request], dict[str, typing.Any]]] | None = None,
         plugins: list[typing.Callable[[jinja2.Environment], None]] | None = None,
         **jinja_env_options: typing.Any,
     ) -> None:
-        self._context_processors = context_processors or []
+        context_processors = context_processors or []
         packages = packages or []
         packages.extend(["starlette_flash"])
 
@@ -100,7 +100,7 @@ class Jinja2Templates(templating.Jinja2Templates):
             ]
         )
 
-        super().__init__("templates", loader=loader, **jinja_env_options)
+        super().__init__("templates", loader=loader, context_processors=context_processors, **jinja_env_options)
         self.env = env or self.env
         self.env.globals.update(globals or {})
         self.env.filters.update(filters or {})
@@ -148,8 +148,6 @@ class Jinja2Templates(templating.Jinja2Templates):
         """Render template to HTTP response."""
         context = context or {}
         context["request"] = request
-        for processor in self._context_processors:
-            context.update(processor(request))
 
         return super().TemplateResponse(
             name=template_name,
@@ -160,9 +158,11 @@ class Jinja2Templates(templating.Jinja2Templates):
             background=background,
         )
 
-    def context_processor(self, fn: ContextProcessor) -> ContextProcessor:
+    def context_processor(
+        self, fn: typing.Callable[[Request], dict[str, typing.Any]]
+    ) -> typing.Callable[[Request], dict[str, typing.Any]]:
         """Add a context processor."""
-        self._context_processors.append(fn)
+        self.context_processors.append(fn)
         return fn
 
     def filter(self, name: str = "") -> typing.Callable:
