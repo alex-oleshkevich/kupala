@@ -26,8 +26,9 @@ def generate_file_name(
     :param destination: A destination path. May be callable.
     :param extra_tokens: Additional formatting tokens.
     """
+    filename = upload_file.filename if upload_file.filename else "file.bin"
     prefix = "".join(random.choices(string.ascii_lowercase, k=6))
-    file_name, ext = os.path.splitext(upload_file.filename)
+    file_name, ext = os.path.splitext(filename)
     timestamp = int(time.time())
     current_date = datetime.datetime.now().date().isoformat()
     current_time = datetime.datetime.now().time().isoformat()
