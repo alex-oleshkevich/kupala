@@ -1,6 +1,6 @@
 # Kupala Framework
 
-A modern web framework for Python.
+A set of extensions for Starlette.
 
 ![PyPI](https://img.shields.io/pypi/v/kupala)
 ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/alex-oleshkevich/kupala/Lint)
