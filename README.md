@@ -1,6 +1,6 @@
 # Kupala Framework
 
-A set of extensions for Starlette.
+A set of extensions for Starlette for rapid application development.
 
 ![PyPI](https://img.shields.io/pypi/v/kupala)
 ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/alex-oleshkevich/kupala/Lint)
@@ -22,7 +22,20 @@ poetry add kupala
 
 ## Features
 
--   TODO
+- dependency injection
+- SQLAlchemy 2 intergration
+- wtforms integration
+- click integration
+- jinja integration
+- file storage abstraction (S3, local files, in memory)
+- mail delivery
+- authentication (multi-backend, remember me)
+- django-like choices enums
+- configuration secrets reader
+- chainable guards (function that control access to the endpoint)
+- pagination
+- decorator-style routing
+- composable routing
 
 ## Quick start
 
