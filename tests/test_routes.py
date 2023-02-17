@@ -1,5 +1,5 @@
 import typing
-from starlette.routing import Route
+from starlette.routing import Mount, Route
 from unittest import mock
 
 from kupala.requests import Request
@@ -278,3 +278,37 @@ def test_include_all() -> None:
     with mock.patch("importlib.import_module", lambda _: _fake_routes):
         routes = include_all(["somemodule.routes"])
         assert len(routes) == 1
+
+
+def test_prefixed_routes(test_client_factory: ClientFactory) -> None:
+    routes = Routes(prefix="/admin")
+
+    @routes.get("/")
+    def example_view(request: Request) -> Response:
+        return Response("ok")
+
+    client = test_client_factory(routes=routes)
+    assert client.get("/").status_code == 404
+    assert client.get("/admin").text == "ok"
+
+
+def test_prefixed_routes_prepopulated(test_client_factory: ClientFactory) -> None:
+    def example_view(request: Request) -> Response:
+        return Response("ok")
+
+    routes = Routes(prefix="/admin", routes=[Route("/", example_view)])
+
+    client = test_client_factory(routes=routes)
+    assert client.get("/").status_code == 404
+    assert client.get("/admin").text == "ok"
+
+
+def test_prefixed_routes_mount(test_client_factory: ClientFactory) -> None:
+    def example_view(request: Request) -> Response:
+        return Response("ok")
+
+    routes = Routes(prefix="/admin", routes=[Mount("/", routes=[Route("/", example_view)])])
+
+    client = test_client_factory(routes=routes)
+    assert client.get("/").status_code == 404
+    assert client.get("/admin").text == "ok"

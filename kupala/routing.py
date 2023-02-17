@@ -5,7 +5,7 @@ import importlib
 import typing
 from starlette.requests import Request
 from starlette.responses import Response
-from starlette.routing import BaseRoute, Route
+from starlette.routing import BaseRoute, Mount, Route, compile_path
 
 from kupala.dependencies import DependencyResolver, InvokeContext
 from kupala.guards import Guard, NextGuard
@@ -74,16 +74,31 @@ def include_all(modules: typing.Iterable[str], variable_name: str = "routes") ->
 
 
 class Routes(typing.Sequence[BaseRoute]):
-    def __init__(self, routes: typing.Iterable[BaseRoute | Route | Routes] | None = None) -> None:
+    def __init__(self, routes: typing.Iterable[BaseRoute | Routes] | None = None, prefix: str = "") -> None:
+        self.prefix = prefix
         self._routes: list[BaseRoute] = []
         for _route in routes or []:
             if isinstance(_route, Routes):
-                self._routes.extend(_route)
+                self._routes.extend([self._add_prefix(sub_route) for sub_route in _route])
             else:
-                self._routes.append(_route)
+                self._routes.append(self._add_prefix(_route))
 
     def add(self, route: BaseRoute) -> None:
-        self._routes.append(route)
+        self._routes.append(self._add_prefix(route))
+
+    def _add_prefix(self, route: BaseRoute) -> BaseRoute:
+        if not self.prefix:
+            return route
+
+        if isinstance(route, (Route, Mount)):
+            final_path = self.prefix.removesuffix("/") + route.path.removesuffix("/")
+            route.path = final_path
+            if isinstance(route, Mount):
+                route.path_regex, route.path_format, route.param_convertors = compile_path(final_path + "/{path:path}")
+            else:
+                route.path_regex, route.path_format, route.param_convertors = compile_path(final_path)
+
+        return route
 
     def route(
         self,
