@@ -256,6 +256,12 @@ def test_static_url() -> None:
         static_url(request, "file.txt", append_timestamp=False, path_name="custom_static") == "/custom-static/file.txt"
     )
 
+    # app in debug mod
+    not_debug_url = static_url(request, "file.txt", append_timestamp=True)
+    app.debug = True
+    assert static_url(request, "file.txt", append_timestamp=True) != not_debug_url
+    assert static_url(request, "file.txt", append_timestamp=True).startswith("/static/file.txt?ts=")
+
 
 def test_url_for() -> None:
     app = Starlette(

@@ -30,7 +30,10 @@ def media_url(request: Request, path: str, path_name: str = "media") -> str:
 def static_url(request: Request, path: str, path_name: str = "static", append_timestamp: bool = True) -> str:
     url = URL(request.app.router.url_path_for(path_name, path=path))
     if append_timestamp:
-        url = url.include_query_params(ts=_boot_time)
+        suffix = _boot_time
+        if request.app.debug:
+            suffix = time.time()
+        url = url.include_query_params(ts=suffix)
     return str(url)
 
 
