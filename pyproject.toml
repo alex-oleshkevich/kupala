@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "kupala"
 description = "A set of extensions for Starlette."
-version = "0.30.2"
+version = "0.30.3"
 authors = ["Alex Oleshkevich <alex.oleshkevich@gmail.com>"]
 license = "MIT"
 readme = "README.md"
