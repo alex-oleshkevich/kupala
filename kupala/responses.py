@@ -42,7 +42,7 @@ def redirect_to_path(
     headers: typing.Mapping[str, str] | None = None,
     background: BackgroundTask | None = None,
 ) -> RedirectResponse:
-    redirect_url = URL(request.url_for(path_name, **(path_params or {})))
+    redirect_url = request.url_for(path_name, **(path_params or {}))
     redirect_url = redirect_url.include_query_params(**(query_params or {}))
     return RedirectResponse(str(redirect_url), status_code=status_code, headers=headers, background=background)
 

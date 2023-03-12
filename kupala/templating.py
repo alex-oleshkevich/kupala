@@ -39,11 +39,11 @@ def static_url(request: Request, path: str, path_name: str = "static", append_ti
 
 def url_for(request: Request, path_name: str, **path_params: typing.Any) -> URL:
     url = request.app.router.url_path_for(path_name, **path_params)
-    return URL(url)
+    return url
 
 
 def abs_url_for(request: Request, path_name: str, **path_params: typing.Any) -> URL:
-    return URL(request.url_for(path_name, **path_params))
+    return request.url_for(path_name, **path_params)
 
 
 def url_matches(

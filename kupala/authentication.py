@@ -192,7 +192,7 @@ def login_required(
     async def guard(request: Request, call_next: NextGuard) -> Response:
         if not request.user.is_authenticated:
             redirect_to = redirect_url or request.url_for(path_name, **path_params)  # type: ignore[arg-type]
-            url = URL(redirect_to).include_query_params(next=request.url.path)
+            url = URL(str(redirect_to)).include_query_params(next=request.url.path)
             return RedirectResponse(url, 302)
 
         return await call_next(request)

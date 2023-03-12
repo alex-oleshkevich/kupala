@@ -23,7 +23,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-starlette = "*"
+starlette = "^0.26"
 Jinja2 = "^3.1"
 python-multipart = "*"
 itsdangerous = "^2.1"
