@@ -20,14 +20,14 @@ __all__ = [
 
 
 def redirect(
-    url: str,
+    url: str | URL,
     *,
     query_params: dict[str, str | int] | None = None,
     status_code: int = 302,
     headers: typing.Mapping[str, str] | None = None,
     background: BackgroundTask | None = None,
 ) -> RedirectResponse:
-    redirect_url = URL(url)
+    redirect_url = URL(str(url))
     redirect_url = redirect_url.include_query_params(**(query_params or {}))
     return RedirectResponse(redirect_url, status_code=status_code, headers=headers, background=background)
 

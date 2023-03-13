@@ -1,3 +1,6 @@
+import pytest
+from starlette.datastructures import URL
+
 from kupala.requests import Request
 from kupala.responses import JSONResponse, RedirectResponse, redirect, redirect_to_path
 from kupala.routing import Routes, route
@@ -49,10 +52,11 @@ def test_redirect_to_path_name_with_query_params(test_client_factory: ClientFact
     assert response.headers["location"] == "http://testserver/about?hello=world"
 
 
-def test_redirect_to_url(test_client_factory: ClientFactory, routes: Routes) -> None:
+@pytest.mark.parametrize("value", ["/about", URL("/about")])
+def test_redirect_to_url(test_client_factory: ClientFactory, routes: Routes, value: str | URL) -> None:
     @route("/")
     def view(request: Request) -> RedirectResponse:
-        return redirect("/about")
+        return redirect(value)
 
     @route("/about")
     def about_view(request: Request) -> JSONResponse:
