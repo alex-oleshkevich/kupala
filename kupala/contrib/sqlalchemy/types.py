@@ -6,7 +6,7 @@ from sqlalchemy.orm import mapped_column
 try:  # pragma: no cover
     from starlette_babel import timezone
 except ImportError:  # pragma: no cover
-    from datetime import datetime as timezone
+    from datetime import datetime as timezone  # type: ignore[no-redef]
 
 JsonList = typing.Annotated[list, mapped_column(sa.JSON, default=list, server_default="[]", nullable=False)]
 JsonDict = typing.Annotated[dict, mapped_column(sa.JSON, default=dict, server_default="{}", nullable=False)]

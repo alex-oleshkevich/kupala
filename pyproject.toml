@@ -45,6 +45,8 @@ sqlalchemy = { version = "==2.0.0b4", extras = ["asyncio"] }
 wtforms = "^3.0.1"
 starsessions = "^2.1.1"
 asyncpg = "^0.27.0"
+starlette-babel = "^0.2.4"
+pytz = "^2023.3"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -767,6 +767,18 @@ files = [
 dev = ["atomicwrites (==1.2.1)", "attrs (==19.2.0)", "coverage (==6.5.0)", "hatch", "invoke (==1.7.3)", "more-itertools (==4.3.0)", "pbr (==4.3.0)", "pluggy (==1.0.0)", "py (==1.11.0)", "pytest (==7.2.0)", "pytest-cov (==4.0.0)", "pytest-timeout (==2.1.0)", "pyyaml (==5.1)"]
 
 [[package]]
+name = "pytz"
+version = "2023.3"
+description = "World timezone definitions, modern and historical"
+category = "dev"
+optional = false
+python-versions = "*"
+files = [
+    {file = "pytz-2023.3-py2.py3-none-any.whl", hash = "sha256:a151b3abb88eda1d4e34a9814df37de2a80e301e68ba0fd856fb9b46bfbbbffb"},
+    {file = "pytz-2023.3.tar.gz", hash = "sha256:1d8ce29db189191fb55338ee6d0387d82ab59f3d00eac103412d64e0ebd0c588"},
+]
+
+[[package]]
 name = "rfc3986"
 version = "1.5.0"
 description = "Validating URI References per RFC 3986"
@@ -893,6 +905,21 @@ anyio = ">=3.4.0,<5"
 full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart", "pyyaml"]
 
 [[package]]
+name = "starlette-babel"
+version = "0.2.4"
+description = "Locale support for Starlette"
+category = "dev"
+optional = false
+python-versions = ">=3.10,<4.0"
+files = [
+    {file = "starlette_babel-0.2.4-py3-none-any.whl", hash = "sha256:6b672a46c95f089e12c16dd82b5551d9fba28f77838acb2717f500b452b10463"},
+    {file = "starlette_babel-0.2.4.tar.gz", hash = "sha256:2e5c7d0f18c045a841835f6772a55aa0220ee22cc8ce83c946806ca2f255020b"},
+]
+
+[package.dependencies]
+Babel = ">=2.10.3,<3.0.0"
+
+[[package]]
 name = "starlette-flash"
 version = "1.0.1"
 description = "Flash messages for Starlette framework."
@@ -987,4 +1014,4 @@ email = ["email-validator"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "a4646fd06d2c2317364dbcdf24f5fe07aed5ab2d62ab8cfe87d51724d08d6ede"
+content-hash = "9a07fe49b2a03ba27bf52ffe1d0f3030e84dba72e216da338918f42eb4e71a86"

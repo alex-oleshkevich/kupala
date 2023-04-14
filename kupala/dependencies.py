@@ -11,6 +11,8 @@ from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
+from kupala.applications import Kupala
+
 
 class DependencyError(Exception):
     ...
@@ -171,6 +173,7 @@ class PredefinedDependency(Dependency):
         if any(
             [
                 self.type == Starlette or (inspect.isclass(self.type) and issubclass(self.type, Starlette)),
+                self.type == Kupala or (inspect.isclass(self.type) and issubclass(self.type, Kupala)),
                 self.type == inspect.Parameter.empty and self.param_name == "app",
             ]
         ):
