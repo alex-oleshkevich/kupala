@@ -6,6 +6,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute
 
+from kupala import console
 from kupala.extensions import Extension
 
 ExceptionHandlersType = typing.Mapping[
@@ -39,6 +40,7 @@ class Kupala(Starlette):
 
                 yield full_state
 
+        self.cli = console.Group()
         super().__init__(
             debug=debug,
             routes=routes,
