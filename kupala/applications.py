@@ -40,7 +40,6 @@ class Kupala(Starlette):
 
                 yield full_state
 
-        self.cli = console.Group()
         super().__init__(
             debug=debug,
             routes=routes,
@@ -48,3 +47,5 @@ class Kupala(Starlette):
             exception_handlers=exception_handlers,
             lifespan=lifespan_handler,
         )
+
+        self.cli = console.create_console_app(self)

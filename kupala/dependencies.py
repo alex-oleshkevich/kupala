@@ -11,7 +11,8 @@ from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
-from kupala.applications import Kupala
+if typing.TYPE_CHECKING:
+    pass
 
 
 class DependencyError(Exception):
@@ -155,6 +156,8 @@ class Dependency:
 @dataclasses.dataclass
 class PredefinedDependency(Dependency):
     async def resolve(self, context: InvokeContext) -> typing.Any:
+        from kupala.applications import Kupala
+
         if any(
             [
                 self.type == Request or (inspect.isclass(self.type) and issubclass(self.type, Request)),
