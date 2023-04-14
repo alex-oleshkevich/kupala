@@ -95,10 +95,19 @@ def wrap_callback(callback: typing.Callable[_PS, _RT | typing.Awaitable[_RT]]) -
     return click.pass_context(inner)
 
 
+def iterate_commands(cmd: click.Command) -> typing.Generator[click.Command, None, None]:
+    if isinstance(cmd, click.Group):
+        for subcmd in cmd.commands.values():
+            yield from iterate_commands(subcmd)
+    else:
+        yield cmd
+
+
 class Group(click.Group):
     def add_command(self, cmd: click.Command, name: str | None = None) -> None:
-        if cmd.callback:
-            cmd.callback = wrap_callback(cmd.callback)
+        for command in iterate_commands(cmd):
+            if command.callback:
+                command.callback = wrap_callback(command.callback)
         super().add_command(cmd, name)
 
     @typing.overload

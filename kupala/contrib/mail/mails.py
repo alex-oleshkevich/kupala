@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 import jinja2
 import typing
 from mailers import Mailer
 from mailers.message import Email, Recipients
 from starlette.applications import Starlette
+
+from kupala.applications import Kupala
 
 
 class Mails:
@@ -53,3 +56,10 @@ class Mails:
 
     def setup(self, app: Starlette) -> None:
         app.state.mail_ext = self
+
+    @contextlib.asynccontextmanager
+    async def bootstrap(self, app: Kupala) -> typing.AsyncIterator[typing.Mapping[str, typing.Any]]:
+        from kupala.contrib.mail.commands import mail_commands
+
+        app.cli.add_command(mail_commands)
+        yield {"mail": self}
