@@ -58,7 +58,7 @@ class Mails:
         app.state.mail_ext = self
 
     @contextlib.asynccontextmanager
-    async def bootstrap(self, app: Kupala) -> typing.AsyncIterator[typing.Mapping[str, typing.Any]]:
+    async def bootstrap(self, app: Kupala) -> typing.AsyncIterator[typing.Mapping[str, typing.Any]]:  # pragma: nocover
         from kupala.contrib.mail.commands import mail_commands
 
         app.cli.add_command(mail_commands)

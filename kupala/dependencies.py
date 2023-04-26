@@ -11,9 +11,6 @@ from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
-if typing.TYPE_CHECKING:
-    pass
-
 
 class DependencyError(Exception):
     ...

@@ -24,17 +24,15 @@ class SentryExtension(Extension):
 
     @contextlib.asynccontextmanager
     async def bootstrap(self, app: AppType) -> typing.AsyncIterator[typing.Mapping[str, typing.Any]]:
-        if not self.dsn:
-            return
-
-        sentry_sdk.init(
-            self.dsn,
-            environment=self.environment,
-            release=self.release_id,
-            **self.sentry_options,
-            integrations=[
-                StarletteIntegration(),
-                *self.integrations,
-            ],
-        )
+        if self.dsn:
+            sentry_sdk.init(
+                self.dsn,
+                environment=self.environment,
+                release=self.release_id,
+                **self.sentry_options,
+                integrations=[
+                    StarletteIntegration(),
+                    *self.integrations,
+                ],
+            )
         yield {}

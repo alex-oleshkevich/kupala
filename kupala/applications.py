@@ -52,7 +52,7 @@ class Kupala(Starlette):
 
             yield full_state
 
-    def run_cli(self) -> int:
+    def run_cli(self) -> int:  # pragma: nocover
         async def main() -> int:
             async with self.bootstrap():
                 self.cli.populate_from_entrypoints()
