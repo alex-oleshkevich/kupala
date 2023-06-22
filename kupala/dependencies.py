@@ -10,6 +10,7 @@ import typing
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
+from starlette.responses import Response
 
 
 class DependencyError(Exception):
@@ -214,3 +215,17 @@ class DependencyResolver:
             plan.dependencies[param_name] = dependency
 
         return plan
+
+
+def inject(
+    endpoint: typing.Callable[[Request], typing.Awaitable[Response]],
+) -> typing.Callable[[Request], typing.Awaitable[Response]]:
+    """Inject endpoint dependencies."""
+    callback = DependencyResolver.from_callable(endpoint)
+
+    @functools.wraps(endpoint)
+    async def endpoint_handler(request: Request) -> Response:
+        context = InvokeContext(request=request, app=request.app)
+        return await callback.execute(context)
+
+    return endpoint_handler

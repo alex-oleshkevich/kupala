@@ -3,11 +3,9 @@ from __future__ import annotations
 import functools
 import importlib
 import typing
-from starlette.requests import Request
-from starlette.responses import Response
 from starlette.routing import BaseRoute, Mount, Route, compile_path
 
-from kupala.dependencies import DependencyResolver, InvokeContext
+from kupala.dependencies import inject
 from kupala.guards import Guard, NextGuard
 
 
@@ -27,14 +25,8 @@ def route(
     """Convert endpoint callable into Route object."""
 
     def decorator(fn: typing.Callable) -> Route:
-        callback = DependencyResolver.from_callable(fn)
-
-        @functools.wraps(fn)
-        async def endpoint_handler(request: Request) -> Response:
-            context = InvokeContext(request=request, app=request.app)
-            return await callback.execute(context)
-
-        chain = create_dispatch_chain(guards or [], endpoint_handler)
+        fn = inject(fn)
+        chain = create_dispatch_chain(guards or [], fn)  # type: ignore[arg-type]
 
         return Route(path=path, endpoint=chain, name=name, methods=methods)
 
