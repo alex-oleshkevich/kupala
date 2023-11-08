@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import functools
-import glob
 import jinja2
-import os
 import time
 import typing
 from jinja2.runtime import Macro
@@ -72,49 +70,26 @@ def url_processors(request: Request) -> dict[str, typing.Any]:
 class Jinja2Templates(templating.Jinja2Templates):
     """Integrate Jinja templates."""
 
-    env: jinja2.Environment
-
     def __init__(
         self,
-        template_dir: str | os.PathLike | list[str | os.PathLike] = "templates",
-        packages: list[str] | None = None,
-        env: jinja2.Environment | None = None,
-        loader: jinja2.BaseLoader | None = None,
-        filters: dict[str, typing.Callable] | None = None,
-        tests: dict[str, typing.Callable] | None = None,
-        globals: dict[str, typing.Any] | None = None,
+        env: jinja2.Environment,
         context_processors: list[typing.Callable[[Request], dict[str, typing.Any]]] | None = None,
         plugins: list[typing.Callable[[jinja2.Environment], None]] | None = None,
-        **jinja_env_options: typing.Any,
     ) -> None:
         context_processors = context_processors or []
-        packages = packages or []
-        packages.extend(["starlette_flash"])
 
-        template_directories: list[str] = []
-        for template_dir in [template_dir] if isinstance(template_dir, (str, os.PathLike)) else template_dir:
-            directory = glob.glob(str(template_dir))
-            template_directories.extend(directory)
-
-        loader = loader or jinja2.ChoiceLoader(
-            [
-                jinja2.FileSystemLoader(template_directories),
-                *[jinja2.PackageLoader(package_dir) for package_dir in packages],
-            ]
-        )
-
-        super().__init__("templates", loader=loader, context_processors=context_processors, **jinja_env_options)
-        self.env = env or self.env
-        self.env.globals.update(globals or {})
-        self.env.filters.update(filters or {})
-        self.env.tests.update(tests or {})
+        super().__init__(env=env, context_processors=context_processors)
 
         for plugin in plugins or []:
             plugin(self.env)
 
-    def macro(self, template_name: str, macro_name: str) -> Macro:
+    def macro(
+        self, template_name: str, macro_name: str, globals: typing.Mapping[str, typing.Any] | None = None
+    ) -> Macro:
         """Return a macros instance from a template."""
-        return getattr(self.get_template(template_name).module, macro_name)
+        template = self.get_template(template_name)
+        module = template.make_module(globals)
+        return getattr(module, macro_name)
 
     def render_to_string(self, template_name: str, context: dict[str, typing.Any] | None = None) -> str:
         """Render template to string."""
@@ -131,10 +106,14 @@ class Jinja2Templates(templating.Jinja2Templates):
         return "".join(block(block_context))
 
     def render_macro_to_string(
-        self, template_name: str, macro_name: str, macro_kwargs: dict[str, typing.Any] | None = None
+        self,
+        template_name: str,
+        macro_name: str,
+        macro_kwargs: dict[str, typing.Any] | None = None,
+        globals: typing.Mapping[str, typing.Any] | None = None,
     ) -> str:
         """Render template macro to string."""
-        macro = self.macro(template_name, macro_name)
+        macro = self.macro(template_name, macro_name, globals=globals)
         return macro(**(macro_kwargs or {}))
 
     def TemplateResponse(  # type:ignore[override]
@@ -149,12 +128,10 @@ class Jinja2Templates(templating.Jinja2Templates):
         background: BackgroundTask | None = None,
     ) -> responses.Response:
         """Render template to HTTP response."""
-        context = context or {}
-        context["request"] = request
-
         return super().TemplateResponse(
+            request,
             name=template_name,
-            context=context,
+            context=context or {},
             status_code=status_code,
             headers=headers,
             media_type=content_type,

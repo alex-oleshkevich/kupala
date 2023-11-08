@@ -23,7 +23,9 @@ from kupala.templating import (
 template = """SIMPLE TEXT
 FROM CONTEXT {{ context_variable }}
 {% block main %}MAIN BLOCK CONTENT {{ block_var }}{% endblock %}
-{% macro feature(name) %}MACRO {{ name }}{% endmacro %}"""
+{% macro feature(name) %}MACRO {{ name }}{% endmacro -%}
+{% macro feature_with_globals(name) %}MACRO {{name }} {{ global_name }}{% endmacro -%}
+"""
 
 
 async def simple_asgi_app(scope: Scope, receive: Receive, send: Send) -> None:  # pragma: no cover
@@ -87,64 +89,14 @@ def test_render_macro_to_string(jinja_env: jinja2.Environment) -> None:
     assert templates.render_macro_to_string("index.html", "feature", {"name": "value"}) == "MACRO value"
 
 
-def test_accepts_single_template_dir(jinja_env: jinja2.Environment, tmp_path: pathlib.Path) -> None:
-    (tmp_path / "index.html").write_text("hello")
-    templates = Jinja2Templates(template_dir=tmp_path)
-    assert templates.render_to_string("index.html") == "hello"
-
-    templates = Jinja2Templates(template_dir=str(tmp_path))
-    assert templates.render_to_string("index.html") == "hello"
-
-
-def test_accepts_single_template_dir_as_list(jinja_env: jinja2.Environment, tmp_path: pathlib.Path) -> None:
-    (tmp_path / "index.html").write_text("hello")
-    templates = Jinja2Templates(template_dir=[tmp_path])
-    assert templates.render_to_string("index.html") == "hello"
-
-    templates = Jinja2Templates(template_dir=[str(tmp_path)])
-    assert templates.render_to_string("index.html") == "hello"
-
-
-def test_accepts_packages(jinja_env: jinja2.Environment) -> None:
-    templates = Jinja2Templates(packages=["tests.assets"])
-    assert templates.render_to_string("index.html") == "hello"
-
-
-def test_accepts_custom_loader(jinja_env: jinja2.Environment, tmp_path: pathlib.Path) -> None:
-    (tmp_path / "index.html").write_text("hello")
-    loader = jinja2.FileSystemLoader(tmp_path)
-    templates = Jinja2Templates(loader=loader)
-    assert templates.render_to_string("index.html") == "hello"
-
-
-def test_accepts_custom_filters(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
-    def example(value: str) -> str:
-        return "filtered"
-
-    (templates_dir / "index.html").write_text('{{ "key"|example }}')
-    templates = Jinja2Templates(env=jinja_env, filters={"example": example})
-    assert templates.render_to_string("index.html") == "filtered"
-
-
-def test_accepts_custom_tests(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
-    def is_true(value: str) -> bool:
-        return value == "true"
-
-    (templates_dir / "index.html").write_text('{{ "key" is is_true }}-{{ "true" is is_true }}')
-    templates_ext = Jinja2Templates(env=jinja_env, tests={"is_true": is_true})
-    assert templates_ext.render_to_string("index.html") == "False-True"
-
-
-def test_accepts_custom_globals(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
-    (templates_dir / "index.html").write_text("{{ key }}")
-    templates = Jinja2Templates(env=jinja_env, globals={"key": "value"})
-    assert templates.render_to_string("index.html") == "value"
-
-
-def test_integrates_with_starlette_babel(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
-    (templates_dir / "index.html").write_text("{{ key }}")
-    templates = Jinja2Templates(env=jinja_env, globals={"key": "value"})
-    assert templates.render_to_string("index.html") == "value"
+def test_render_macro_to_string_with_globals(jinja_env: jinja2.Environment) -> None:
+    templates = Jinja2Templates(env=jinja_env)
+    assert (
+        templates.render_macro_to_string(
+            "index.html", "feature_with_globals", {"name": "value"}, globals={"global_name": "global"}
+        )
+        == "MACRO value global"
+    )
 
 
 def test_custom_plugins(jinja_env: jinja2.Environment, templates_dir: pathlib.Path) -> None:
@@ -219,14 +171,6 @@ def test_test_decorator_with_custom_name(jinja_env: jinja2.Environment, template
 
     response = templates.TemplateResponse(request, "index.html")
     assert response.body == b"True"
-
-
-def test_starlette_setup(templates_dir: pathlib.Path) -> None:
-    app = Starlette()
-    templates = Jinja2Templates(template_dir=templates_dir)
-    templates.setup(app)
-    assert isinstance(app.state.templates_dir, Jinja2Templates)
-    assert isinstance(app.state.jinja_env, jinja2.Environment)
 
 
 def test_media_url() -> None:
