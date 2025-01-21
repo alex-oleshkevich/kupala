@@ -1,0 +1,107 @@
+[project]
+name = "demo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "alex.oleshkevich", email = "alex.oleshkevich@gmail.com" }]
+requires-python = ">=3.13"
+dependencies = [
+    "starlette>=0.45",
+    "kupala",
+    "kupala-cli",
+    "sqlalchemy[asyncio]>=2.0.37",
+    "psycopg[pool]>=3.2.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "mypy>=1.14.1",
+    "pre-commit>=4.0.1",
+    "pytest-cov>=6.0.0",
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.2",
+    "pytest-sugar>=1.0.0",
+    "ruff>=0.9.2",
+    "uvicorn>=0.34",
+]
+
+[tool.uv.workspace]
+members = ["kupala", "kupala-cli"]
+
+[tool.uv.sources]
+kupala = { workspace = true }
+kupala-cli = { workspace = true }
+
+[tool.mypy]
+files = [
+    "kupala/kupala",
+    "kupala/tests",
+    "kupala-cli/kupala_cli",
+    "demo/demo",
+    # "demo/tests",
+]
+exclude = ["var", ".venv", ".git", "kupala-cli/kupala_cli/addons/project/templates"]
+pretty = true
+strict = true
+show_error_context = true
+show_column_numbers = true
+show_error_codes = true
+implicit_reexport = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+indent-width = 4
+exclude = ["var", ".venv", ".git"]
+
+[tool.ruff.lint]
+fixable = ["ALL"]
+select = ["E", "F"]
+exclude = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+norecursedirs = [
+    "node_modules",
+    "assets",
+    "dist",
+    ".git",
+    "var",
+    "*/migrations/*",
+    "*/static/*",
+    "docs",
+    ".venv",
+]
+addopts = "--tb=short -s --no-cov-on-fail"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = false
+parallel = true
+source = ["kupala", "kupala-cli", "tests"]
+omit = [".venv/*", ".git/*", "*/__main__.py", "examples"]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
+skip_covered = true
+skip_empty = true
+exclude_also = [
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "def __repr__",
+    "if self\\.debug",
+    "if 0:",
+    "if False:",
+    "if __name__ == .__main__.:",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "var/coverage/html_report"

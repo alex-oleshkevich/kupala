@@ -1,0 +1,64 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+exclude: "docs|node_modules|migrations|.git|.tox"
+default_stages: [pre-commit]
+
+repos:
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v5.0.0
+      hooks:
+          - id: detect-private-key
+            exclude: .env|tests
+          - id: fix-byte-order-marker
+          - id: debug-statements
+          - id: check-ast
+          - id: check-yaml
+          - id: check-json
+          - id: check-toml
+          - id: check-xml
+          - id: check-symlinks
+          - id: check-case-conflict
+          - id: check-merge-conflict
+          - id: check-docstring-first
+          - id: check-executables-have-shebangs
+
+          - id: check-added-large-files
+            args: ["--maxkb=1024"]
+
+          - id: trailing-whitespace
+            exclude_types: [svg]
+
+          - id: end-of-file-fixer
+            exclude: "\\.idea/(.)*"
+            exclude_types: [svg]
+
+    - repo: https://github.com/astral-sh/ruff-pre-commit
+      rev: v0.9.2
+      hooks:
+          - id: ruff
+            args: [--fix]
+
+          - id: ruff-format
+
+    - repo: https://github.com/pre-commit/mirrors-mypy
+      rev: "v1.14.1"
+      hooks:
+          - id: mypy
+            exclude: "kupala-cli/kupala_cli/addons/project/templates"
+            additional_dependencies:
+                - alembic
+                - anyio
+                - async_storages
+                - click
+                - cryptography
+                - httpx
+                - jinja2
+                - mailers
+                - pytest
+                - starlette
+                - starlette-babel
+                - types-babel
+                - types-passlib
+                - starception
+                - sqlalchemy[asyncio]

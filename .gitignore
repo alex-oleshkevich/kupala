@@ -8,6 +8,9 @@ dist/
 demo_app
 _private
 coverage.xml
-demo
 old
-
+node_modules
+.pytest_cache
+.mypy_cache
+/var
+/demo
