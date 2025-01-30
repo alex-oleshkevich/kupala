@@ -1,34 +1,19 @@
-from __future__ import annotations
+from starlette.requests import HTTPConnection, Request, empty_receive, empty_send
 
-import typing
-from starlette.requests import Request, empty_receive, empty_send
-from starlette.types import Receive, Scope, Send
-
-_RT = typing.TypeVar("_RT", bound=Request)
-
-
-def _cached_new(cls: type[Request], scope: Scope, receive: Receive = empty_receive, send: Send = empty_send) -> Request:
-    if "request" not in scope:
-        instance = object.__new__(cls)
-        instance.__init__(scope, receive, send)  # type: ignore
-        scope["request"] = instance
-    elif scope["request"].__class__ != cls:
-        # view function uses custom request class
-        request = scope["request"]
-        request.__class__ = cls
-        scope["request"] = request
-    return scope["request"]
+__all__ = [
+    "get_client_ip",
+    "Request",
+    "HTTPConnection",
+    "empty_receive",
+    "empty_send",
+]
 
 
-class CachedBodyMixin:
-    def __new__(cls, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
-        return _cached_new(cls, *args, **kwargs)  # type: ignore
-
-
-def is_submitted(request: Request) -> bool:
-    """Test if request contains submitted form."""
-    return request.method.lower() in ["post", "put", "patch", "delete"]
-
-
-def enforce_cached_body() -> None:
-    setattr(Request, "__new__", _cached_new)
+def get_client_ip(request: Request) -> str:
+    """Get client IP address from the request."""
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0]
+    if request.client:
+        return request.client.host
+    raise ValueError("Cannot get client IP address from the request.")

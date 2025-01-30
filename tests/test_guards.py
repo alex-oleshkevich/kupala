@@ -1,53 +1,43 @@
-from starlette.applications import Starlette
-from starlette.responses import Response
-from starlette.testclient import TestClient
+from unittest import mock
 
-from kupala.guards import NextGuard
-from kupala.requests import Request
-from kupala.routing import route
+import pytest
+
+from kupala.guards import AccessDeniedError, Guard, all_of, any_of, none_of
 
 
-async def guard_one(request: Request, call_next: NextGuard) -> Response:
-    request.scope.setdefault("guards", [])
-    request.scope["guards"].append("one")
+class TestGuard:
+    def test_check(self) -> None:
+        guard = Guard()
+        assert guard.check(mock.MagicMock(), lambda c, r: True) is True  # type: ignore[arg-type]
 
-    return await call_next(request)
-
-
-async def guard_two(request: Request, call_next: NextGuard) -> Response:
-    request.scope.setdefault("guards", [])
-    request.scope["guards"].append("two")
-    return await call_next(request)
+    def test_check_or_raise(self) -> None:
+        guard = Guard()
+        with pytest.raises(AccessDeniedError):
+            guard.check_or_raise(mock.MagicMock(), lambda c, r: False)  # type: ignore[arg-type]
 
 
-def test_no_guards() -> None:
-    @route("/", guards=[])
-    async def view() -> Response:
-        return Response("ok")
+def test_any_of() -> None:
+    rule = any_of(lambda c, r: True, lambda c, r: False)
+    assert rule(mock.MagicMock()) is True
 
-    app = Starlette(debug=True, routes=[view])
-    client = TestClient(app=app)
-    response = client.get("/")
-    assert response.text == "ok"
+    rule = any_of(lambda c, r: True, lambda c, r: True)
+    assert rule(mock.MagicMock()) is True
 
-
-def test_calls_one_guard() -> None:
-    @route("/", guards=[guard_one])
-    async def view(request: Request) -> Response:
-        return Response(str(request.scope["guards"]))
-
-    app = Starlette(debug=True, routes=[view])
-    client = TestClient(app=app)
-    response = client.get("/")
-    assert response.text == "['one']"
+    rule = any_of(lambda c, r: False, lambda c, r: False)
+    assert rule(mock.MagicMock()) is False
 
 
-def test_calls_guard_chain() -> None:
-    @route("/", guards=[guard_one, guard_two])
-    async def view(request: Request) -> Response:
-        return Response(str(request.scope["guards"]))
+def test_all_of() -> None:
+    rule = all_of(lambda c, r: True, lambda c, r: True)
+    assert rule(mock.MagicMock()) is True
 
-    app = Starlette(debug=True, routes=[view])
-    client = TestClient(app=app)
-    response = client.get("/")
-    assert response.text == "['one', 'two']"
+    rule = all_of(lambda c, r: True, lambda c, r: False)
+    assert rule(mock.MagicMock()) is False
+
+
+def test_none_of() -> None:
+    rule = none_of(lambda c, r: False, lambda c, r: False)
+    assert rule(mock.MagicMock()) is True
+
+    rule = none_of(lambda c, r: True, lambda c, r: False)
+    assert rule(mock.MagicMock()) is False

@@ -1,173 +1,135 @@
-from __future__ import annotations
-
 import functools
-import jinja2
-import time
+import os
 import typing
-from jinja2.runtime import Macro
-from starlette import responses, templating
-from starlette.applications import Starlette
-from starlette.background import BackgroundTask
-from starlette.datastructures import URL
+
+import jinja2
+import jinja2.ext
 from starlette.requests import Request
+from starlette.responses import Response
+from starlette.templating import Jinja2Templates
+from starlette_babel.contrib.jinja import configure_jinja_env
+from starlette_flash import flash
 
-_boot_time = time.time()
+from kupala.extensions import Extension
+from kupala.translations import get_language
+from kupala.urls import (
+    abs_url_for,
+    media_url,
+    pathname_matches,
+    static_url,
+    url_matches,
+)
 
-
-class ContextProcessor(typing.Protocol):  # pragma: no cover
-    def __call__(self, request: Request) -> typing.Mapping:
-        ...
-
-
-def media_url(request: Request, path: str, path_name: str = "media") -> str:
-    if any([path.startswith("http://"), path.startswith("https://")]):
-        return path
-    return request.app.router.url_path_for(path_name, path=path)
-
-
-def static_url(request: Request, path: str, path_name: str = "static", append_timestamp: bool = True) -> str:
-    url = URL(request.app.router.url_path_for(path_name, path=path))
-    if append_timestamp:
-        suffix = _boot_time
-        if request.app.debug:
-            suffix = time.time()
-        url = url.include_query_params(ts=suffix)
-    return str(url)
+type ContextProcessor = typing.Callable[[Request], dict[str, typing.Any]]
 
 
-def url_for(request: Request, path_name: str, **path_params: typing.Any) -> URL:
-    url = request.app.router.url_path_for(path_name, **path_params)
-    return url
+class Templates(Jinja2Templates, Extension):
+    def __init__(
+        self,
+        jinja_env: jinja2.Environment | None = None,
+        *,
+        debug: bool = False,
+        auto_escape: bool = True,
+        directories: typing.Sequence[str | os.PathLike[str]] = (),
+        packages: typing.Sequence[str] = (),
+        context_processors: typing.Sequence[ContextProcessor] = (),
+        extensions: typing.Sequence[str | type[jinja2.ext.Extension]] = (),
+        globals: dict[str, typing.Any] = {},
+        filters: dict[str, typing.Callable[[typing.Any], typing.Any]] = {},
+        tests: dict[str, typing.Callable[[typing.Any], bool]] = {},
+    ) -> None:
+        if not jinja_env:
+            jinja_env = jinja2.Environment(
+                auto_reload=debug,
+                autoescape=auto_escape,
+                extensions=extensions,
+                loader=jinja2.ChoiceLoader(
+                    [
+                        jinja2.FileSystemLoader(directories),
+                        *[jinja2.PackageLoader(package) for package in packages],
+                        jinja2.FileSystemLoader("kupala/templates"),
+                    ]
+                ),
+            )
+            jinja_env.globals.update(globals)
+            jinja_env.filters.update(filters)
+            jinja_env.tests.update(tests)
+            configure_jinja_env(jinja_env)
 
+        super().__init__(
+            env=jinja_env,
+            context_processors=list(context_processors),
+        )
 
-def abs_url_for(request: Request, path_name: str, **path_params: typing.Any) -> URL:
-    return request.url_for(path_name, **path_params)
+    def render(self, name: str, context: dict[str, typing.Any] | None = None) -> str:
+        template = self.env.get_template(name)
+        return template.render(context or {})
 
+    def render_macro(
+        self,
+        name: str,
+        macro: str,
+        args: dict[str, typing.Any] | None = None,
+    ) -> str:
+        template: jinja2.Template = self.env.get_template(name)
+        template_module = template.make_module({})
+        callback = getattr(template_module, macro)
+        return typing.cast(str, callback(**args or {}))
 
-def url_matches(
-    request: Request, path_name: str, path_params: dict[str, str | int] | None = None, exact: bool = False
-) -> bool:
-    target_url = str(request.app.router.url_path_for(path_name, **(path_params or {})))
-    if exact:
-        return target_url == request.url.path
-    return request.url.path.startswith(target_url)
+    def render_block(
+        self,
+        name: str,
+        block: str,
+        context: dict[str, typing.Any] | None = None,
+    ) -> str:
+        template = self.env.get_template(name)
+        callback = template.blocks[block]
+        template_context = template.new_context(context or {})
+        return "".join(callback(template_context))
+
+    def render_to_response(
+        self,
+        request: Request,
+        name: str,
+        context: dict[str, typing.Any] | None = None,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+        media_type: str | None = None,
+    ) -> Response:
+        return super().TemplateResponse(
+            request,
+            name,
+            context,
+            status_code=status_code,
+            headers=headers,
+            media_type=media_type,
+        )
 
 
 def app_processor(request: Request) -> dict[str, typing.Any]:
-    return {"app": request.app}
-
-
-def url_processors(request: Request) -> dict[str, typing.Any]:
+    """Add general context to the template."""
     return {
-        "url": functools.partial(url_for, request),
+        "app": request.app,
+        "url": request.url_for,
         "abs_url": functools.partial(abs_url_for, request),
         "static_url": functools.partial(static_url, request),
         "media_url": functools.partial(media_url, request),
         "url_matches": functools.partial(url_matches, request),
+        "pathname_matches": functools.partial(pathname_matches, request),
+        "app_language": get_language(),
+        "current_user": request.user,
+        **(getattr(request.state, "template_context", {})),
     }
 
 
-class Jinja2Templates(templating.Jinja2Templates):
-    """Integrate Jinja templates."""
+def flash_processor(request: Request) -> dict[str, typing.Any]:
+    if "session" not in request.scope:
+        return {}
 
-    def __init__(
-        self,
-        env: jinja2.Environment,
-        context_processors: list[typing.Callable[[Request], dict[str, typing.Any]]] | None = None,
-        plugins: list[typing.Callable[[jinja2.Environment], None]] | None = None,
-    ) -> None:
-        context_processors = context_processors or []
+    return {"flash_messages": flash(request)}
 
-        super().__init__(env=env, context_processors=context_processors)
 
-        for plugin in plugins or []:
-            plugin(self.env)
-
-    def macro(
-        self, template_name: str, macro_name: str, globals: typing.Mapping[str, typing.Any] | None = None
-    ) -> Macro:
-        """Return a macros instance from a template."""
-        template = self.get_template(template_name)
-        module = template.make_module(globals)
-        return getattr(module, macro_name)
-
-    def render_to_string(self, template_name: str, context: dict[str, typing.Any] | None = None) -> str:
-        """Render template to string."""
-        template = self.get_template(template_name)
-        return template.render(context or {})
-
-    def render_block_to_string(
-        self, template_name: str, block_name: str, context: dict[str, typing.Any] | None = None
-    ) -> str:
-        """Render template block to string."""
-        template = self.get_template(template_name)
-        block = template.blocks[block_name]
-        block_context = template.new_context(context)
-        return "".join(block(block_context))
-
-    def render_macro_to_string(
-        self,
-        template_name: str,
-        macro_name: str,
-        macro_kwargs: dict[str, typing.Any] | None = None,
-        globals: typing.Mapping[str, typing.Any] | None = None,
-    ) -> str:
-        """Render template macro to string."""
-        macro = self.macro(template_name, macro_name, globals=globals)
-        return macro(**(macro_kwargs or {}))
-
-    def TemplateResponse(  # type:ignore[override]
-        self,
-        request: Request,
-        template_name: str,
-        context: dict[str, typing.Any] | None = None,
-        *,
-        status_code: int = 200,
-        headers: dict[str, typing.Any] | None = None,
-        content_type: str = "text/html",
-        background: BackgroundTask | None = None,
-    ) -> responses.Response:
-        """Render template to HTTP response."""
-        return super().TemplateResponse(
-            request,
-            name=template_name,
-            context=context or {},
-            status_code=status_code,
-            headers=headers,
-            media_type=content_type,
-            background=background,
-        )
-
-    def context_processor(
-        self, fn: typing.Callable[[Request], dict[str, typing.Any]]
-    ) -> typing.Callable[[Request], dict[str, typing.Any]]:
-        """Add a context processor."""
-        self.context_processors.append(fn)
-        return fn
-
-    def filter(self, name: str = "") -> typing.Callable:
-        """Add a new filter to jinja2 environment."""
-
-        def decorator(fn: typing.Callable) -> typing.Callable:
-            nonlocal name
-            name = name or fn.__name__
-            self.env.filters[name] = fn
-            return fn
-
-        return decorator
-
-    def test(self, name: str = "") -> typing.Callable:
-        """Add a new test to jinja2 environment."""
-
-        def decorator(fn: typing.Callable) -> typing.Callable:
-            nonlocal name
-            name = name or fn.__name__
-            self.env.tests[name] = fn
-            return fn
-
-        return decorator
-
-    def setup(self, app: Starlette) -> None:
-        """Integrate templates and Starlette app."""
-        app.state.templates_dir = self
-        app.state.jinja_env = self.env
+def auth_processor(request: Request) -> dict[str, typing.Any]:
+    if "auth" not in request.scope:
+        return {}
+    return {"current_user": request.user}

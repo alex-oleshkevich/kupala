@@ -1,127 +1,41 @@
-[tool.poetry]
+[project]
 name = "kupala"
-description = "A set of extensions for Starlette."
-version = "0.32.0"
-authors = ["Alex Oleshkevich <alex.oleshkevich@gmail.com>"]
-license = "MIT"
+version = "0.50.1"
+description = "A web framework for those who value their time."
 readme = "README.md"
-homepage = "https://github.com/alex-oleshkevich/kupala"
-repository = "https://github.com/alex-oleshkevich/kupala"
-documentation = "https://github.com/alex-oleshkevich/kupala"
-keywords = []
-classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Environment :: Web Environment",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Typing :: Typed",
+authors = [{ name = "alex.oleshkevich", email = "alex.oleshkevich@gmail.com" }]
+requires-python = ">=3.13"
+dependencies = [
+    "starlette>=0.45",
+    "jinja2>=3.0",
+    "starlette_babel>=1.0",
+    "starception>=1.2",
+    "starlette>=0.45",
+    "sqlalchemy>=2.0",
+    "alembic>=1.14",
+    "mailers[css_inline]>=3.2",
+    "async_storages>=0.7",
+    "cryptography>=44.0",
+    "passlib>=1.7",
+    "itsdangerous>=2.2",
+    "python-multipart>=0.0.20",
+    "starlette-flash>=1.0",
+    "starlette-dispatch>=0.26.0",
+    "starlette-auth>=0.2.3",
+    "starsessions>=2.2.1",
+    "limits>=4.0.1",
+    "starlette-sqlalchemy>=0.1.1",
+    "httpx>=0.28",
 ]
-
-[tool.poetry.dependencies]
-python = "^3.11"
-starlette = "^0.31"
-Jinja2 = "^3.1"
-python-multipart = "*"
-itsdangerous = "^2.1"
-
-[tool.poetry.group.dev.dependencies]
-Babel = "^2.9"
-pytest = "^7.2"
-pytest-asyncio = "^0.20"
-pytest-cov = "^4.0"
-black = "^22.12"
-mypy = "^1.0"
-flake8 = "^6.0.0"
-uvicorn = "^0.21"
-httpx = "^0.23.0"
-mailers = "^3.0.0"
-aiosmtplib = "^2.0.0"
-starlette-flash = "^1.0.1"
-sqlalchemy = { version = "==2.0.0b4", extras = ["asyncio"] }
-wtforms = "^3.0.1"
-starsessions = "^2.1.1"
-asyncpg = "^0.27.0"
-starlette-babel = "^0.2.4"
-pytz = "^2023.3"
-sentry-sdk = "^1.20.0"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.black]
-target-version = ["py310"]
-include = '\.pyi?$'
-line_length = 120
-exclude = '''
-(
-    asv_bench/env
-  | \.egg
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.nox
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-  | setup.py
-)
-'''
-
-[tool.isort]
-combine_as_imports = true
-include_trailing_comma = true
-known_standard_library = "dataclasses,typing_extensions"
-known_first_party = "kupala"
-known_third_party = ["pkg_resources", "toml"]
-known_future_library = "__future__"
-line_length = 120
-multi_line_output = 3
-profile = "black"
-use_parentheses = true
-
-[tool.coverage.run]
-source = ["kupala", "tests"]
-omit = [".venv/*"]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "pragma: nocover",
-    "raise NotImplementedError",
-    "if typing.TYPE_CHECKING:",
-    "def __repr__",
-    'if self\.debug',
-    "raise AssertionError",
-    "raise NotImplementedError",
-    '@(abc\.)?abstractmethod',
+[dependency-groups]
+dev = [
+    "factory-boy>=3.3.1",
+    "redis>=5.2.1",
+    "types-babel>=2.11.0.15",
+    "types-passlib>=1.7.7.20241221",
 ]
-
-[tool.mypy]
-disallow_untyped_defs = true
-ignore_missing_imports = true
-files = ["kupala", "tests"]
-exclude = "/*venv/"
-pretty = true
-show_error_context = true
-show_column_numbers = true
-show_error_codes = true
-
-[tool.pytest.ini_options]
-minversion = "7.0"
-asyncio_mode = "auto"
-python_files = ["tests.py", "test_*.py", "*_tests.py"]
-norecursedirs = [
-    "node_modules", "frontend", "storage", "dist", ".git",
-    "*/migrations/*", "*/static/*", "docs", ".venv"
-]
-addopts = "--tb=short -s --no-cov-on-fail"
-testpaths = ["tests"]
-filterwarnings = []
