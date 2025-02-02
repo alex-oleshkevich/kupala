@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import dataclasses
 import datetime
 import enum
@@ -18,6 +19,8 @@ from async_storages import (
 from async_storages.backends.base import AdaptedBytesIO, AsyncFileLike, AsyncReader
 from async_storages.contrib.starlette import FileServer
 from starlette.datastructures import UploadFile
+
+from kupala.extensions import Extension
 
 __all__ = [
     "FileStorage",
@@ -73,7 +76,7 @@ class MemoryConfig:
 type StorageConfig = LocalConfig | S3Config | MemoryConfig
 
 
-class Files:
+class Files(Extension):
     def __init__(self, backend: BaseBackend) -> None:
         self._storage = FileStorage(backend)
 
@@ -99,7 +102,9 @@ class Files:
     def abspath(self, path: str) -> str:
         return self._storage.abspath(path)
 
-    async def iterator(self, path: str, chunk_size: int = 1024 * 64) -> typing.AsyncIterable[bytes]:
+    async def iterator(
+        self, path: str, chunk_size: int = 1024 * 64
+    ) -> typing.AsyncIterable[bytes]:
         return await self._storage.iterator(path, chunk_size)
 
     async def upload(
@@ -110,7 +115,9 @@ class Files:
         extra_tokens: typing.Mapping[str, typing.Any] | None = None,
     ) -> str:
         assert upload_file.filename, "Filename is required"
-        file_name = generate_file_path(upload_file.filename, destination, extra_tokens=extra_tokens or {})
+        file_name = generate_file_path(
+            upload_file.filename, destination, extra_tokens=extra_tokens or {}
+        )
         await self._storage.write(file_name, upload_file)
         return file_name
 
@@ -144,7 +151,7 @@ class Files:
         if isinstance(config, LocalConfig):
             return FileStorage(
                 FileSystemBackend(
-                    base_dir=config.dir,
+                    base_dir=config.directory,
                     base_url=config.url_prefix,
                     mkdirs=config.make_dirs,
                     mkdir_exists_ok=config.make_dirs_exists_ok,

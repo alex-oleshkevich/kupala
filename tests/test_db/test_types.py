@@ -2,7 +2,7 @@ from unittest import mock
 
 from alembic.autogenerate.api import AutogenContext
 
-from kupala.db.types import RendersMigrationType
+from kupala.contrib.sqlalchemy.types import RendersMigrationType
 
 
 class _MyDbType(RendersMigrationType):

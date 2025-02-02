@@ -25,10 +25,17 @@ class Kupala(Starlette):
         lifespan: Lifespan[Kupala] | None = None,
         extensions: typing.Sequence[Extension] | None = None,
     ) -> None:
-        super().__init__(debug, routes, middleware, exception_handlers, on_startup, on_shutdown, lifespan)
+        super().__init__(
+            debug,
+            routes,
+            middleware,
+            exception_handlers,
+            on_startup,
+            on_shutdown,
+            lifespan,
+        )
 
         for extension in extensions or []:
             extension.install(self)
 
-        if debug:
-            install_error_handler()
+        install_error_handler()

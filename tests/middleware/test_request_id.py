@@ -5,8 +5,6 @@ from starlette.types import Receive, Scope, Send
 
 from kupala.middleware.request_id import RequestIDMiddleware
 from kupala.requests import Request
-from kupala.routing import Routes
-from tests.conftest import AppFactory
 
 
 async def app(scope: Scope, receive: Receive, send: Send) -> None:
@@ -23,7 +21,7 @@ async def test_generates_request_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_reuses_request_id(test_app_factory: AppFactory, routes: Routes) -> None:
+async def test_reuses_request_id() -> None:
     client = TestClient(RequestIDMiddleware(app))
     response = client.get("/")
     assert client.get("/", headers={"x-request-id": "id"}).text == "id"

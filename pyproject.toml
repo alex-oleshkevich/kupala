@@ -1,6 +1,6 @@
 [project]
 name = "kupala"
-version = "0.50.1"
+version = "0.50.2"
 description = "A web framework for those who value their time."
 readme = "README.md"
 authors = [{ name = "alex.oleshkevich", email = "alex.oleshkevich@gmail.com" }]
@@ -11,8 +11,6 @@ dependencies = [
     "starlette_babel>=1.0",
     "starception>=1.2",
     "starlette>=0.45",
-    "sqlalchemy>=2.0",
-    "alembic>=1.14",
     "mailers[css_inline]>=3.2",
     "async_storages>=0.7",
     "cryptography>=44.0",
@@ -24,8 +22,8 @@ dependencies = [
     "starlette-auth>=0.2.3",
     "starsessions>=2.2.1",
     "limits>=4.0.1",
-    "starlette-sqlalchemy>=0.1.1",
     "httpx>=0.28",
+    "factory-boy>=3.3.1",
 ]
 
 [build-system]
@@ -34,8 +32,76 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "aiosqlite>=0.20.0",
     "factory-boy>=3.3.1",
+    "mypy>=1.14.1",
+    "pre-commit>=4.1.0",
+    "pytest-asyncio>=0.25.3",
+    "pytest-cov>=6.0.0",
     "redis>=5.2.1",
     "types-babel>=2.11.0.15",
     "types-passlib>=1.7.7.20241221",
 ]
+
+[tool.mypy]
+files = ["kupala", "tests"]
+pretty = true
+strict = true
+show_error_context = true
+show_column_numbers = true
+show_error_codes = true
+implicit_reexport = true
+warn_no_return = false
+disallow_subclassing_any = false
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+exclude = ['var', '.venv', '.git']
+
+[tool.ruff.lint]
+fixable = ["ALL"]
+
+[tool.pytest.ini_options]
+asyncio_mode = 'auto'
+asyncio_default_fixture_loop_scope = 'session'
+norecursedirs = [
+    "node_modules",
+    "assets",
+    "dist",
+    ".git",
+    "var",
+    "*/migrations/*",
+    "*/static/*",
+    "docs",
+    ".venv",
+]
+addopts = "--tb=short -s --no-cov-on-fail"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = false
+parallel = true
+source = ["kupala", "tests"]
+omit = [".venv/*", ".git/*", "*/__main__.py", "examples"]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_covered = true
+skip_empty = true
+
+exclude_also = [
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "def __repr__",
+    "if self\\.debug",
+    "if 0:",
+    "if False:",
+    "if __name__ == .__main__.:",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "var/coverage/html_report"

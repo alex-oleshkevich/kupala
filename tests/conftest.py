@@ -1,7 +1,8 @@
 import asyncio
 import os
-import pytest
 import typing
+
+import pytest
 from starlette.applications import Starlette
 from starlette.authentication import SimpleUser
 from starlette.routing import BaseRoute
@@ -9,7 +10,7 @@ from starlette.testclient import TestClient
 from starlette.types import ASGIApp
 
 from kupala.middleware import Middleware
-from kupala.routing import Routes
+from kupala.routing import RouteGroup
 
 
 class AppFactory(typing.Protocol):  # pragma: nocover
@@ -17,10 +18,9 @@ class AppFactory(typing.Protocol):  # pragma: nocover
         self,
         debug: bool = True,
         middleware: list[Middleware] | None = None,
-        routes: Routes | typing.Iterable[BaseRoute] | None = None,
+        routes: typing.Iterable[BaseRoute] | None = None,
         **kwargs: typing.Any,
-    ) -> Starlette:
-        ...
+    ) -> Starlette: ...
 
 
 class ClientFactory(typing.Protocol):  # pragma: nocover
@@ -28,19 +28,18 @@ class ClientFactory(typing.Protocol):  # pragma: nocover
         self,
         debug: bool = True,
         middleware: list[Middleware] | None = None,
-        routes: Routes | typing.Iterable[BaseRoute] | None = None,
+        routes: typing.Iterable[BaseRoute] | None = None,
         raise_server_exceptions: bool = True,
         app: ASGIApp | None = None,
         **kwargs: typing.Any,
-    ) -> TestClient:
-        ...
+    ) -> TestClient: ...
 
 
 @pytest.fixture
-def test_app_factory(tmp_path: os.PathLike) -> AppFactory:
+def test_app_factory() -> AppFactory:
     def factory(*args: typing.Any, **kwargs: typing.Any) -> Starlette:
         kwargs.setdefault("debug", True)
-        kwargs.setdefault("routes", Routes())
+        kwargs.setdefault("routes", RouteGroup())
         kwargs.setdefault("middleware", [])
         return Starlette(*args, **kwargs)
 
@@ -58,8 +57,8 @@ def test_client_factory(test_app_factory: AppFactory) -> ClientFactory:
 
 
 @pytest.fixture
-def routes() -> Routes:
-    return Routes()
+def routes() -> RouteGroup:
+    return RouteGroup()
 
 
 class User(SimpleUser):
@@ -71,11 +70,3 @@ class User(SimpleUser):
 @pytest.fixture()
 def user() -> User:
     return User(username="root")
-
-
-@pytest.fixture(scope="session")
-def event_loop() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()

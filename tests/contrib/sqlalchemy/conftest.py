@@ -1,11 +1,16 @@
 import os
 import pytest
 import typing
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    create_async_engine,
+)
 
+from kupala.contrib.sqlalchemy.manager import DatabaseManager
 from tests.contrib.sqlalchemy.models import Base
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@127.0.0.1/kupala_test")
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite+aiosqlite://")
 
 
 @pytest.fixture(scope="session")
@@ -16,13 +21,17 @@ async def db_engine() -> typing.AsyncGenerator[AsyncEngine, None]:
 
 
 @pytest.fixture(scope="session")
-def db_sessionmaker(db_engine: AsyncEngine) -> async_sessionmaker:
-    return async_sessionmaker(bind=db_engine, expire_on_commit=False)
+async def db_manager() -> typing.AsyncGenerator[DatabaseManager, None]:
+    manager = DatabaseManager(dangerously_disable_pool=True, url=DATABASE_URL)
+    async with manager:
+        yield manager
 
 
 @pytest.fixture
-async def db_session(db_sessionmaker: async_sessionmaker) -> typing.AsyncGenerator[AsyncSession, None]:
-    async with db_sessionmaker() as session:
+async def db_session(
+    db_manager: DatabaseManager,
+) -> typing.AsyncGenerator[AsyncSession, None]:
+    async with db_manager.session(force_rollback=True) as session:
         yield session
 
 

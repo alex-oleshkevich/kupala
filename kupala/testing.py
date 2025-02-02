@@ -17,9 +17,7 @@ HeaderTypes = typing.Union[
     typing.Sequence[tuple[bytes, bytes]],
 ]
 
-CookieTypes = typing.Union[
-    httpx.Cookies, CookieJar, dict[str, str], list[tuple[str, str]]
-]
+CookieTypes = typing.Union[httpx.Cookies, CookieJar, dict[str, str], list[tuple[str, str]]]
 
 
 class AsyncTestClient(httpx.AsyncClient):
@@ -27,7 +25,7 @@ class AsyncTestClient(httpx.AsyncClient):
         self,
         app: ASGIApp,
         follow_redirects: bool = False,
-        base_url="http://testserver",
+        base_url: str = "http://testserver",
         headers: HeaderTypes | None = None,
         cookies: CookieTypes | None = None,
     ) -> None:

@@ -28,7 +28,9 @@ class Permission:
     def __hash__(self) -> int:
         return hash(self.id)
 
-    def __call__(self, context: PermissionContext, resource: Resource | None = None) -> bool:
+    def __call__(
+        self, context: PermissionContext, resource: Resource | None = None
+    ) -> bool:
         return self in context.permissions
 
 
@@ -83,14 +85,18 @@ def has_permission(permission: Permission) -> Rule:
     return rule
 
 
-def get_defined_permissions(obj: type | types.ModuleType) -> typing.Generator[Permission, None, None]:
+def get_defined_permissions(
+    obj: type | types.ModuleType,
+) -> typing.Generator[Permission, None, None]:
     """Get all permissions defined in a module or class."""
     for value in vars(obj).values():
         if isinstance(value, Permission):
             yield value
 
 
-def get_defined_permission_groups(obj: typing.Any) -> typing.Generator[PermissionGroup, None, None]:
+def get_defined_permission_groups(
+    obj: typing.Any,
+) -> typing.Generator[PermissionGroup, None, None]:
     """Get all permissions groups defined in a module or class."""
     for value in vars(obj).values():
         if isinstance(value, PermissionGroup):

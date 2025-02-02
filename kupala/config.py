@@ -1,8 +1,9 @@
 import os
 import pathlib
 import typing
+import enum
 
-from starlette.config import Config, undefined
+from starlette.config import Config as BaseConfig, undefined, Environ
 
 __all__ = ["Config", "is_unittest_environment", "Secrets"]
 
@@ -12,7 +13,31 @@ def is_unittest_environment() -> bool:
     return "PYTEST_VERSION" in os.environ
 
 
+_EnvT = typing.TypeVar("_EnvT", bound=enum.StrEnum)
+
+
+def detect_environment(choices: typing.Sequence[_EnvT], fallback: _EnvT, unittests: _EnvT) -> _EnvT:
+    if is_unittest_environment():
+        return unittests
+    value = os.getenv("APP_ENV", os.environ.get("KUPALA_ENV", str(fallback)))
+    return choices(value)
+
+
 _T = typing.TypeVar("_T")
+
+
+class Config(BaseConfig):
+    def __init__(
+        self,
+        env_files: list[str | pathlib.Path] | None = None,
+        env_prefix="",
+        environ: typing.Mapping[str, str] | None = None,
+    ):
+        env_files = env_files or []
+        super().__init__(None, environ or Environ(), env_prefix)
+        for env_file in env_files:
+            if os.path.exists(env_file) and os.path.isfile(env_file):
+                self.file_values.update(self._read_file(env_file))
 
 
 class Secrets:

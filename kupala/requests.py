@@ -17,3 +17,8 @@ def get_client_ip(request: Request) -> str:
     if request.client:
         return request.client.host
     raise ValueError("Cannot get client IP address from the request.")
+
+
+def is_submitted(request: Request) -> bool:
+    """Check if the request is submitted."""
+    return request.method in ["POST", "PUT", "PATCH", "DELETE"]

@@ -31,7 +31,7 @@ class Templates(Jinja2Templates, Extension):
         debug: bool = False,
         auto_escape: bool = True,
         directories: typing.Sequence[str | os.PathLike[str]] = (),
-        packages: typing.Sequence[str] = (),
+        template_packages: typing.Sequence[str] = (),
         context_processors: typing.Sequence[ContextProcessor] = (),
         extensions: typing.Sequence[str | type[jinja2.ext.Extension]] = (),
         globals: dict[str, typing.Any] = {},
@@ -46,7 +46,7 @@ class Templates(Jinja2Templates, Extension):
                 loader=jinja2.ChoiceLoader(
                     [
                         jinja2.FileSystemLoader(directories),
-                        *[jinja2.PackageLoader(package) for package in packages],
+                        *[jinja2.PackageLoader(package) for package in template_packages],
                         jinja2.FileSystemLoader("kupala/templates"),
                     ]
                 ),
@@ -117,7 +117,6 @@ def app_processor(request: Request) -> dict[str, typing.Any]:
         "url_matches": functools.partial(url_matches, request),
         "pathname_matches": functools.partial(pathname_matches, request),
         "app_language": get_language(),
-        "current_user": request.user,
         **(getattr(request.state, "template_context", {})),
     }
 
@@ -130,6 +129,6 @@ def flash_processor(request: Request) -> dict[str, typing.Any]:
 
 
 def auth_processor(request: Request) -> dict[str, typing.Any]:
-    if "auth" not in request.scope:
+    if "user" not in request.scope:
         return {}
     return {"current_user": request.user}

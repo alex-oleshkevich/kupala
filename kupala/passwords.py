@@ -16,9 +16,10 @@ class Passwords(Extension):
         default: str | None = None,
         deprecated: typing.Sequence[str] | typing.Literal["auto"] | None = None,
     ) -> None:
+        schemes = schemes or ["pbkdf2_sha256"]
         self.context = CryptContext(
-            schemes=schemes or ["pbkdf2_sha256"],
-            default=default or "pbkdf2_sha256",
+            schemes=schemes,
+            default=default or schemes[0],
             deprecated=deprecated or "auto",
         )
 
@@ -44,7 +45,9 @@ class Passwords(Extension):
         scheme: str | None = None,
     ) -> tuple[bool, str]:
         """Verify password and re-hash the password if needed, all in a single call."""
-        return self.context.verify_and_update(plain_password, hashed_password, scheme=scheme)
+        return self.context.verify_and_update(
+            plain_password, hashed_password, scheme=scheme
+        )
 
     def needs_update(self, hashed_password: str, *, scheme: str | None = None) -> bool:
         """Check if hash needs to be replaced for some reason,
@@ -53,7 +56,9 @@ class Passwords(Extension):
 
     async def amake(self, plain_password: str, *, scheme: str | None = None) -> str:
         """Hash a plain password."""
-        return await run_sync(functools.partial(self.make, plain_password, scheme=scheme))
+        return await run_sync(
+            functools.partial(self.make, plain_password, scheme=scheme)
+        )
 
     async def averify(
         self,
@@ -63,7 +68,11 @@ class Passwords(Extension):
         scheme: str | None = None,
     ) -> bool:
         """Verify a plain password against a hashed password."""
-        return await run_sync(functools.partial(self.verify, hashed_password, plain_password, scheme=scheme))
+        return await run_sync(
+            functools.partial(
+                self.verify, plain_password, hashed_password, scheme=scheme
+            )
+        )
 
     async def averify_and_migrate(
         self,
@@ -76,8 +85,8 @@ class Passwords(Extension):
         return await run_sync(
             functools.partial(
                 self.verify_and_migrate,
-                hashed_password,
                 plain_password,
+                hashed_password,
                 scheme=scheme,
             )
         )

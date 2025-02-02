@@ -1,3 +1,4 @@
+from starlette.routing import BaseRoute, Host, Mount, Route, Router, WebSocketRoute
 from starlette_dispatch import (
     DependencyError,
     DependencyResolver,
@@ -16,4 +17,10 @@ __all__ = [
     "RequestDependency",
     "DependencyError",
     "RouteGroup",
+    "Mount",
+    "Route",
+    "Router",
+    "BaseRoute",
+    "Host",
+    "WebSocketRoute",
 ]

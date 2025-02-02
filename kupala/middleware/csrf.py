@@ -5,7 +5,7 @@ import typing
 from itsdangerous import BadData, SignatureExpired, URLSafeTimedSerializer
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kupala.exceptions import PermissionDenied
+from kupala.exceptions import NotAuthorized
 from kupala.requests import Request, is_submitted
 
 CSRF_SESSION_KEY = "_csrf_token"
@@ -107,8 +107,8 @@ class CSRFMiddleware:
                     salt=self._salt,
                     max_age=self._max_age,
                 )
-            except CSRFError:
-                raise PermissionDenied("CSRF token is invalid.")
+            except CSRFError as ex:
+                raise NotAuthorized(detail="CSRF token is invalid.") from ex
         await self.app(scope, receive, send)
 
     async def get_csrf_token(self, request: Request) -> str:

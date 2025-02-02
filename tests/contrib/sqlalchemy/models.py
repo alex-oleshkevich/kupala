@@ -1,14 +1,10 @@
 import sqlalchemy as sa
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
-from kupala.contrib.sqlalchemy.modelmixins import Timestamps
-
-
-class Base(DeclarativeBase):
-    pass
+from kupala.contrib.sqlalchemy.models import Base, WithTimestamps
 
 
-class User(Base, Timestamps):
+class User(Base, WithTimestamps):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(sa.BigInteger, primary_key=True)

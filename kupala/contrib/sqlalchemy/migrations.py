@@ -4,7 +4,7 @@ from alembic.autogenerate.api import AutogenContext
 
 
 class RendersMigrationType:
-    """A helper for rendering propery SQLAlchemy types and imports in revision files."""
+    """Renders proper migrations for custom SQLAlchemy types."""
 
     def render_item(self, _type: typing.Any, _obj: typing.Any, autogen_context: AutogenContext) -> str:
         autogen_context.imports.add(self.get_import_name())
