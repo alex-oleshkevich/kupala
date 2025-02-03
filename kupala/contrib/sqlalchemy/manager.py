@@ -67,7 +67,7 @@ class DatabaseManager(Extension):
         await self._engine.dispose()
 
     @property
-    def current_session(self) -> AsyncSession | None:
+    def current_session(self) -> AsyncSession:
         """Return the currently active session if it exists.
         Prefer not to use this method, only for debugging and special purposes.
         Raises ValueError if no session is active."""

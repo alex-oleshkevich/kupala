@@ -41,6 +41,8 @@ dev = [
     "redis>=5.2.1",
     "types-babel>=2.11.0.15",
     "types-passlib>=1.7.7.20241221",
+    "sqlalchemy[asyncio]>=2.0",
+    "starlette_sqlalchemy>=0.1.0",
 ]
 
 [tool.mypy]

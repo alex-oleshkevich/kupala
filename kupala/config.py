@@ -16,7 +16,7 @@ def is_unittest_environment() -> bool:
 _EnvT = typing.TypeVar("_EnvT", bound=enum.StrEnum)
 
 
-def detect_environment(choices: typing.Sequence[_EnvT], fallback: _EnvT, unittests: _EnvT) -> _EnvT:
+def detect_environment(choices: type[_EnvT], fallback: _EnvT, unittests: _EnvT) -> _EnvT:
     if is_unittest_environment():
         return unittests
     value = os.getenv("APP_ENV", os.environ.get("KUPALA_ENV", str(fallback)))
