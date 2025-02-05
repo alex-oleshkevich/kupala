@@ -8,9 +8,10 @@ from kupala.cache.backends.base import CacheBackend
 from kupala.cache.backends.memory import MemoryCacheBackend
 from kupala.cache.backends.redis import RedisCacheBackend
 from kupala.cache.serializers import CacheSerializer, JsonCacheSerializer
+from kupala.extensions import Extension
 
 
-class Cache:
+class Cache(Extension):
     def __init__(
         self,
         backend: CacheBackend,

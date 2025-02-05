@@ -1,29 +1,24 @@
 [project]
 name = "kupala"
-version = "0.50.2"
 description = "A web framework for those who value their time."
 readme = "README.md"
 authors = [{ name = "alex.oleshkevich", email = "alex.oleshkevich@gmail.com" }]
 requires-python = ">=3.13"
+dynamic = ["version"]
 dependencies = [
     "starlette>=0.45",
     "jinja2>=3.0",
-    "starlette_babel>=1.0",
     "starception>=1.2",
     "starlette>=0.45",
-    "mailers[css_inline]>=3.2",
-    "async_storages>=0.7",
-    "cryptography>=44.0",
-    "passlib>=1.7",
-    "itsdangerous>=2.2",
     "python-multipart>=0.0.20",
     "starlette-flash>=1.0",
     "starlette-dispatch>=0.26.0",
-    "starlette-auth>=0.2.3",
     "starsessions>=2.2.1",
-    "limits>=4.0.1",
     "httpx>=0.28",
     "factory-boy>=3.3.1",
+    "starlette-auth>=0.2.3",
+    "click>=8.1",
+    "starlette_babel>=1.0",
 ]
 
 [build-system]
@@ -31,7 +26,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
-dev = [
+testing = [
+    "limits>=4.0.1",
+    "itsdangerous>=2.2",
+    "cryptography>=44.0",
+    "passlib>=1.7",
+    "mailers[smtp,css_inline]>=3.2",
+    "async_storages>=0.7",
     "aiosqlite>=0.20.0",
     "factory-boy>=3.3.1",
     "mypy>=1.14.1",
@@ -43,7 +44,11 @@ dev = [
     "types-passlib>=1.7.7.20241221",
     "sqlalchemy[asyncio]>=2.0",
     "starlette_sqlalchemy>=0.1.0",
+    "hatch>=1.14.0",
 ]
+
+[tool.hatch.version]
+path = "kupala/__init__.py"
 
 [tool.mypy]
 files = ["kupala", "tests"]

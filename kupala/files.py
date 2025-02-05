@@ -3,13 +3,12 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import enum
-import os
 import typing
 
 import anyio
 from async_storages import (
     BaseBackend,
-    FileStorage,
+    FileStorage as BaseFileStorage,
     FileSystemBackend,
     MemoryBackend,
     S3Backend,
@@ -64,7 +63,7 @@ class S3Config:
     access_key: str
     secret_key: str
     region: str
-    endpoint: str
+    endpoint: str | None = None
     signed_link_ttl: datetime.timedelta = datetime.timedelta(hours=1)
 
 
@@ -76,37 +75,10 @@ class MemoryConfig:
 type StorageConfig = LocalConfig | S3Config | MemoryConfig
 
 
-class Files(Extension):
-    def __init__(self, backend: BaseBackend) -> None:
-        self._storage = FileStorage(backend)
+class FileStorage(BaseFileStorage, Extension): ...
 
-    async def write(
-        self,
-        path: str | os.PathLike[typing.AnyStr],
-        data: bytes | AsyncReader | typing.BinaryIO,
-    ) -> None:
-        return await self._storage.write(path, data)
 
-    async def open(self, path: str | os.PathLike[typing.AnyStr]) -> AsyncFileLike:
-        return await self._storage.open(path)
-
-    async def exists(self, path: str | os.PathLike[typing.AnyStr]) -> bool:
-        return await self._storage.exists(path)
-
-    async def delete(self, path: str | os.PathLike[typing.AnyStr]) -> None:
-        return await self._storage.delete(path)
-
-    async def url(self, path: str | os.PathLike[typing.AnyStr]) -> str:
-        return await self._storage.url(path)
-
-    def abspath(self, path: str) -> str:
-        return self._storage.abspath(path)
-
-    async def iterator(
-        self, path: str, chunk_size: int = 1024 * 64
-    ) -> typing.AsyncIterable[bytes]:
-        return await self._storage.iterator(path, chunk_size)
-
+class Files(FileStorage):
     async def upload(
         self,
         upload_file: UploadFile,
@@ -115,9 +87,7 @@ class Files(Extension):
         extra_tokens: typing.Mapping[str, typing.Any] | None = None,
     ) -> str:
         assert upload_file.filename, "Filename is required"
-        file_name = generate_file_path(
-            upload_file.filename, destination, extra_tokens=extra_tokens or {}
-        )
+        file_name = generate_file_path(upload_file.filename, destination, extra_tokens=extra_tokens or {})
         await self._storage.write(file_name, upload_file)
         return file_name
 

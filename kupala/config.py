@@ -1,11 +1,12 @@
+import enum
 import os
 import pathlib
 import typing
-import enum
 
-from starlette.config import Config as BaseConfig, undefined, Environ
+from starlette.config import Config as BaseConfig
+from starlette.config import Environ, undefined
 
-__all__ = ["Config", "is_unittest_environment", "Secrets"]
+__all__ = ["Config", "is_unittest_environment", "Secrets", "detect_environment"]
 
 
 def is_unittest_environment() -> bool:

@@ -1,9 +1,9 @@
 import typing
 from email.message import EmailMessage
 
+import anyio
+import click
 from mailers.encrypters import Encrypter
-from mailers.exceptions import DeliveryError, MailersError, NotRegisteredTransportError
-from mailers.factories import create_transport_from_url
 from mailers.mailer import Mailer
 from mailers.message import Email, Recipients
 from mailers.preprocessors import Preprocessor
@@ -12,15 +12,16 @@ from mailers.preprocessors.remove_html_comments import remove_html_comments
 from mailers.signers import Signer
 from mailers.transports import (
     ConsoleTransport,
-    FileTransport,
     InMemoryTransport,
     MultiTransport,
     NullTransport,
     StreamTransport,
     Transport,
 )
+from mailers.transports.smtp import SMTPTransport
 
 from kupala import timezone
+from kupala.applications import Kupala
 from kupala.extensions import Extension
 from kupala.templating import Templates
 
@@ -29,22 +30,19 @@ __all__ = [
     "Email",
     "EmailMessage",
     "Recipients",
+    "mail_command",
+    "Signer",
+    "Encrypter",
+    "Preprocessor",
+    "Transport",
     "css_inliner",
     "remove_html_comments",
-    "Encrypter",
-    "Mailer",
-    "Signer",
-    "Transport",
     "ConsoleTransport",
-    "FileTransport",
+    "SMTPTransport",
     "InMemoryTransport",
-    "StreamTransport",
-    "NullTransport",
     "MultiTransport",
-    "DeliveryError",
-    "MailersError",
-    "NotRegisteredTransportError",
-    "create_transport_from_url",
+    "NullTransport",
+    "StreamTransport",
 ]
 
 
@@ -75,6 +73,10 @@ class Mail(Extension):
         self.mailer = mailer
         self.templates = templates
         self.template_context = dict(template_context or {})
+
+    def install(self, app: Kupala):
+        super().install(app)
+        app.commands.append(mail_command)
 
     @property
     def transport(self) -> Transport:
@@ -130,17 +132,18 @@ class Mail(Extension):
         Text or HTML body are rendered from the templates."""
         assert self.templates, "Templates are not configured for use with mailer."
 
-        context = dict(context or {})
-        context.update(self.template_context)
-        context.update(
+        template_context = {}
+        template_context.update(self.template_context)
+        template_context.update(context or {})
+        template_context.update(
             {
                 "preheader": preheader,
                 "today": timezone.now(),
             },
         )
 
-        text_content: str | None = self.templates.render(text_template, context) if text_template else None
-        html_content: str | None = self.templates.render(html_template, context) if html_template else None
+        text_content: str | None = self.templates.render(text_template, template_context) if text_template else None
+        html_content: str | None = self.templates.render(html_template, template_context) if html_template else None
         await self.send_mail(
             to=to,
             cc=cc,
@@ -151,3 +154,32 @@ class Mail(Extension):
             from_address=from_address,
             headers=headers,
         )
+
+
+mail_command = click.Group(name="mail", help="Mail commands.")
+
+
+@mail_command.command("send-test")
+@click.argument("recipient")
+@click.option("--subject", default="Test email")
+@click.option("--body", default="This is a test email.")
+@click.option("--html", default=False, is_flag=True)
+def send_test_mail_command(recipient: str, subject: str, body: str, html: bool) -> None:
+    """Send a test email."""
+
+    async def main() -> None:
+        mailer = Mail.of(Kupala.current())
+
+        if not html:
+            await mailer.send_mail(to=recipient, subject=subject, text=body)
+            return
+
+        await mailer.send_templated_mail(
+            to=recipient,
+            subject=subject,
+            text_template="kupala/mail/test_message.txt",
+            html_template="kupala/mail/test_message.html",
+            context={"body": body},
+        )
+
+    anyio.run(main)

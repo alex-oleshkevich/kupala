@@ -25,7 +25,7 @@ class Extension(abc.ABC):
     def install(self, app: InstallContext) -> None:
         """Install the extension into the application."""
         key = make_state_key(self.__class__, self.state_key)
-        setattr(app, key, self)
+        setattr(app.state, key, self)
 
     @classmethod
     def of(cls, context: ExtensionContext) -> typing.Self:
@@ -38,7 +38,7 @@ class Extension(abc.ABC):
                 case Starlette():
                     return typing.cast(typing.Self, getattr(context.state, attr))
                 case Request():
-                    return typing.cast(typing.Self, getattr(context.app, attr))
+                    return typing.cast(typing.Self, getattr(context.app.state, attr))
             raise ValueError("Unknown context type.")
         except AttributeError:
             raise ValueError("Extension {name} not installed.".format(name=cls.__name__))

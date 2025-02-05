@@ -37,17 +37,19 @@ class Templates(Jinja2Templates, Extension):
         globals: dict[str, typing.Any] = {},
         filters: dict[str, typing.Callable[[typing.Any], typing.Any]] = {},
         tests: dict[str, typing.Callable[[typing.Any], bool]] = {},
+        allow_undefined: bool = False,
     ) -> None:
         if not jinja_env:
             jinja_env = jinja2.Environment(
                 auto_reload=debug,
                 autoescape=auto_escape,
                 extensions=extensions,
+                undefined=jinja2.Undefined if allow_undefined else jinja2.StrictUndefined,
                 loader=jinja2.ChoiceLoader(
                     [
                         jinja2.FileSystemLoader(directories),
                         *[jinja2.PackageLoader(package) for package in template_packages],
-                        jinja2.FileSystemLoader("kupala/templates"),
+                        jinja2.PackageLoader("kupala"),
                     ]
                 ),
             )

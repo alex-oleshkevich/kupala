@@ -7,10 +7,11 @@ from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from .csrf import CSRFMiddleware
-from .method_override import MethodOverrideMiddleware
-from .request_limit import RequestLimitMiddleware
-from .timeout import TimeoutMiddleware
+from kupala.middleware.csrf import CSRFMiddleware
+from kupala.middleware.method_override import MethodOverrideMiddleware
+from kupala.middleware.request_id import RequestIDMiddleware
+from kupala.middleware.request_limit import RequestLimitMiddleware
+from kupala.middleware.timeout import TimeoutMiddleware
 
 __all__ = [
     "Middleware",
@@ -23,4 +24,5 @@ __all__ = [
     "CORSMiddleware",
     "TrustedHostMiddleware",
     "HTTPSRedirectMiddleware",
+    "RequestIDMiddleware",
 ]
