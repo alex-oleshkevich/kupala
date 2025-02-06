@@ -21,4 +21,4 @@ __all__ = [
     "WebSocketRoute",
 ]
 
-__version__ = "0.50.4"
+__version__ = "0.50.6"

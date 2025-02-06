@@ -5,10 +5,12 @@ from starlette.websockets import WebSocket
 from starlette_dispatch import (
     DependencyError,
     DependencyResolver,
+    DependencyScope,
     DependencySpec,
-    FactoryDependency,
-    RequestDependency,
-    VariableDependency,
+    FactoryResolver,
+    RequestResolver,
+    ResolveContext,
+    VariableResolver,
 )
 from starlette_dispatch.contrib.dependencies import PathParamValue
 
@@ -16,13 +18,15 @@ __all__ = [
     "DependencyError",
     "DependencyResolver",
     "DependencySpec",
-    "FactoryDependency",
-    "RequestDependency",
-    "VariableDependency",
+    "FactoryResolver",
+    "RequestResolver",
+    "VariableResolver",
     "PathParamValue",
     "QueryParamResolver",
     "JSONDataResolver",
     "FormDataResolver",
+    "ResolveContext",
+    "DependencyScope",
 ]
 
 

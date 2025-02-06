@@ -1,6 +1,5 @@
 import typing
 
-import factory
 import sqlalchemy as sa
 from factory import enums, errors
 from factory.alchemy import SESSION_PERSISTENCE_COMMIT, SESSION_PERSISTENCE_FLUSH, SQLAlchemyOptions

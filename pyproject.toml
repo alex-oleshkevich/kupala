@@ -12,13 +12,14 @@ dependencies = [
     "starlette>=0.45",
     "python-multipart>=0.0.20",
     "starlette-flash>=1.0",
-    "starlette-dispatch>=0.26.0",
+    "starlette-dispatch>=0.27.2",
     "starsessions>=2.2.1",
     "httpx>=0.28",
     "factory-boy>=3.3.1",
     "starlette-auth>=0.2.3",
     "click>=8.1",
     "starlette_babel>=1.0",
+    "starlette-sqlalchemy>=0.1.1",
 ]
 
 [build-system]
