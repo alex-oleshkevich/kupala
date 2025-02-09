@@ -8,7 +8,7 @@ T = typing.TypeVar("T", default=str, bound=str | int)
 @dataclasses.dataclass(frozen=True, slots=True)
 class ErrorCode(typing.Generic[T]):
     code: T
-    description: str = ''
+    description: str = ""
 
     def __str__(self) -> str:
         return str(self.description)

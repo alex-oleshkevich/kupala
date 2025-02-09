@@ -8,9 +8,10 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_babel.contrib.jinja import configure_jinja_env
+from starlette_dispatch import VariableResolver
 from starlette_flash import flash
 
-from kupala.extensions import Extension
+from kupala.applications import AppConfig, Kupala
 from kupala.translations import get_language
 from kupala.urls import (
     abs_url_for,
@@ -23,7 +24,7 @@ from kupala.urls import (
 type ContextProcessor = typing.Callable[[Request], dict[str, typing.Any]]
 
 
-class Templates(Jinja2Templates, Extension):
+class Templates(Jinja2Templates):
     def __init__(
         self,
         jinja_env: jinja2.Environment | None = None,
@@ -106,6 +107,14 @@ class Templates(Jinja2Templates, Extension):
             headers=headers,
             media_type=media_type,
         )
+
+    @classmethod
+    def of(cls, app: Kupala) -> typing.Self:
+        return app.state.templates
+
+    def configure_application(self, app_config: AppConfig) -> None:
+        app_config.state["templates"] = self
+        app_config.dependency_resolvers[type(self)] = VariableResolver(self)
 
 
 def app_processor(request: Request) -> dict[str, typing.Any]:

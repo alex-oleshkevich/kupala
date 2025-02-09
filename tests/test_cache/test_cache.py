@@ -46,7 +46,7 @@ class TestMemoryCacheBackend:
 @pytest.mark.skipif(not importlib.util.find_spec("redis"), reason="Redis is not installed.")
 class TestRedisCacheBackend:
     async def test_get_set(self) -> None:
-        client = Redis.from_url('redis://')
+        client = Redis.from_url("redis://")
         backend = RedisCacheBackend(client)
         await backend.set("key", b"value", 60)
         assert await backend.get("key") == b"value"

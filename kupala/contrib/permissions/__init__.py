@@ -4,7 +4,7 @@ import dataclasses
 import types
 import typing
 
-from kupala.guards import Resource, Rule
+from kupala.voters import Resource, Rule
 
 
 class PermissionContext(typing.Protocol):
@@ -28,9 +28,7 @@ class Permission:
     def __hash__(self) -> int:
         return hash(self.id)
 
-    def __call__(
-        self, context: PermissionContext, resource: Resource | None = None
-    ) -> bool:
+    def __call__(self, context: PermissionContext, resource: Resource | None = None) -> bool:
         return self in context.permissions
 
 

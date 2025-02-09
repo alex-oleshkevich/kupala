@@ -40,9 +40,7 @@ def test_csrf_token(csrf_token: str, csrf_timed_token: str) -> None:
     assert validate_csrf_token(csrf_token, csrf_timed_token, "secret", "_salt_")
 
 
-def test_validate_csrf_token_needs_token(
-    csrf_token: str, csrf_timed_token: str
-) -> None:
+def test_validate_csrf_token_needs_token(csrf_token: str, csrf_timed_token: str) -> None:
     with pytest.raises(TokenMissingError) as ex:
         assert validate_csrf_token("", csrf_timed_token, "secret", "_salt_")
     assert str(ex.value) == "CSRF token is missing."
@@ -52,13 +50,9 @@ def test_validate_csrf_token_needs_token(
     assert str(ex.value) == "CSRF token is missing."
 
 
-def test_validate_csrf_token_expired_token(
-    csrf_token: str, csrf_timed_token: str
-) -> None:
+def test_validate_csrf_token_expired_token(csrf_token: str, csrf_timed_token: str) -> None:
     with pytest.raises(TokenExpiredError) as ex:
-        validate_csrf_token(
-            csrf_token, csrf_timed_token, "secret", "_salt_", max_age=-1
-        )
+        validate_csrf_token(csrf_token, csrf_timed_token, "secret", "_salt_", max_age=-1)
     assert str(ex.value) == "CSRF token has expired."
 
 
@@ -174,9 +168,7 @@ def test_middleware_allow_from_whitelist_using_full_url(
         ],
         middleware=[
             Middleware(SessionMiddleware, secret_key="key", max_age=80000),
-            Middleware(
-                CSRFMiddleware, secret_key="secret", exclude_urls=["http://testserver/"]
-            ),
+            Middleware(CSRFMiddleware, secret_key="secret", exclude_urls=["http://testserver/"]),
         ],
     )
 
@@ -195,9 +187,7 @@ def test_middleware_injects_template_context(
         ],
         middleware=[
             Middleware(SessionMiddleware, secret_key="key", max_age=80000),
-            Middleware(
-                CSRFMiddleware, secret_key="secret", exclude_urls=["http://testserver/"]
-            ),
+            Middleware(CSRFMiddleware, secret_key="secret", exclude_urls=["http://testserver/"]),
         ],
     )
     assert client.post("/").status_code == 200
@@ -213,9 +203,7 @@ def test_get_csrf_token_helper(test_client_factory: ClientFactory) -> None:
 
 def test_get_csrf_input_helper(test_client_factory: ClientFactory) -> None:
     request = Request({"type": "http", "state": {"csrf_timed_token": "token"}})
-    assert (
-        get_csrf_input(request) == '<input type="hidden" name="_token" value="token">'
-    )
+    assert get_csrf_input(request) == '<input type="hidden" name="_token" value="token">'
 
 
 def test_get_csrf_meta_tag_helper(test_client_factory: ClientFactory) -> None:

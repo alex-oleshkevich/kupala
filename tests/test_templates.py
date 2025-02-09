@@ -21,24 +21,15 @@ def test_render() -> None:
 
 def test_render_macro() -> None:
     templates = Templates(jinja_env=jinja_env)
-    assert (
-        templates.render_macro("macro.html", "hello", {"name": "world"})
-        == "Hello, world!"
-    )
+    assert templates.render_macro("macro.html", "hello", {"name": "world"}) == "Hello, world!"
 
 
 def test_render_block() -> None:
     templates = Templates(jinja_env=jinja_env)
-    assert (
-        templates.render_block("block.html", "content", {"name": "world"})
-        == "Hello, world!"
-    )
+    assert templates.render_block("block.html", "content", {"name": "world"}) == "Hello, world!"
 
 
 def test_render_to_response() -> None:
     templates = Templates(jinja_env=jinja_env)
     request = Request({"type": "http", "method": "GET", "url": "http://testserver/"})
-    assert (
-        templates.render_to_response(request, "index.html", {"name": "world"}).body
-        == b"Hello, world!"
-    )
+    assert templates.render_to_response(request, "index.html", {"name": "world"}).body == b"Hello, world!"

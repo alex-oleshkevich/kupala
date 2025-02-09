@@ -2,7 +2,7 @@ from unittest import mock
 
 import pytest
 
-from kupala.guards import AccessContext, AccessDeniedError, Guard, Resource, all_of, any_of, none_of
+from kupala.voters import AccessContext, AccessDeniedError, Voter, Resource, all_of, any_of, none_of
 
 
 def true_rule(context: AccessContext, resource: Resource | None = None) -> bool:
@@ -15,11 +15,11 @@ def false_rule(context: AccessContext, resource: Resource | None = None) -> bool
 
 class TestGuard:
     def test_check(self) -> None:
-        guard = Guard()
-        assert guard.check(mock.MagicMock(), true_rule) is True
+        guard = Voter()
+        assert guard.vote(mock.MagicMock(), true_rule) is True
 
     def test_check_or_raise(self) -> None:
-        guard = Guard()
+        guard = Voter()
         with pytest.raises(AccessDeniedError):
             guard.check_or_raise(mock.MagicMock(), false_rule)
 

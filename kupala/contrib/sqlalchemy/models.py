@@ -1,3 +1,5 @@
+import datetime
+import enum
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped
@@ -15,6 +17,11 @@ class Base(AsyncAttrs, DeclarativeBase):
     __abstract__ = True
     __repr_field__: str | None = None
     metadata = sa.MetaData()
+    type_annotation_map = {
+        datetime.datetime: sa.DateTime(timezone=True),
+        enum.StrEnum: sa.Text(),
+        enum.IntEnum: sa.Integer(),
+    }
 
     def __str__(self) -> str:
         if hasattr(self, "name"):

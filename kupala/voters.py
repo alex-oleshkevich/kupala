@@ -23,14 +23,14 @@ class Rule(typing.Protocol):  # pragma: no cover
     def __call__(self, context: AccessContext, resource: Resource | None = None) -> bool: ...
 
 
-class Guard:
-    def check(self, context: AccessContext, rule: Rule, resource: Resource | None = None) -> bool:
+class Voter:
+    def vote(self, context: AccessContext, rule: Rule, resource: Resource | None = None) -> bool:
         """Check if the given rule is satisfied in the current context."""
         return rule(context, resource)
 
     def check_or_raise(self, context: AccessContext, rule: Rule, resource: Resource | None = None) -> None:
         """Check if the given rule is satisfied in the current context, raise AccessDeniedError if not."""
-        if not self.check(context, rule, resource):
+        if not self.vote(context, rule, resource):
             raise AccessDeniedError()
         return None
 

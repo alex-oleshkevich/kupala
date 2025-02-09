@@ -8,18 +8,21 @@ import typing
 import anyio
 from async_storages import (
     BaseBackend,
-    FileStorage as BaseFileStorage,
     FileSystemBackend,
     MemoryBackend,
     S3Backend,
     generate_file_path,
     sanitize_filename,
 )
+from async_storages import (
+    FileStorage as BaseFileStorage,
+)
 from async_storages.backends.base import AdaptedBytesIO, AsyncFileLike, AsyncReader
 from async_storages.contrib.starlette import FileServer
 from starlette.datastructures import UploadFile
+from starlette_dispatch import VariableResolver
 
-from kupala.extensions import Extension
+from kupala.applications import AppConfig, Kupala
 
 __all__ = [
     "FileStorage",
@@ -75,11 +78,11 @@ class MemoryConfig:
 type StorageConfig = LocalConfig | S3Config | MemoryConfig
 
 
-class FileStorage(BaseFileStorage, Extension): ...
+class FileStorage(BaseFileStorage): ...
 
 
 class Files(FileStorage):
-    async def upload(
+    async def save(
         self,
         upload_file: UploadFile,
         destination: str,
@@ -91,7 +94,7 @@ class Files(FileStorage):
         await self._storage.write(file_name, upload_file)
         return file_name
 
-    async def upload_many(
+    async def save_many(
         self,
         destination: str,
         upload_files: typing.Sequence[UploadFile],
@@ -116,10 +119,10 @@ class Files(FileStorage):
                 tg.start_soon(self.delete, file_name)
 
     @classmethod
-    def from_choices(cls, storage_name: str, **storages: StorageConfig) -> FileStorage:
+    def from_choices(cls, storage_name: str, **storages: StorageConfig) -> Files:
         config = storages[storage_name]
         if isinstance(config, LocalConfig):
-            return FileStorage(
+            return cls(
                 FileSystemBackend(
                     base_dir=config.directory,
                     base_url=config.url_prefix,
@@ -130,7 +133,7 @@ class Files(FileStorage):
             )
 
         if isinstance(config, S3Config):
-            return FileStorage(
+            return cls(
                 S3Backend(
                     bucket=config.bucket,
                     aws_access_key_id=config.access_key,
@@ -142,6 +145,14 @@ class Files(FileStorage):
             )
 
         if isinstance(config, MemoryConfig):
-            return FileStorage(MemoryBackend())
+            return cls(MemoryBackend())
 
         raise ValueError(f"Unknown storage type: {config}")
+
+    def configure_application(self, app_config: AppConfig) -> None:
+        app_config.state["files"] = self
+        app_config.dependency_resolvers[type(self)] = VariableResolver(self)
+
+    @classmethod
+    def of(cls, app: Kupala) -> typing.Self:
+        return app.state.files

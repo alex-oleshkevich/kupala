@@ -475,7 +475,7 @@ wheels = [
 
 [[package]]
 name = "kupala"
-version = "0.50.5"
+version = "0.50.7"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -526,7 +526,7 @@ requires-dist = [
     { name = "starlette", specifier = ">=0.45" },
     { name = "starlette-auth", specifier = ">=0.2.3" },
     { name = "starlette-babel", specifier = ">=1.0" },
-    { name = "starlette-dispatch", specifier = ">=0.27.2" },
+    { name = "starlette-dispatch", specifier = ">=0.27.3" },
     { name = "starlette-flash", specifier = ">=1.0" },
     { name = "starlette-sqlalchemy", specifier = ">=0.1.1" },
     { name = "starsessions", specifier = ">=2.2.1" },
@@ -938,10 +938,15 @@ dependencies = [
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e4/08/9a90962ea72acd532bda71249a626344d855c4032603924b1b547694b837/sqlalchemy-2.0.38.tar.gz", hash = "sha256:e5a4d82bdb4bf1ac1285a68eab02d253ab73355d9f0fe725a97e1e0fa689decb", size = 9634782 }
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/21/77/caa875a1f5a8a8980b564cc0e6fee1bc992d62d29101252561d0a5e9719c/SQLAlchemy-2.0.38-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:ecef029b69843b82048c5b347d8e6049356aa24ed644006c9a9d7098c3bd3bfd", size = 2100201 },
+    { url = "https://files.pythonhosted.org/packages/f4/ec/94bb036ec78bf9a20f8010c807105da9152dd84f72e8c51681ad2f30b3fd/SQLAlchemy-2.0.38-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:9c8bcad7fc12f0cc5896d8e10fdf703c45bd487294a986903fe032c72201596b", size = 2090678 },
     { url = "https://files.pythonhosted.org/packages/7b/61/63ff1893f146e34d3934c0860209fdd3925c25ee064330e6c2152bacc335/SQLAlchemy-2.0.38-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2a0ef3f98175d77180ffdc623d38e9f1736e8d86b6ba70bff182a7e68bed7727", size = 3177107 },
+    { url = "https://files.pythonhosted.org/packages/a9/4f/b933bea41a602b5f274065cc824fae25780ed38664d735575192490a021b/SQLAlchemy-2.0.38-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8b0ac78898c50e2574e9f938d2e5caa8fe187d7a5b69b65faa1ea4648925b096", size = 3190435 },
     { url = "https://files.pythonhosted.org/packages/f5/23/9e654b4059e385988de08c5d3b38a369ea042f4c4d7c8902376fd737096a/SQLAlchemy-2.0.38-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:9eb4fa13c8c7a2404b6a8e3772c17a55b1ba18bc711e25e4d6c0c9f5f541b02a", size = 3123648 },
+    { url = "https://files.pythonhosted.org/packages/83/59/94c6d804e76ebc6412a08d2b086a8cb3e5a056cd61508e18ddaf3ec70100/SQLAlchemy-2.0.38-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:5dba1cdb8f319084f5b00d41207b2079822aa8d6a4667c0f369fce85e34b0c86", size = 3151789 },
     { url = "https://files.pythonhosted.org/packages/b2/27/17f143013aabbe1256dce19061eafdce0b0142465ce32168cdb9a18c04b1/SQLAlchemy-2.0.38-cp313-cp313-win32.whl", hash = "sha256:eae27ad7580529a427cfdd52c87abb2dfb15ce2b7a3e0fc29fbb63e2ed6f8120", size = 2073023 },
     { url = "https://files.pythonhosted.org/packages/e2/3e/259404b03c3ed2e7eee4c179e001a07d9b61070334be91124cf4ad32eec7/SQLAlchemy-2.0.38-cp313-cp313-win_amd64.whl", hash = "sha256:b335a7c958bc945e10c522c069cd6e5804f4ff20f9a744dd38e748eb602cbbda", size = 2096908 },
+    { url = "https://files.pythonhosted.org/packages/aa/e4/592120713a314621c692211eba034d09becaf6bc8848fabc1dc2a54d8c16/SQLAlchemy-2.0.38-py3-none-any.whl", hash = "sha256:63178c675d4c80def39f1febd625a6333f44c0ba269edd8a468b156394b27753", size = 1896347 },
 ]
 
 [package.optional-dependencies]
@@ -1004,11 +1009,11 @@ wheels = [
 
 [[package]]
 name = "starlette-dispatch"
-version = "0.27.2"
+version = "0.27.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/5b/e6/a784fd3d0174e6c7b25521a9edcb5bf2ce9ef88bf104ec9bfe5663c829df/starlette_dispatch-0.27.2.tar.gz", hash = "sha256:69f716e06cea1d1f214dd25f3e3b9510d5f84ac5d50c4771f663a5cfe64b1ff2", size = 34528 }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/54/16c9573d34713f98f25e3dc72faeebdbd2e4be3e8f937c886238b77d81f2/starlette_dispatch-0.27.3.tar.gz", hash = "sha256:801344dd22240ff8a40bd6843eba829a258aae05b3aac7194b4743ea067139f6", size = 34670 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/1a/551fa0f715f07dee30f87c67e745ce9003bb14f21872ca3456ad0564af99/starlette_dispatch-0.27.2-py3-none-any.whl", hash = "sha256:7efc239ee50edd1a88eea178e9e0a03124caa2dc5a614a8848e2625070ee2b28", size = 10892 },
+    { url = "https://files.pythonhosted.org/packages/80/e3/692e1f8528eeee058bef4696763e0b12a4ae6dd76e98bbad0aad01a778cc/starlette_dispatch-0.27.3-py3-none-any.whl", hash = "sha256:7d415583279783a9e666d79761d05e9dc056166ed886d7ed31a4d2aad8c75d15", size = 11069 },
 ]
 
 [[package]]

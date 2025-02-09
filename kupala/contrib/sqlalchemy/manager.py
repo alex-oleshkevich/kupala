@@ -2,6 +2,9 @@ import contextlib
 import contextvars
 import typing
 
+from starlette_dispatch import VariableResolver
+
+from kupala.applications import AppConfig, Kupala
 from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -9,11 +12,10 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from starlette.applications import Starlette
 
-from kupala.extensions import Extension
 
-
-class DatabaseManager(Extension):
+class DatabaseManager:
     def __init__(
         self,
         url: str,
@@ -40,9 +42,9 @@ class DatabaseManager(Extension):
         self._sessionmaker: async_sessionmaker | None = None
         self._current_session: contextvars.ContextVar[AsyncSession] = contextvars.ContextVar("sqla_current_session")
 
-    async def __aenter__(self) -> typing.AsyncGenerator[AsyncEngine, None]:
+    async def __aenter__(self) -> typing.AsyncGenerator[typing.Self, None]:
         if self._engine is not None:
-            return self._engine
+            return self
 
         opts = dict(
             pool_size=self._pool_size,
@@ -61,7 +63,7 @@ class DatabaseManager(Extension):
             **opts,
         )
         self._sessionmaker = async_sessionmaker(bind=self._engine, expire_on_commit=False)
-        return self._engine
+        return self
 
     async def __aexit__(self, exc_type, exc_value, traceback) -> None:
         await self._engine.dispose()
@@ -110,3 +112,17 @@ class DatabaseManager(Extension):
                         yield session
                     finally:
                         await tx.rollback()
+
+    @contextlib.asynccontextmanager
+    async def initializer(self, app: Kupala) -> typing.AsyncGenerator[None, None]:
+        async with self:
+            yield
+
+    @classmethod
+    def of(cls, app: Kupala) -> typing.Self:
+        return app.state.dbmanager
+
+    def configure_application(self, app_config: AppConfig) -> None:
+        app_config.state["dbmanager"] = self
+        app_config.initializers.append(self.initializer)
+        app_config.dependency_resolvers[type(self)] = VariableResolver(self)

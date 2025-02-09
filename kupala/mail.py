@@ -1,3 +1,4 @@
+import contextlib
 import typing
 from email.message import EmailMessage
 
@@ -19,10 +20,10 @@ from mailers.transports import (
     Transport,
 )
 from mailers.transports.smtp import SMTPTransport
+from starlette_dispatch import VariableResolver
 
 from kupala import timezone
-from kupala.applications import Kupala
-from kupala.extensions import Extension
+from kupala.applications import AppConfig, Kupala
 from kupala.templating import Templates
 
 __all__ = [
@@ -30,7 +31,6 @@ __all__ = [
     "Email",
     "EmailMessage",
     "Recipients",
-    "mail_command",
     "Signer",
     "Encrypter",
     "Preprocessor",
@@ -46,7 +46,7 @@ __all__ = [
 ]
 
 
-class Mail(Extension):
+class Mail:
     """Mail extension for sending emails."""
 
     def __init__(
@@ -155,6 +155,15 @@ class Mail(Extension):
             headers=headers,
         )
 
+    def configure_application(self, app_config: AppConfig) -> None:
+        app_config.state["mail"] = self
+        app_config.commands.append(mail_command)
+        app_config.dependency_resolvers[Mail] = VariableResolver(self)
+
+    @classmethod
+    def of(cls, app: Kupala) -> typing.Self:
+        return app.state.mail
+
 
 mail_command = click.Group(name="mail", help="Mail commands.")
 
@@ -164,22 +173,20 @@ mail_command = click.Group(name="mail", help="Mail commands.")
 @click.option("--subject", default="Test email")
 @click.option("--body", default="This is a test email.")
 @click.option("--html", default=False, is_flag=True)
-def send_test_mail_command(recipient: str, subject: str, body: str, html: bool) -> None:
+@click.pass_obj
+async def send_test_mail_command(obj: Kupala, recipient: str, subject: str, body: str, html: bool) -> None:
     """Send a test email."""
 
-    async def main() -> None:
-        mailer = Mail.of(Kupala.current())
+    mailer = Mail.of(obj)
 
-        if not html:
-            await mailer.send_mail(to=recipient, subject=subject, text=body)
-            return
+    if not html:
+        await mailer.send_mail(to=recipient, subject=subject, text=body)
+        return
 
-        await mailer.send_templated_mail(
-            to=recipient,
-            subject=subject,
-            text_template="kupala/mail/test_message.txt",
-            html_template="kupala/mail/test_message.html",
-            context={"body": body},
-        )
-
-    anyio.run(main)
+    await mailer.send_templated_mail(
+        to=recipient,
+        subject=subject,
+        text_template="kupala/mail/test_message.txt",
+        html_template="kupala/mail/test_message.html",
+        context={"body": body},
+    )
