@@ -1,0 +1,68 @@
+volumes:
+    postgres_data:
+    redis_data:
+
+x-environment: &env
+    DEBUG: ${DEBUG:-0}
+    SECRET_KEY: 791a1999b80cf743ce1fc0d53be240e8405033cc3a18950558834391459d63a8
+    REDIS_URL: redis://redis:6379/0
+    ENCRYPTION_KEY: 3KV3VUWRiEJMsNmu1FiTLyE8bivfsKYHtKaGp4BPdN0=
+    CACHE_URL: redis://redis:6379/1
+    DATABASE_URL: postgresql+psycopg_async://postgres:postgres@postgres:5432/postgres
+
+    # Test environment
+    APP_ENV: ${APP_ENV:-production}
+
+services:
+    app: &app
+        build:
+            context: .
+            args:
+                - RELEASE_ID=${RELEASE_ID:-}
+                - RELEASE_BRANCH=${RELEASE_BRANCH:-}
+                - RELEASE_COMMIT=${RELEASE_COMMIT:-}
+                - RELEASE_DATE=${RELEASE_DATE:-}
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        volumes:
+            - ./scripts:/code/scripts:ro
+            - ./tests:/code/tests:ro
+            - ./build:/code/build:rw
+        ports:
+            - ${APP_PORT:-8000}:8000
+        healthcheck:
+            test: /bin/docker-healthcheck.sh
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 30s
+        environment:
+            <<: *env
+
+    postgres:
+        image: postgres:17-alpine
+        environment:
+            <<: *env
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: ${POSTGRES_DB:-postgres}
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test: [ "CMD", "pg_isready" ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    redis:
+        image: redis:7-alpine
+        volumes:
+            - redis_data:/data
+        healthcheck:
+            test: [ "CMD", "redis-cli", "ping" ]
+            interval: 10s
+            timeout: 5s
+            retries: 5

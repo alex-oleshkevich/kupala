@@ -1,0 +1,17 @@
+{
+    "name": "demo",
+    "license": "UNLICENSED",
+    "scripts": {
+        "esbuild:watch": "node ./build.js --watch",
+        "esbuild:build": "node ./build.js --build",
+        "tailwind:watch": "npx tailwindcss -i assets/main.css -o demo/statics/main.css --watch",
+        "tailwind:build": "npx tailwindcss --minify -i assets/main.css -o demo/statics/main.css",
+        "build": "npm run tailwind:build && npm run esbuild:build"
+    },
+    "dependencies": {
+        "esbuild": "0.24",
+        "esbuild-copy-static-files": "0.1",
+        "tailwindcss": "^4.0",
+        "@tailwindcss/cli": "^4.0"
+    }
+}

@@ -1,8 +1,6 @@
-import contextlib
 import typing
 from email.message import EmailMessage
 
-import anyio
 import click
 from mailers.encrypters import Encrypter
 from mailers.mailer import Mailer

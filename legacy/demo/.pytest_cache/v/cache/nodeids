@@ -1,0 +1,3 @@
+[
+  "tests/test_views.py::test_welcome"
+]

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="{{ app_language }}" class="h-full">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% if page_title is defined %}{{ page_title }}{% else %}{{ settings.app_name }}{% endif %}</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ static_url('public/apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ static_url('public/favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ static_url('public/favicon-16x16.png') }}">
+    <link rel="manifest" href="{{ static_url('/site.webmanifest') }}">
+
+    <link rel="stylesheet" href="{{ static_url('main.css') }}">
+</head>
+
+<body class="antialiased">
+    {% block body %}{% endblock %}
+    <script type="module" src="{{ static_url('main.js') }}"></script>
+</body>
+
+</html>

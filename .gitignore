@@ -8,6 +8,11 @@ dist/
 demo_app
 _private
 coverage.xml
-demo
-docs/
+docs/superpowers
 var/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+node_modules/

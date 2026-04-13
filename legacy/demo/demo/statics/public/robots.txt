@@ -1,0 +1,11 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /auth/
+Disallow: /private/
+Disallow: /api/
+
+# Allow everything else
+Allow: /
+
+# Crawl delay (optional, useful if you have a high-traffic site)
+Crawl-delay: 10

@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../assets/main.js"],
+  "sourcesContent": ["// Export application methods to global scope.\nwindow.app = {}\n"],
+  "mappings": "AACA,OAAO,IAAM,CAAC",
+  "names": []
+}
