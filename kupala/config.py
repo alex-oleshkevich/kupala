@@ -1,109 +1,167 @@
+from __future__ import annotations
+
+import datetime
+import decimal
 import enum
 import os
 import pathlib
 import typing
+import uuid
+from collections.abc import Callable, Mapping
+from typing import Any, overload
 
-from starlette.config import Config as BaseConfig
-from starlette.config import Environ, undefined
+from kupala.exceptions import KupalaError
 
-__all__ = ["Config", "is_unittest_environment", "Secrets", "detect_environment"]
-
-
-def is_unittest_environment() -> bool:
-    """Test if code executed in unit test environment."""
-    return "PYTEST_VERSION" in os.environ
+_UNSET: Any = object()
 
 
-_EnvT = typing.TypeVar("_EnvT", bound=enum.StrEnum)
+class SettingsError(KupalaError):
+    pass
 
 
-def detect_environment(choices: type[_EnvT], fallback: _EnvT, unittests: _EnvT) -> _EnvT:
-    if is_unittest_environment():
-        return unittests
-    value = os.getenv("APP_ENV", os.environ.get("KUPALA_ENV", str(fallback)))
-    return choices(value)
-
-
-_T = typing.TypeVar("_T")
-
-
-class Config(BaseConfig):
+class EnvReader:
     def __init__(
         self,
-        env_files: list[str | pathlib.Path] | None = None,
-        env_prefix="",
-        environ: typing.Mapping[str, str] | None = None,
-    ):
-        env_files = env_files or []
-        super().__init__(None, environ or Environ(), env_prefix)
-        for env_file in env_files:
-            if os.path.exists(env_file) and os.path.isfile(env_file):
-                self.file_values.update(self._read_file(env_file))
-
-
-class Secrets:
-    """An interface to access secret variables defined as files."""
-
-    def __init__(self, directory: str | os.PathLike[str]) -> None:
-        self.directory = pathlib.Path(directory)
-
-    @typing.overload
-    def get(
-        self,
-        key: str,
-        default: None = None,
         *,
-        cast: None = None,
-    ) -> str:  # pragma: no cover
-        ...
+        prefix: str = "",
+        secrets_pattern: str = "/run/secrets/{name}",
+        source: Mapping[str, str] | None = None,
+    ) -> None:
+        self.prefix = prefix
+        self.secrets_pattern = secrets_pattern
+        self.source: Mapping[str, str] = source if source is not None else os.environ
 
-    @typing.overload
-    def get(
+    @overload
+    def read[T](
         self,
-        key: str,
-        default: _T,
+        typ: type[T],
+        name: str,
         *,
-        cast: None = None,
-    ) -> _T:  # pragma: no cover
-        ...
-
-    @typing.overload
-    def get(
+        secret: str | None = None,
+        cast: Callable[[str], T] | None = None,
+    ) -> T: ...
+    @overload
+    def read[T](
         self,
-        key: str,
-        default: None = None,
+        typ: type[T],
+        name: str,
         *,
-        cast: typing.Callable[[str], _T],
-    ) -> _T:  # pragma: no cover
-        ...
-
-    @typing.overload
-    def get(
+        default: T,
+        secret: str | None = None,
+        cast: Callable[[str], T] | None = None,
+    ) -> T: ...
+    @overload
+    def read[T](
         self,
-        key: str,
-        default: _T,
+        typ: type[T],
+        name: str,
         *,
-        cast: typing.Callable[[str], _T],
-    ) -> _T:  # pragma: no cover
-        ...
+        default_factory: Callable[[], T],
+        secret: str | None = None,
+        cast: Callable[[str], T] | None = None,
+    ) -> T: ...
 
-    def get(
+    def read(
         self,
-        key: str,
-        default: typing.Any = undefined,
+        typ: Any,
+        name: str,
         *,
-        cast: typing.Callable[[str], typing.Any] | None = None,
-    ) -> typing.Any:
-        file_name = pathlib.Path(self.directory / key)
-        if not file_name.exists():
-            if default == undefined:
-                raise FileNotFoundError(f"Secret file missing and no default value provided: {file_name}.")
-            return default
+        default: Any = _UNSET,
+        default_factory: Callable[[], Any] | None = None,
+        secret: str | None = None,
+        cast: Callable[[str], Any] | None = None,
+    ) -> Any:
+        env_name = self.prefix + name
+        raw: str | None = None
+        if secret:
+            try:
+                with open(self.secrets_pattern.format(name=secret)) as f:
+                    raw = f.read().strip()
+            except OSError:
+                pass
+        if raw is None:
+            raw = self.source.get(env_name)
+        if raw is None:
+            if default is not _UNSET:
+                return default
+            if default_factory is not None:
+                return default_factory()
+            raise SettingsError(f"Missing required env var {env_name!r}")
+        if cast is not None:
+            try:
+                return cast(raw)
+            except Exception as e:
+                raise SettingsError(f"Failed to cast {env_name}={raw!r}: {e}") from e
+        return _builtin_cast(raw, typ, env_name)
 
-        value = file_name.read_text()
-        if cast:
-            return cast(value)
 
-        return value
+def _builtin_cast(raw: str, typ: Any, env_name: str) -> Any:
+    origin = typing.get_origin(typ)
+    if origin in (list, set, frozenset, tuple):
+        args = typing.get_args(typ)
+        elem_type = args[0]
+        items = [_builtin_cast(p.strip(), elem_type, env_name) for p in raw.split(",")] if raw.strip() else []
+        if origin is list:
+            return items
+        if origin is set:
+            return set(items)
+        if origin is frozenset:
+            return frozenset(items)
+        return tuple(items)
 
-    __call__ = get
+    if typ is str:
+        return raw
+    if typ is int:
+        try:
+            return int(raw)
+        except ValueError as e:
+            raise SettingsError(f"{env_name}: expected int, got {raw!r}") from e
+    if typ is float:
+        try:
+            return float(raw)
+        except ValueError as e:
+            raise SettingsError(f"{env_name}: expected float, got {raw!r}") from e
+    if typ is bool:
+        lower = raw.strip().lower()
+        if lower in frozenset({"true", "1", "yes", "on"}):
+            return True
+        if lower in frozenset({"false", "0", "no", "off"}):
+            return False
+        raise SettingsError(f"{env_name}: expected bool, got {raw!r}")
+    if typ is decimal.Decimal:
+        try:
+            return decimal.Decimal(raw)
+        except decimal.InvalidOperation as e:
+            raise SettingsError(f"{env_name}: expected Decimal, got {raw!r}") from e
+    if typ is pathlib.Path:
+        return pathlib.Path(raw)
+    if typ is uuid.UUID:
+        try:
+            return uuid.UUID(raw)
+        except ValueError as e:
+            raise SettingsError(f"{env_name}: expected UUID, got {raw!r}") from e
+    if typ is datetime.datetime:
+        try:
+            return datetime.datetime.fromisoformat(raw)
+        except ValueError as e:
+            raise SettingsError(f"{env_name}: expected datetime, got {raw!r}") from e
+    if typ is datetime.date:
+        try:
+            return datetime.date.fromisoformat(raw)
+        except ValueError as e:
+            raise SettingsError(f"{env_name}: expected date, got {raw!r}") from e
+    if isinstance(typ, type) and issubclass(typ, enum.Enum):
+        try:
+            return typ(raw)
+        except ValueError:
+            try:
+                return typ[raw]
+            except KeyError as e:
+                values = [m.value for m in typ]
+                raise SettingsError(f"{env_name}: expected one of {values}, got {raw!r}") from e
+
+    try:
+        return typ(raw)
+    except Exception as e:
+        type_name = typ.__name__ if isinstance(typ, type) else repr(typ)
+        raise SettingsError(f"{env_name}: failed to construct {type_name}({raw!r}): {e}") from e
