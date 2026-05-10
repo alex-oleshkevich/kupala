@@ -149,6 +149,11 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-async" },
+    { name = "pytest-cov" },
+]
 testing = [
     { name = "mypy" },
     { name = "pre-commit" },
@@ -165,6 +170,11 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.3.4" },
+    { name = "pytest-async", specifier = ">=0.1.1" },
+    { name = "pytest-cov", specifier = ">=6.0.0" },
+]
 testing = [
     { name = "mypy", specifier = ">=2.0" },
     { name = "pre-commit", specifier = ">=4.1.0" },
@@ -326,6 +336,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/05/35/30e0d83068951d90a01852cb1cef56e5d8a09d20c7f511634cc2f7e0372a/pytest-8.3.4.tar.gz", hash = "sha256:965370d062bce11e73868e0335abac31b4d3de0e82f4007408d242b4f8610761", size = 1445919, upload-time = "2024-12-01T12:54:25.98Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/11/92/76a1c94d3afee238333bc0a42b82935dd8f9cf8ce9e336ff87ee14d9e1cf/pytest-8.3.4-py3-none-any.whl", hash = "sha256:50e16d954148559c9a74109af1eaf0c945ba2d8f30f0a3d3335edde19788b6f6", size = 343083, upload-time = "2024-12-01T12:54:19.735Z" },
+]
+
+[[package]]
+name = "pytest-async"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ff/b6/c15344fd2894fe93f15ce0f503d25afc2506ebe01a3c3ea52044169d510c/pytest_async-0.1.1.tar.gz", hash = "sha256:0d6ffd3ebac2f3aa47d606dbae1984750268a89dc8caf4a908ba61c60299cdfd", size = 5339, upload-time = "2020-02-26T17:31:21.138Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/89/4f/bdd43dd0838c2b0c0487a8de0480a30fb797e49abc4c8c68aca2912fd636/pytest_async-0.1.1-py3-none-any.whl", hash = "sha256:11cc41eef82592951d56c2bb9b0e6ab21b2f0f00663e78d95694a80d965be930", size = 2778, upload-time = "2020-02-26T17:31:18.587Z" },
 ]
 
 [[package]]
