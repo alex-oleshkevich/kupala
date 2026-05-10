@@ -1,7 +1,7 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
 
-exclude: "docs|node_modules|migrations|.git|.tox"
+exclude: "^(docs|node_modules|migrations|legacy|demo|\\.git|\\.tox|\\.venv|var)/"
 default_stages: [pre-commit]
 
 repos:
@@ -45,22 +45,11 @@ repos:
       rev: "v1.14.1"
       hooks:
           - id: mypy
-            exclude: "kupala-cli/kupala_cli/addons/project/templates"
             additional_dependencies:
-                - alembic
-                - anyio
-                - async_storages
+                - asgiref
                 - click
-                - cryptography
-                - itsdangerous
-                - httpx
                 - jinja2
-                - mailers
-                - pytest
+                - python-dotenv
                 - python-multipart
-                - starlette
-                - starlette-babel
-                - types-babel
-                - types-passlib
-                - starception
-                - sqlalchemy[asyncio]
+                - pytest
+                - pytest-asyncio
