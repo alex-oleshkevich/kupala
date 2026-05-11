@@ -1,3 +1,6 @@
+import contextlib
+import typing
+
 from kupala.app import Kupala
 from kupala.config import Env
 from kupala.exceptions import BadRequestError, ValidationError
@@ -8,12 +11,19 @@ from kupala.validation import ErrorBag
 
 env = Env(env_files=[".env", ".env.local"])
 
+
+@contextlib.asynccontextmanager
+async def create_dbpool(app: Kupala) -> typing.AsyncIterator[dict[str, typing.Any]]:
+    yield {"dbpool": "dbpoolinstance"}
+
+
 routes = RouteGroup()
 
 
 @routes.get("/", name="home")
 @routes.get("/home")
-def index_view(_request: Request) -> Response:
+def index_view(request: Request) -> Response:
+    print(request.state)
     return Response()
 
 
@@ -62,4 +72,4 @@ async def ws_view(ws: Websocket) -> None:
     pass
 
 
-app = Kupala(routes=routes)
+app = Kupala(routes=routes, lifespan=[create_dbpool])

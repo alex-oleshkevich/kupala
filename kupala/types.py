@@ -1,16 +1,24 @@
 import dataclasses
 import typing
 
-from asgiref.typing import ASGI3Application, ASGIReceiveCallable, ASGISendCallable
-from asgiref.typing import WWWScope as ASGIScope
+from asgiref.typing import (
+    ASGI3Application,
+    ASGIReceiveCallable,
+    ASGIReceiveEvent,
+    ASGISendCallable,
+    ASGISendEvent,
+)
+from asgiref.typing import Scope as ASGIScope
+from asgiref.typing import WWWScope as ASGIWWWScope
 
 type ASGIApp = ASGI3Application
 type Receive = ASGIReceiveCallable
 type Send = ASGISendCallable
 type Scope = ASGIScope
+type WWWScope = ASGIWWWScope
 type ASGIMiddleware = typing.Callable[[ASGIApp], ASGIApp]
-
-__all__ = ["ASGIApp", "Receive", "Scope", "Send", "ASGIMiddleware", "MultiDict", "MutableMultiDict"]
+type ReceiveMessage = ASGIReceiveEvent
+type SendMessage = ASGISendEvent
 
 
 class Undefined: ...

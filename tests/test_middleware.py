@@ -1,6 +1,6 @@
 import typing
 
-from kupala.middleware import build_middleware_stack, with_options
+from kupala.middleware import build_asgi_middleware_stack, with_options
 from kupala.types import ASGIApp
 
 
@@ -65,17 +65,17 @@ class TestWithOptions:
 
 class TestBuildMiddlewareStack:
     def test_empty_returns_router(self) -> None:
-        result = build_middleware_stack([], _router)
+        result = build_asgi_middleware_stack([], _router)
         assert result is _router
 
     def test_single_middleware(self) -> None:
-        result = build_middleware_stack([with_options(FakeMW, name="a")], _router)
+        result = build_asgi_middleware_stack([with_options(FakeMW, name="a")], _router)
         assert isinstance(result, FakeMW)
         assert result.name == "a"
         assert result.app is _router
 
     def test_first_is_outermost(self) -> None:
-        result = build_middleware_stack(
+        result = build_asgi_middleware_stack(
             [with_options(FakeMW, name="A"), with_options(FakeMW, name="B")],
             _router,
         )
@@ -86,7 +86,7 @@ class TestBuildMiddlewareStack:
         assert result.app.app is _router
 
     def test_router_at_innermost(self) -> None:
-        stack = build_middleware_stack(
+        stack = build_asgi_middleware_stack(
             [
                 with_options(FakeMW, name="a"),
                 with_options(FakeMW, name="b"),

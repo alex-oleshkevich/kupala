@@ -1,3 +1,4 @@
+import functools
 import typing
 
 from kupala.requests import Request
@@ -15,13 +16,14 @@ def with_options(
     *args: P.args,
     **kwargs: P.kwargs,
 ) -> ASGIMiddleware:
+    @functools.wraps(middleware)
     def factory(app: ASGIApp) -> ASGIApp:
         return middleware(app, *args, **kwargs)
 
     return factory
 
 
-def build_middleware_stack(middlewares: typing.Sequence[ASGIMiddleware], router: ASGIApp) -> ASGIApp:
+def build_asgi_middleware_stack(middlewares: typing.Sequence[ASGIMiddleware], router: ASGIApp) -> ASGIApp:
     app: ASGIApp = router
     for middleware in reversed(middlewares):
         app = middleware(app)
