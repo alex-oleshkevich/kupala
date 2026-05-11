@@ -3,9 +3,9 @@ import typing
 import click
 
 from kupala.exceptions import ExceptionHandler
-from kupala.middleware import Middleware
+from kupala.middleware import Middleware, build_middleware_stack
 from kupala.routing import RouteGroup, Router
-from kupala.types import ASGIMiddleware, Receive, Scope, Send
+from kupala.types import ASGIApp, ASGIMiddleware, Receive, Scope, Send
 
 type Lifespan = typing.Callable[[Kupala], typing.AsyncGenerator[typing.Mapping[str, typing.Any]]]
 
@@ -26,15 +26,13 @@ class Kupala:
         self.exception_handlers = exception_handlers
         self.commands = commands
         self.lifespan = lifespan
-        self.router = Router(routes)
+        self._router = Router(routes)
+        self._asgi_middleware_stack = build_middleware_stack(asgi_middleware, typing.cast(ASGIApp, self._router))
 
     def cli(self) -> None: ...
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         try:
-            route = self.router.match(scope)
-            if not route:
-                raise Exception()
-
+            await self._asgi_middleware_stack(scope, receive, send)
         except BaseException:
             pass

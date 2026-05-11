@@ -8,7 +8,7 @@ type ASGIApp = ASGI3Application
 type Receive = ASGIReceiveCallable
 type Send = ASGISendCallable
 type Scope = ASGIScope
-type ASGIMiddleware = ASGIApp
+type ASGIMiddleware = typing.Callable[[ASGIApp], ASGIApp]
 
 __all__ = ["ASGIApp", "Receive", "Scope", "Send", "ASGIMiddleware", "MultiDict", "MutableMultiDict"]
 

@@ -1,15 +1,45 @@
 from kupala.app import Kupala
+from kupala.config import EnvReader
+from kupala.exceptions import BadRequestError, ValidationError
 from kupala.requests import Request, Websocket
-from kupala.responses import Response
+from kupala.responses import Response, responses
 from kupala.routing import RouteGroup
+from kupala.validation import ErrorBag
+
+env = EnvReader(env_files=[".env", ".env.local"])
 
 routes = RouteGroup()
 
 
-@routes.get("/")
+@routes.get("/", name="home")
 @routes.get("/home")
 def index_view(_request: Request) -> Response:
     return Response()
+
+
+@routes.get_or_post("/login")
+async def login_view(request: Request) -> Response:
+    data = await request.parse(dict[str, str])
+
+    errors = ErrorBag()
+    email = data.get("email", "")
+    if not email:
+        errors.append("email", "Email is required.")
+
+    password = data.get("password", "")
+    if not password:
+        errors.append("password", "Password is required.")
+
+    if errors:
+        raise ValidationError(errors=errors, type="login_failure")
+
+    if password != "password":
+        raise BadRequestError("Invalid email or password")
+
+    if email != "admin":
+        raise BadRequestError("")
+
+    return responses(request).redirect_to_route("home")
 
 
 @routes.get("/version")
@@ -22,7 +52,7 @@ def health_view(_request: Request) -> tuple[str, int]:
     return "ok", 200
 
 
-@routes.get("/health")
+@routes.get("/status")
 def three_tuple_view(_request: Request) -> tuple[str, int, dict[str, str]]:
     return "ok", 200, {"x-key": "x-value"}
 
