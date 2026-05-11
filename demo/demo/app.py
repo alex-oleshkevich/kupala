@@ -1,12 +1,12 @@
 from kupala.app import Kupala
-from kupala.config import EnvReader
+from kupala.config import Env
 from kupala.exceptions import BadRequestError, ValidationError
 from kupala.requests import Request, Websocket
 from kupala.responses import Response, responses
 from kupala.routing import RouteGroup
 from kupala.validation import ErrorBag
 
-env = EnvReader(env_files=[".env", ".env.local"])
+env = Env(env_files=[".env", ".env.local"])
 
 routes = RouteGroup()
 
@@ -31,7 +31,7 @@ async def login_view(request: Request) -> Response:
         errors.append("password", "Password is required.")
 
     if errors:
-        raise ValidationError(errors=errors, type="login_failure")
+        raise ValidationError(errors=errors, problem_type="login_failure")
 
     if password != "password":
         raise BadRequestError("Invalid email or password")
