@@ -5,8 +5,8 @@ from kupala.requests import Request
 from kupala.responses import Response
 from kupala.validation import InvalidParam
 
-type SyncExceptionHandler = typing.Callable[[Request, BaseException], Response]
-type AsyncExceptionHandler = typing.Callable[[Request, BaseException], typing.Awaitable[Response]]
+type SyncExceptionHandler = typing.Callable[[Request[typing.Any], BaseException], Response]
+type AsyncExceptionHandler = typing.Callable[[Request[typing.Any], BaseException], typing.Awaitable[Response]]
 type ExceptionHandler = SyncExceptionHandler | AsyncExceptionHandler
 
 
