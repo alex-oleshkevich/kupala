@@ -30,6 +30,8 @@ class Kupala:
     def cli(self) -> None: ...
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        scope["state"]["app"] = self
+
         if scope["type"] == "lifespan":
             return await self._lifespan(scope, receive, send)
 
