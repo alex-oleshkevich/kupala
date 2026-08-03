@@ -76,6 +76,12 @@ class ResponseBuilder:
     def with_delete_cookie(self) -> typing.Self:
         return self
 
+    def with_signed_cookie(self) -> typing.Self:
+        return self
+
+    def with_encrypted_cookie(self) -> typing.Self:
+        return self
+
 
 def response(
     request: Request,
