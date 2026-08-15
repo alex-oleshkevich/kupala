@@ -10,6 +10,7 @@ dependencies = [
     "jinja2>=3.0",
     "python-multipart>=0.0.20",
     "starsessions>=2.2.1",
+    "asgiref>=3.12.1",
 ]
 
 [build-system]
@@ -20,6 +21,14 @@ build-backend = "uv_build"
 module-root = ""
 
 [dependency-groups]
+dev = [
+    "click>=8.4.2",
+    "httpx2>=2.9.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "uvicorn>=0.52.1",
+    "zuban>=0.9.1",
+]
 testing = [
     "itsdangerous>=2.2",
     "mypy>=2.0",
