@@ -490,7 +490,7 @@ class TestCompileRoutes:
         async def current_user(request: Request) -> Response:
             return response(request).text("me")
 
-        routes.get("/users/{user_id}")(typing.cast(typing.Callable[[Request], Response], Mock()))
+        routes.get("/users/{user_id}", name="user_detail")(typing.cast(typing.Callable[[Request], Response], Mock()))
 
         app = Kupala("tests", routes=routes)
 
