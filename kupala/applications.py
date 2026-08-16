@@ -12,7 +12,6 @@ from starlette.types import Receive, Scope, Send
 from kupala.dependencies import DependencyResolver
 from kupala.error_handlers import (
     ErrorHandler,
-    ErrorHandlers,
     http_error_handler,
     server_error_handler,
     websocket_error_handler,
@@ -43,20 +42,18 @@ class Kupala:
         self.middleware = list(middleware)
         self.websocket_middleware = list(websocket_middleware)
         self.resolver = DependencyResolver()
-        self.error_handlers = ErrorHandlers(
-            {
-                BaseHTTPError: http_error_handler,
-                HTTPException: http_error_handler,
-                Exception: server_error_handler,
-                WebSocketError: websocket_error_handler,
-                **(error_handlers or {}),
-            }
-        )
+        self.error_handlers = {
+            BaseHTTPError: http_error_handler,
+            HTTPException: http_error_handler,
+            Exception: server_error_handler,
+            WebSocketError: websocket_error_handler,
+            **(error_handlers or {}),
+        }
 
         asgi_middleware = [
             ASGIMiddlewareWrapper(ServerErrorMiddleware, handler=server_error_handler),
             *asgi_middleware,
-            ASGIMiddlewareWrapper(ExceptionMiddleware, handlers=error_handlers),
+            ASGIMiddlewareWrapper(ExceptionMiddleware, handlers=self.error_handlers),
         ]
         app = Router(
             lifespan=self.lifespan,

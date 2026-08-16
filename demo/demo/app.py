@@ -23,7 +23,7 @@ async def example_middleware(request: Request, call_next: CallNext) -> Response:
 
 
 @routes.get("/")
-@routes.get("/overview")
+@routes.get("/overview", name="overview")
 async def index_view(request: Request) -> Response:
     return response(request).text("hi")
 
