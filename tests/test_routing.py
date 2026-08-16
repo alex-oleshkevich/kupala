@@ -118,7 +118,7 @@ def routes(events: list[str]) -> Routes:
     metadata_routes = Routes(prefix="/api/", namespace="admin")
 
     @metadata_routes.get("/users/", name="list_users")
-    async def metadata_endpoint(request: Request) -> Response:
+    async def metadata_endpoint(request: Request) -> Response:  # pragma: no cover
         return response(request).text("users")
 
     routes.include(metadata_routes)
@@ -132,7 +132,7 @@ def nested_routes(events: list[str]) -> Routes:
     api_routes = routes.group("/api", namespace="api")
     users_routes = api_routes.group("/users", namespace="users")
 
-    async def group_middleware(request: Request, call_next: CallNext) -> Response:
+    async def group_middleware(request: Request, call_next: CallNext) -> Response:  # pragma: no cover
         events.append("group-before")
         result = await call_next(request)
         events.append("group-after")
@@ -145,7 +145,7 @@ def nested_routes(events: list[str]) -> Routes:
     )
 
     @private_routes.get("/profile", name="profile")
-    async def profile_endpoint(request: Request) -> Response:
+    async def profile_endpoint(request: Request) -> Response:  # pragma: no cover
         events.append("profile")
         return response(request).text("profile")
 
@@ -331,7 +331,27 @@ class TestCompileRoutes:
         assert any(isinstance(route, Mount) for route in compiled_routes)
         assert any(isinstance(route, Host) for route in compiled_routes)
 
-    def test_route_definitions_remain_included_as_children(self, routes: Routes) -> None:
-        assert len(routes.definitions) == 11
+    def test_route_definitions_remain_included_as_children(self) -> None:
+        routes = Routes()
+        child = Routes()
+
+        @child.get("/included")
+        async def included_endpoint(request: Request) -> Response:  # pragma: no cover
+            return response(request).text("included")
+
+        routes.include(child)
+
+        assert len(routes.definitions) == 0
         assert len(routes._children) == 1
         assert len(routes._children[0].definitions) == 1
+
+    def test_routes_collection_protocol(self) -> None:
+        routes = Routes()
+
+        @routes.get("/collection")
+        async def collection_endpoint(request: Request) -> Response:  # pragma: no cover
+            return response(request).text("collection")
+
+        assert len(routes) == 1
+        assert str(routes) == "Routes(1 definitions)"
+        assert tuple(routes) == tuple(routes.definitions)
