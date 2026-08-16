@@ -81,11 +81,7 @@ class TestBaseHTTPError:
 
         app = Kupala("tests", routes=routes)
 
-        with (
-            TestClient(app) as client,
-            pytest.raises(WebSocketDisconnect) as error,
-            client.websocket_connect("/socket"),
-        ):
-            pass
+        with TestClient(app) as client, pytest.raises(WebSocketDisconnect) as error:
+            client.websocket_connect("/socket").__enter__()
 
         assert error.value.code == 4403

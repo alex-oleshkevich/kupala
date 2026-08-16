@@ -8,92 +8,143 @@ __all__ = ["Response", "response"]
 
 
 class ResponseBuilder:
-    def __init__(
+    def __init__(self, request: Request) -> None:
+        self._request = request
+        self._cookies: dict[str, str] = {}
+        self._delete_cookies: tuple[str, ...] = ()
+
+    def clone(
         self,
-        request: Request,
+        *,
+        cookies: typing.Mapping[str, str] | None = None,
+        delete_cookies: typing.Sequence[str] | None = None,
+    ) -> typing.Self:
+        clone = type(self)(self._request)
+        clone._cookies = dict(self._cookies if cookies is None else cookies)
+        clone._delete_cookies = tuple(self._delete_cookies if delete_cookies is None else delete_cookies)
+        return clone
+
+    def _apply_cookies(self, response: Response) -> Response:
+        for key, value in self._cookies.items():
+            response.set_cookie(key, value)
+        for key in self._delete_cookies:
+            response.delete_cookie(key)
+        return response
+
+    def template(
+        self,
+        template_name: str,
+        context: typing.Mapping[str, typing.Any] | None = None,
+        *,
         status_code: int = 200,
         headers: typing.Mapping[str, str] | None = None,
-        cookies: typing.Mapping[str, str] | None = None,
-        delete_cookies: typing.Sequence[str] = (),
-    ) -> None:
-        self._request = request
-        self._status_code = status_code
-        self._headers = headers
-        self._cookies = cookies
-        self._delete_cookies = delete_cookies
+    ) -> Response:
+        return self._apply_cookies(Response(status_code=status_code, headers=headers))
 
-    def template(self, template_name: str, context: typing.Mapping[str, typing.Any] | None = None) -> Response:
-        return Response()
+    def json(
+        self,
+        *,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+    ) -> Response:
+        return self._apply_cookies(Response(status_code=status_code, headers=headers))
 
-    def json(self) -> Response:
-        return Response()
+    def empty(
+        self,
+        *,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+    ) -> Response:
+        return self._apply_cookies(Response(status_code=status_code, headers=headers))
 
-    def empty(self) -> Response:
-        return Response()
+    def text(
+        self,
+        text: str,
+        *,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+    ) -> Response:
+        return self._apply_cookies(PlainTextResponse(text, status_code=status_code, headers=headers))
 
-    def text(self, text: str) -> Response:
-        return PlainTextResponse(text, status_code=self._status_code, headers=self._headers)
+    def html(
+        self,
+        *,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+    ) -> Response:
+        return self._apply_cookies(Response(status_code=status_code, headers=headers))
 
-    def html(self) -> Response:
-        return Response()
+    def redirect(
+        self,
+        *,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+    ) -> Response:
+        return self._apply_cookies(Response(status_code=status_code, headers=headers))
 
-    def redirect(self) -> Response:
-        return Response()
+    def redirect_to(
+        self,
+        *,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+    ) -> Response:
+        return self._apply_cookies(Response(status_code=status_code, headers=headers))
 
-    def redirect_to(self) -> Response:
-        return Response()
+    def back(
+        self,
+        *,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+    ) -> Response:
+        return self._apply_cookies(Response(status_code=status_code, headers=headers))
 
-    def back(self) -> Response:
-        return Response()
+    def file(
+        self,
+        *,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+    ) -> Response:
+        return self._apply_cookies(Response(status_code=status_code, headers=headers))
 
-    def file(self) -> Response:
-        return Response()
+    def stream(
+        self,
+        *,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+    ) -> Response:
+        return self._apply_cookies(Response(status_code=status_code, headers=headers))
 
-    def stream(self) -> Response:
-        return Response()
-
-    def sse(self) -> Response:
-        return Response()
+    def sse(
+        self,
+        *,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+    ) -> Response:
+        return self._apply_cookies(Response(status_code=status_code, headers=headers))
 
     def with_flash(self, message: str, category: str) -> typing.Self:
-        return self
+        return self.clone()
 
-    def with_cookie(self) -> typing.Self:
-        return self
-
-    def with_header(self) -> typing.Self:
-        return self
-
-    def with_status(self) -> typing.Self:
-        return self
+    def with_cookie(self, key: str, value: str) -> typing.Self:
+        cookies = self._cookies.copy()
+        cookies[key] = value
+        return self.clone(cookies=cookies)
 
     def with_vary(self) -> typing.Self:
-        return self
+        return self.clone()
 
     def with_cache(self) -> typing.Self:
-        return self
+        return self.clone()
 
-    def with_delete_cookie(self) -> typing.Self:
-        return self
+    def with_delete_cookie(self, key: str) -> typing.Self:
+        return self.clone(delete_cookies=(*self._delete_cookies, key))
 
     def with_signed_cookie(self) -> typing.Self:
-        return self
+        return self.clone()
 
     def with_encrypted_cookie(self) -> typing.Self:
-        return self
+        return self.clone()
 
 
-def response(
-    request: Request,
-    status_code: int = 200,
-    headers: dict[str, str] | None = None,
-    cookies: dict[str, str] | None = None,
-    delete_cookies: typing.Sequence[str] = (),
-) -> ResponseBuilder:
-    return ResponseBuilder(
-        request=request,
-        status_code=status_code,
-        headers=headers,
-        cookies=cookies,
-        delete_cookies=delete_cookies,
-    )
+def response(request: Request) -> ResponseBuilder:
+    return ResponseBuilder(request)

@@ -23,8 +23,12 @@ Be very brief in short. If something can be expressed in single word "Yes", then
 - do not cut edges, ask user if in doubt
 - spawn agent with more capable model and higher effor for complex task for architecture decisions
 - use language servers for code navigation and search
+- use Zuban or another Python language server for symbol navigation, references, and type-aware code changes; use `rg` only for textual searches or when language-server navigation is unavailable
 - always make sure that mypy type check pass when you complete your task
+- always run `ruff check kupala tests` after code changes and resolve all findings
 - use `justfile` recipes instead of shell or temporary scripts.
+
+Important: this git history contains previous version. The current version is complete rethinking and rewrite. Do not peek the old code!
 
 ## Testing
 
