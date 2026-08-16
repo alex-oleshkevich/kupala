@@ -31,6 +31,7 @@ Be very brief in short. If something can be expressed in single word "Yes", then
 - do not create one-time use fixtures, inline then into test function
 - use classes to group related tests `TestRoutes`, instead of separate functions.
 - use functions for standalone features that cannot be grouped
+- `tests` directory is included into coverage, we don't want dead tests. Use `# pragma: no cover` to exclude dead paths
 
 # Components
 
