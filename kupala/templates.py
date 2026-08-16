@@ -12,7 +12,15 @@ class Templates(typing.Protocol):
 
 
 class JinjaTemplates:
-    def __init__(self, env: jinja2.Environment) -> None:
+    def __init__(
+        self,
+        env: jinja2.Environment,
+        *,
+        filters: dict[str, typing.Callable[..., typing.Any]] | None = None,
+        globals: dict[str, typing.Any] | None = None,
+        tests: dict[str, typing.Callable[..., bool]] | None = None,
+        extensions: typing.Iterable[str] = (),
+    ) -> None:
         self.env = env
 
     def render(
