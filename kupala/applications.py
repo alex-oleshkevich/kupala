@@ -18,7 +18,7 @@ from kupala.error_handlers import (
     websocket_error_handler,
 )
 from kupala.errors import BaseHTTPError
-from kupala.middleware import Middleware, MiddlewareStack
+from kupala.middleware import Middleware
 from kupala.routing import Routes
 from kupala.websockets import WebSocketError
 
@@ -39,7 +39,7 @@ class Kupala:
         self.routes = routes
         self.debug = debug
         self.commands = commands
-        self.middleware = MiddlewareStack(middleware)
+        self.middleware = list(middleware)
         self.services = DependencyResolver()
         self.error_handlers = ErrorHandlers(
             {
