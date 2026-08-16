@@ -40,7 +40,7 @@ class Kupala:
         self.debug = debug
         self.commands = commands
         self.middleware = list(middleware)
-        self.services = DependencyResolver()
+        self.resolver = DependencyResolver()
         self.error_handlers = ErrorHandlers(
             {
                 BaseHTTPError: http_error_handler,
@@ -56,7 +56,10 @@ class Kupala:
             *asgi_middleware,
             ASGIMiddlewareWrapper(ExceptionMiddleware, handlers=error_handlers),
         ]
-        app = Router(routes=routes.compile(self), lifespan=self.lifespan)
+        app = Router(
+            lifespan=self.lifespan,
+            routes=routes.compile(self.resolver, tuple(self.middleware)),
+        )
         for cls, args, kwargs in reversed(asgi_middleware):
             app = cls(app, *args, **kwargs)
         self._asgi_app = app

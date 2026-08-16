@@ -1,6 +1,6 @@
 import typing
 
-from starlette.responses import Response
+from starlette.responses import PlainTextResponse, Response
 
 from kupala.requests import Request
 
@@ -31,8 +31,8 @@ class ResponseBuilder:
     def empty(self) -> Response:
         return Response()
 
-    def text(self) -> Response:
-        return Response()
+    def text(self, text: str) -> Response:
+        return PlainTextResponse(text, status_code=self._status_code, headers=self._headers)
 
     def html(self) -> Response:
         return Response()

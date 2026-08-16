@@ -2,9 +2,11 @@ import typing
 
 import pytest
 from starlette.applications import Starlette
+from starlette.middleware import Middleware as ASGIMiddlewareWrapper
 from starlette.responses import PlainTextResponse
 from starlette.routing import Host, Mount, Route, WebSocketRoute
 from starlette.testclient import TestClient
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kupala.applications import Kupala
 from kupala.middleware import (
@@ -19,6 +21,17 @@ from kupala.routing import (
     Routes,
 )
 from kupala.websockets import WebSocket
+
+
+class HostEventMiddleware:
+    def __init__(self, app: ASGIApp, events: list[str]) -> None:
+        self.app = app
+        self.events = events
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        self.events.append("before")
+        await self.app(scope, receive, send)
+        self.events.append("after")
 
 
 @pytest.fixture
@@ -233,7 +246,7 @@ class TestRouteDefinitions:
 
     def test_nested_groups_compile_prefix_and_namespace(self, nested_routes: Routes) -> None:
         app = Kupala("tests", routes=nested_routes)
-        compiled_routes = nested_routes.compile(app)
+        compiled_routes = nested_routes.compile(app.resolver, tuple(app.middleware))
 
         profile_route = next(
             route for route in compiled_routes if isinstance(route, Route) and route.name == "api.users.private.profile"
@@ -275,17 +288,45 @@ class TestHostRoutes:
         assert http_response.status_code == 200
         assert http_response.text == "hosted"
 
+    def test_host_middleware_runs_after_host_match(self) -> None:
+        events: list[str] = []
+
+        async def hosted_endpoint(request: Request) -> PlainTextResponse:
+            events.append("endpoint")
+            return PlainTextResponse("hosted")
+
+        routes = Routes()
+        routes.host(
+            "api.example.com",
+            Starlette(routes=[Route("/", hosted_endpoint)]),
+            asgi_middleware=[ASGIMiddlewareWrapper(HostEventMiddleware, events=events)],
+        )
+        app = Kupala("tests", routes=routes)
+
+        with TestClient(app) as client:
+            http_response = client.get("http://api.example.com/")
+
+            assert http_response.status_code == 200
+            assert http_response.text == "hosted"
+            assert events == ["before", "endpoint", "after"]
+
+            events.clear()
+            http_response = client.get("http://other.example.com/")
+
+        assert http_response.status_code == 404
+        assert events == []
+
 
 class TestCompileRoutes:
     def test_compiles_all_definition_types(self, routes: Routes, composed_routes: Routes) -> None:
         app = Kupala("tests", routes=routes)
-        compiled_routes = routes.compile(app)
+        compiled_routes = routes.compile(app.resolver, tuple(app.middleware))
 
         assert any(isinstance(route, Route) for route in compiled_routes)
         assert any(isinstance(route, WebSocketRoute) for route in compiled_routes)
 
         app = Kupala("tests", routes=composed_routes)
-        compiled_routes = composed_routes.compile(app)
+        compiled_routes = composed_routes.compile(app.resolver, tuple(app.middleware))
 
         assert any(isinstance(route, Mount) for route in compiled_routes)
         assert any(isinstance(route, Host) for route in compiled_routes)

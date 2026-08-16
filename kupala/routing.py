@@ -14,7 +14,6 @@ from kupala.dependencies import DependencyResolver
 from kupala.middleware import (
     CallNext,
     Middleware,
-    MiddlewareStack,
     WebSocketCallNext,
     WebSocketMiddleware,
 )
@@ -61,11 +60,7 @@ class HostDefinition:
     host: str
     name: str | None
     app: ASGIApp
-
-
-class RouteApp(typing.Protocol):
-    services: DependencyResolver
-    middleware: MiddlewareStack
+    asgi_middleware: tuple[ASGIMiddlewareWrapper, ...]
 
 
 class Routes:
@@ -200,12 +195,14 @@ class Routes:
         app: ASGIApp,
         *,
         name: str | None = None,
+        asgi_middleware: typing.Sequence[ASGIMiddlewareWrapper] = (),
     ) -> None:
         self.definitions.append(
             HostDefinition(
                 app=app,
                 name=name,
                 host=host,
+                asgi_middleware=tuple(asgi_middleware),
             )
         )
 
@@ -229,7 +226,7 @@ class Routes:
 
         return decorator
 
-    def compile(self, app: RouteApp) -> list[BaseRoute]:
+    def compile(self, binder: DependencyResolver, http_middleware: tuple[Middleware, ...]) -> list[BaseRoute]:
         def _visit(
             group: Routes,
             parent_prefix: str,
@@ -253,10 +250,14 @@ class Routes:
                             )
                         )
                     case HostDefinition():
+                        host_app = definition.app
+                        for cls, args, kwargs in reversed(definition.asgi_middleware):
+                            host_app = cls(host_app, *args, **kwargs)
+
                         compiled.append(
                             Host(
                                 host=definition.host,
-                                app=definition.app,
+                                app=host_app,
                                 name=join_namespace(namespace, definition.name or ""),
                             )
                         )
@@ -264,16 +265,14 @@ class Routes:
                     case WebSocketDefinition():
                         route_name = join_namespace(namespace, definition.name or definition.fn.__name__)
                         route_path = join_path(prefix, definition.path)
-                        injected_endpoint = DependencyResolver.of(app).wrap(definition.fn)
-                        executable_endpoint = chain_websocket_middleware(
-                            injected_endpoint,
-                            [*definition.middleware],
-                        )
                         compiled.append(
                             WebSocketRoute(
                                 path=route_path,
                                 name=route_name,
-                                endpoint=executable_endpoint,
+                                endpoint=chain_websocket_middleware(
+                                    definition.fn,
+                                    [*definition.middleware],
+                                ),
                             )
                         )
 
@@ -281,20 +280,17 @@ class Routes:
                         route_name = join_namespace(namespace, definition.name or definition.fn.__name__)
                         route_path = join_path(prefix, definition.path)
                         middleware = (*parent_middleware, *group.middleware)
-                        injected_endpoint = DependencyResolver.of(app).wrap(definition.fn)
-                        executable_endpoint = chain_middleware(
-                            injected_endpoint,
-                            [*app.middleware, *middleware, *definition.middleware],
-                        )
-                        if isinstance(definition, RouteDefinition):
-                            compiled.append(
-                                Route(
-                                    path=route_path,
-                                    name=route_name,
-                                    methods=definition.methods,
-                                    endpoint=executable_endpoint,
-                                )
+                        compiled.append(
+                            Route(
+                                path=route_path,
+                                name=route_name,
+                                methods=definition.methods,
+                                endpoint=chain_middleware(
+                                    definition.fn,
+                                    [*http_middleware, *middleware, *definition.middleware],
+                                ),
                             )
+                        )
 
             for child in group._children:
                 compiled.extend(_visit(child, prefix, namespace, middleware))
