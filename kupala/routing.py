@@ -69,12 +69,14 @@ class Routes:
         *,
         prefix: str = "",
         middleware: typing.Sequence[Middleware] = (),
+        websocket_middleware: typing.Sequence[WebSocketMiddleware] = (),
         namespace: str = "",
         children: typing.Sequence[Routes] = (),
     ) -> None:
         self.prefix = prefix
         self.namespace = namespace
         self.middleware = list(middleware)
+        self.websocket_middleware = list(websocket_middleware)
 
         self.definitions: list[RouteDefinition | WebSocketDefinition | MountDefinition | HostDefinition] = []
         self._children: list[Routes] = list(children)
@@ -83,10 +85,16 @@ class Routes:
         self._children.append(routes)
 
     def group(
-        self, prefix: str = "", *, namespace: str = "", middleware: typing.Sequence[Middleware] = ()
+        self,
+        prefix: str = "",
+        *,
+        namespace: str = "",
+        middleware: typing.Sequence[Middleware] = (),
+        websocket_middleware: typing.Sequence[WebSocketMiddleware] = (),
     ) -> typing.Self:
         child = self.__class__(
             middleware=middleware,
+            websocket_middleware=websocket_middleware,
             prefix=prefix,
             namespace=namespace,
         )
@@ -226,17 +234,24 @@ class Routes:
 
         return decorator
 
-    def compile(self, binder: DependencyResolver, http_middleware: tuple[Middleware, ...]) -> list[BaseRoute]:
+    def compile(
+        self,
+        binder: DependencyResolver,
+        http_middleware: tuple[Middleware, ...],
+        websocket_middleware: tuple[WebSocketMiddleware, ...] = (),
+    ) -> list[BaseRoute]:
         def _visit(
             group: Routes,
             parent_prefix: str,
             parent_namespace: str,
             parent_middleware: tuple[Middleware, ...],
+            parent_websocket_middleware: tuple[WebSocketMiddleware, ...],
         ) -> list[BaseRoute]:
             compiled: list[BaseRoute] = []
             prefix = join_path(parent_prefix, group.prefix)
             namespace = join_namespace(parent_namespace, group.namespace)
             middleware = (*parent_middleware, *group.middleware)
+            group_websocket_middleware = (*parent_websocket_middleware, *group.websocket_middleware)
 
             for definition in group.definitions:
                 match definition:
@@ -271,7 +286,7 @@ class Routes:
                                 name=route_name,
                                 endpoint=chain_websocket_middleware(
                                     definition.fn,
-                                    [*definition.middleware],
+                                    [*websocket_middleware, *group_websocket_middleware, *definition.middleware],
                                 ),
                             )
                         )
@@ -293,11 +308,19 @@ class Routes:
                         )
 
             for child in group._children:
-                compiled.extend(_visit(child, prefix, namespace, middleware))
+                compiled.extend(
+                    _visit(
+                        child,
+                        prefix,
+                        namespace,
+                        middleware,
+                        group_websocket_middleware,
+                    )
+                )
 
             return compiled
 
-        return _visit(self, "", "", ())
+        return _visit(self, "", "", (), ())
 
     def __len__(self) -> int:
         return len(self.definitions)

@@ -1,4 +1,5 @@
 import typing
+from unittest.mock import Mock
 
 import pytest
 from starlette.applications import Starlette
@@ -7,6 +8,7 @@ from starlette.responses import PlainTextResponse
 from starlette.routing import Host, Mount, Route, WebSocketRoute
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.websockets import WebSocketDisconnect
 
 from kupala.applications import Kupala
 from kupala.middleware import (
@@ -265,6 +267,91 @@ class TestWebSocketRoutes:
             "websocket-endpoint",
             "websocket-after",
         ]
+
+    def test_application_and_group_websocket_middleware_order(self) -> None:
+        events: list[str] = []
+
+        async def http_middleware(request: Request, call_next: CallNext) -> Response:
+            raise AssertionError("HTTP middleware must not run for WebSocket routes")
+
+        async def application_websocket_middleware(
+            websocket: WebSocket,
+            call_next: WebSocketCallNext,
+        ) -> None:
+            events.append("application-before")
+            await call_next(websocket)
+            events.append("application-after")
+
+        async def group_websocket_middleware(
+            websocket: WebSocket,
+            call_next: WebSocketCallNext,
+        ) -> None:
+            events.append("group-before")
+            await call_next(websocket)
+            events.append("group-after")
+
+        async def route_websocket_middleware(
+            websocket: WebSocket,
+            call_next: WebSocketCallNext,
+        ) -> None:
+            events.append("route-before")
+            await call_next(websocket)
+            events.append("route-after")
+
+        routes = Routes().group(
+            "/scope",
+            websocket_middleware=[group_websocket_middleware],
+        )
+
+        @routes.websocket("/socket", middleware=[route_websocket_middleware])
+        async def websocket_endpoint(websocket: WebSocket) -> None:
+            events.append("endpoint")
+            await websocket.accept()
+            await websocket.send_text("ready")
+
+        app = Kupala(
+            "tests",
+            routes=routes,
+            middleware=[http_middleware],
+            websocket_middleware=[application_websocket_middleware],
+        )
+
+        with TestClient(app) as client, client.websocket_connect("/scope/socket") as websocket:
+            assert websocket.receive_text() == "ready"
+
+        assert events == [
+            "application-before",
+            "group-before",
+            "route-before",
+            "endpoint",
+            "route-after",
+            "group-after",
+            "application-after",
+        ]
+
+    def test_websocket_middleware_can_short_circuit(self) -> None:
+        events: list[str] = []
+
+        async def blocking_middleware(
+            websocket: WebSocket,
+            call_next: WebSocketCallNext,
+        ) -> None:
+            events.append("blocked")
+            await websocket.close(code=4403)
+
+        routes = Routes()
+        endpoint = typing.cast(typing.Callable[[WebSocket], typing.Awaitable[None]], Mock())
+        routes.websocket("/blocked", name="blocked", middleware=[blocking_middleware])(endpoint)
+
+        app = Kupala("tests", routes=routes)
+
+        with TestClient(app) as client:
+            websocket = client.websocket_connect("/blocked")
+            with pytest.raises(WebSocketDisconnect) as error:
+                websocket.__enter__()
+
+        assert error.value.code == 4403
+        assert events == ["blocked"]
 
 
 class TestMountedRoutes:

@@ -18,7 +18,7 @@ from kupala.error_handlers import (
     websocket_error_handler,
 )
 from kupala.errors import BaseHTTPError
-from kupala.middleware import Middleware
+from kupala.middleware import Middleware, WebSocketMiddleware
 from kupala.routing import Routes
 from kupala.websockets import WebSocketError
 
@@ -31,6 +31,7 @@ class Kupala:
         routes: Routes,
         debug: bool = False,
         middleware: typing.Sequence[Middleware] = (),
+        websocket_middleware: typing.Sequence[WebSocketMiddleware] = (),
         asgi_middleware: typing.Sequence[ASGIMiddlewareWrapper] = (),
         commands: typing.Sequence[click.Command] = (),
         error_handlers: typing.Mapping[type[Exception], ErrorHandler] | None = None,
@@ -40,6 +41,7 @@ class Kupala:
         self.debug = debug
         self.commands = commands
         self.middleware = list(middleware)
+        self.websocket_middleware = list(websocket_middleware)
         self.resolver = DependencyResolver()
         self.error_handlers = ErrorHandlers(
             {
@@ -58,7 +60,11 @@ class Kupala:
         ]
         app = Router(
             lifespan=self.lifespan,
-            routes=routes.compile(self.resolver, tuple(self.middleware)),
+            routes=routes.compile(
+                self.resolver,
+                tuple(self.middleware),
+                tuple(self.websocket_middleware),
+            ),
         )
         for cls, args, kwargs in reversed(asgi_middleware):
             app = cls(app, *args, **kwargs)
