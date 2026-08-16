@@ -63,6 +63,10 @@ class HostDefinition:
     asgi_middleware: tuple[ASGIMiddlewareWrapper, ...]
 
 
+class RouteConflictError(ValueError):
+    """Raised when route definitions create an ambiguous application."""
+
+
 class Routes:
     def __init__(
         self,
@@ -240,6 +244,28 @@ class Routes:
         http_middleware: tuple[Middleware, ...],
         websocket_middleware: tuple[WebSocketMiddleware, ...] = (),
     ) -> list[BaseRoute]:
+        route_names: dict[str, str] = {}
+        http_routes: dict[tuple[str, str], str] = {}
+
+        def register_name(name: str, description: str) -> None:
+            if not name:
+                return
+
+            previous = route_names.get(name)
+            if previous is not None:
+                raise RouteConflictError(f"Duplicate route name {name!r}: {description} conflicts with {previous}.")
+            route_names[name] = description
+
+        def register_http_route(path: str, methods: tuple[str, ...], name: str) -> None:
+            for method in dict.fromkeys(methods):
+                key = (path, method)
+                previous = http_routes.get(key)
+                if previous is not None:
+                    raise RouteConflictError(
+                        f"Duplicate HTTP route {method} {path!r}: {name!r} conflicts with {previous!r}."
+                    )
+                http_routes[key] = name
+
         def _visit(
             group: Routes,
             parent_prefix: str,
@@ -256,15 +282,19 @@ class Routes:
             for definition in group.definitions:
                 match definition:
                     case MountDefinition():
+                        route_name = join_namespace(namespace, definition.name or "")
+                        register_name(route_name, f"mount {definition.path!r}")
                         compiled.append(
                             Mount(
                                 app=definition.app,
                                 middleware=definition.asgi_middleware,
                                 path=join_path(prefix, definition.path),
-                                name=join_namespace(namespace, definition.name or ""),
+                                name=route_name,
                             )
                         )
                     case HostDefinition():
+                        route_name = join_namespace(namespace, definition.name or "")
+                        register_name(route_name, f"host {definition.host!r}")
                         host_app = definition.app
                         for cls, args, kwargs in reversed(definition.asgi_middleware):
                             host_app = cls(host_app, *args, **kwargs)
@@ -273,13 +303,14 @@ class Routes:
                             Host(
                                 host=definition.host,
                                 app=host_app,
-                                name=join_namespace(namespace, definition.name or ""),
+                                name=route_name,
                             )
                         )
 
                     case WebSocketDefinition():
                         route_name = join_namespace(namespace, definition.name or definition.fn.__name__)
                         route_path = join_path(prefix, definition.path)
+                        register_name(route_name, f"WebSocket route {route_path!r}")
                         compiled.append(
                             WebSocketRoute(
                                 path=route_path,
@@ -294,6 +325,8 @@ class Routes:
                     case RouteDefinition():
                         route_name = join_namespace(namespace, definition.name or definition.fn.__name__)
                         route_path = join_path(prefix, definition.path)
+                        register_name(route_name, f"HTTP route {route_path!r}")
+                        register_http_route(route_path, definition.methods, route_name)
                         middleware = (*parent_middleware, *group.middleware)
                         compiled.append(
                             Route(

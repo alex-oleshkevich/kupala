@@ -19,6 +19,7 @@ from kupala.middleware import (
 from kupala.requests import Request
 from kupala.responses import Response, response
 from kupala.routing import (
+    RouteConflictError,
     RouteDefinition,
     Routes,
 )
@@ -442,3 +443,58 @@ class TestCompileRoutes:
         assert len(routes) == 1
         assert str(routes) == "Routes(1 definitions)"
         assert tuple(routes) == tuple(routes.definitions)
+
+    def test_rejects_duplicate_http_routes(self) -> None:
+        routes = Routes()
+        endpoint = typing.cast(typing.Callable[[Request], Response], Mock())
+        routes.get("/users", name="first")(endpoint)
+        routes.get("/users", name="second")(endpoint)
+
+        with pytest.raises(RouteConflictError, match="Duplicate HTTP route GET '/users'"):
+            Kupala("tests", routes=routes)
+
+    def test_rejects_duplicate_nested_http_routes(self) -> None:
+        routes = Routes()
+        first = routes.group("/api")
+        second = routes.group("/api")
+        endpoint = typing.cast(typing.Callable[[Request], Response], Mock())
+        first.get("/users", name="first")(endpoint)
+        second.get("/users", name="second")(endpoint)
+
+        with pytest.raises(RouteConflictError, match="Duplicate HTTP route GET '/api/users'"):
+            Kupala("tests", routes=routes)
+
+    def test_rejects_duplicate_route_names(self) -> None:
+        routes = Routes()
+        endpoint = typing.cast(typing.Callable[[Request], Response], Mock())
+        routes.get("/users", name="shared")(endpoint)
+        routes.get("/accounts", name="shared")(endpoint)
+
+        with pytest.raises(RouteConflictError, match="Duplicate route name 'shared'"):
+            Kupala("tests", routes=routes)
+
+    def test_allows_same_path_for_different_http_methods(self) -> None:
+        routes = Routes()
+        endpoint = typing.cast(typing.Callable[[Request], Response], Mock())
+        routes.get("/users", name="get_users")(endpoint)
+        routes.post("/users", name="create_user")(endpoint)
+
+        app = Kupala("tests", routes=routes)
+
+        assert len(routes.compile(app.resolver, tuple(app.middleware))) == 2
+
+    def test_preserves_static_before_parameter_route_order(self) -> None:
+        routes = Routes()
+
+        @routes.get("/users/me")
+        async def current_user(request: Request) -> Response:
+            return response(request).text("me")
+
+        routes.get("/users/{user_id}")(typing.cast(typing.Callable[[Request], Response], Mock()))
+
+        app = Kupala("tests", routes=routes)
+
+        with TestClient(app) as client:
+            http_response = client.get("/users/me")
+
+        assert http_response.text == "me"
