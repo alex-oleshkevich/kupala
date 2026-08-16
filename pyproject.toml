@@ -59,6 +59,7 @@ exclude = ['var', '.venv', '.git']
 fixable = ["ALL"]
 
 [tool.pytest.ini_options]
+anyio_mode = 'auto'
 norecursedirs = [
     "node_modules",
     "assets",
