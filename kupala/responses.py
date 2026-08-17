@@ -191,19 +191,10 @@ class ResponseBuilder:
         response = SSEResponse(status_code=status_code, headers=headers)
         return self._apply_cookies(response)
 
-    def with_flash(self, message: str, category: str) -> typing.Self:
-        return self.clone()
-
     def with_cookie(self, key: str, value: str) -> typing.Self:
         cookies = self._cookies.copy()
         cookies[key] = value
         return self.clone(cookies=cookies)
-
-    def with_vary(self) -> typing.Self:
-        return self.clone()
-
-    def with_cache(self) -> typing.Self:
-        return self.clone()
 
     def with_delete_cookie(self, key: str) -> typing.Self:
         return self.clone(delete_cookies=(*self._delete_cookies, key))

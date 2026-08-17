@@ -2,6 +2,7 @@ import typing
 from unittest.mock import Mock
 
 import pytest
+from starlette.datastructures import URLPath
 
 from kupala.requests import Request
 from kupala.responses import BackResponse, Response, response
@@ -9,6 +10,123 @@ from tests.types import ScopeFactory
 
 
 class TestResponseBuilder:
+    def test_renders_a_template_and_applies_cookies(self, scope_f: ScopeFactory) -> None:
+        renderer = Mock()
+        rendered_response = Response(content="rendered", status_code=201)
+        renderer.render_to_response.return_value = rendered_response
+        request = Request(scope_f(state={"template_renderer": renderer}))
+        context = {"name": "Ada"}
+        builder = response(request).with_cookie("session", "token")
+
+        http_response = builder.template(
+            "profile.html",
+            context,
+            status_code=202,
+            headers={"X-Test": "yes"},
+            media_type="text/plain",
+        )
+
+        renderer.render_to_response.assert_called_once_with(
+            request,
+            "profile.html",
+            context,
+            status_code=202,
+            media_type="text/plain",
+            headers={"X-Test": "yes"},
+        )
+        assert http_response is rendered_response
+        assert http_response.body == b"rendered"
+        assert "session=token" in http_response.headers["set-cookie"]
+
+    def test_returns_a_text_response(self, scope_f: ScopeFactory) -> None:
+        request = Request(scope_f())
+        builder = response(request)
+
+        http_response = builder.text(
+            "hello",
+            status_code=201,
+            headers={"X-Test": "yes"},
+            media_type="text/markdown",
+        )
+
+        assert http_response.status_code == 201
+        assert http_response.body == b"hello"
+        assert http_response.headers["x-test"] == "yes"
+        assert http_response.headers["content-type"] == "text/markdown; charset=utf-8"
+
+    def test_returns_an_empty_response(self, scope_f: ScopeFactory) -> None:
+        request = Request(scope_f())
+        builder = response(request)
+
+        http_response = builder.empty(headers={"X-Test": "yes"})
+
+        assert http_response.status_code == 204
+        assert http_response.body == b""
+        assert http_response.headers["x-test"] == "yes"
+        assert "content-type" not in http_response.headers
+
+    def test_returns_an_html_response(self, scope_f: ScopeFactory) -> None:
+        request = Request(scope_f())
+        builder = response(request)
+
+        http_response = builder.html(
+            status_code=201,
+            headers={"X-Test": "yes"},
+            media_type="application/xhtml+xml",
+        )
+
+        assert http_response.status_code == 201
+        assert http_response.body == b""
+        assert http_response.headers["x-test"] == "yes"
+        assert http_response.headers["content-type"] == "application/xhtml+xml"
+
+    def test_returns_a_json_response(self, scope_f: ScopeFactory) -> None:
+        request = Request(scope_f())
+        builder = response(request)
+
+        http_response = builder.json(
+            {"ok": True, "items": [1]},
+            status_code=202,
+            headers={"X-Test": "yes"},
+        )
+
+        assert http_response.status_code == 202
+        assert http_response.body == b'{"ok":true,"items":[1]}'
+        assert http_response.headers["x-test"] == "yes"
+        assert http_response.headers["content-type"] == "application/json"
+
+    def test_redirects_to_a_url(self, scope_f: ScopeFactory) -> None:
+        request = Request(scope_f())
+        builder = response(request)
+
+        http_response = builder.redirect(
+            "/target?tab=details#summary",
+            status_code=307,
+            headers={"X-Test": "yes"},
+        )
+
+        assert http_response.status_code == 307
+        assert http_response.headers["location"] == "/target?tab=details#summary"
+        assert http_response.headers["x-test"] == "yes"
+
+    def test_redirects_to_a_named_route(self, scope_f: ScopeFactory) -> None:
+        router = Mock()
+        router.url_path_for.return_value = URLPath("/users/42")
+        request = Request(scope_f(router=router))
+        builder = response(request)
+
+        http_response = builder.redirect_to(
+            "user",
+            {"user_id": 42},
+            status_code=303,
+            headers={"X-Test": "yes"},
+        )
+
+        router.url_path_for.assert_called_once_with("user", user_id=42)
+        assert http_response.status_code == 303
+        assert http_response.headers["location"] == "http://testserver/users/42"
+        assert http_response.headers["x-test"] == "yes"
+
     def test_fluent_methods_clone_and_isolate_state(self) -> None:
         request = typing.cast(Request, Mock())
         builder = response(request)
@@ -17,9 +135,6 @@ class TestResponseBuilder:
         logged_out = builder.with_delete_cookie("session")
         overridden = builder.clone(cookies={"override": "value"}, delete_cookies=("old",))
         fluent_clones = (
-            builder.with_flash("message", "info"),
-            builder.with_vary(),
-            builder.with_cache(),
             builder.with_signed_cookie(),
             builder.with_encrypted_cookie(),
         )
