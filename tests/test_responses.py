@@ -1,8 +1,11 @@
 import typing
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from markupsafe import Markup
 from starlette.datastructures import URLPath
+from starlette.types import Receive
 
 from kupala.requests import Request
 from kupala.responses import BackResponse, Response, response
@@ -70,15 +73,26 @@ class TestResponseBuilder:
         builder = response(request)
 
         http_response = builder.html(
+            "<p>hello</p>",
             status_code=201,
             headers={"X-Test": "yes"},
             media_type="application/xhtml+xml",
         )
 
         assert http_response.status_code == 201
-        assert http_response.body == b""
+        assert http_response.body == b"<p>hello</p>"
         assert http_response.headers["x-test"] == "yes"
         assert http_response.headers["content-type"] == "application/xhtml+xml"
+
+    def test_returns_html_from_an_html_like_value(self, scope_f: ScopeFactory) -> None:
+        request = Request(scope_f())
+        builder = response(request).with_cookie("session", "token")
+
+        http_response = builder.html(Markup("<strong>trusted</strong>"))
+
+        assert http_response.body == b"<strong>trusted</strong>"
+        assert http_response.headers["content-type"] == "text/html; charset=utf-8"
+        assert "session=token" in http_response.headers["set-cookie"]
 
     def test_returns_a_json_response(self, scope_f: ScopeFactory) -> None:
         request = Request(scope_f())
@@ -126,6 +140,82 @@ class TestResponseBuilder:
         assert http_response.status_code == 303
         assert http_response.headers["location"] == "http://testserver/users/42"
         assert http_response.headers["x-test"] == "yes"
+
+    async def test_returns_a_file_response_and_applies_cookies(
+        self,
+        scope_f: ScopeFactory,
+        tmp_path: Path,
+    ) -> None:
+        file_path = tmp_path / "report.txt"
+        file_path.write_bytes(b"report contents")
+        request = Request(scope_f())
+        builder = response(request).with_cookie("session", "token")
+
+        http_response = builder.file(
+            file_path,
+            status_code=206,
+            headers={"X-Test": "yes"},
+            media_type="text/plain",
+            filename="report.txt",
+            stat_result=file_path.stat(),
+            content_disposition="inline",
+        )
+        messages: list[typing.Any] = []
+
+        receive = typing.cast(Receive, Mock())
+
+        async def send(message: typing.Any) -> None:
+            messages.append(message)
+
+        await http_response(scope_f(), receive, send)
+
+        body = b"".join(message["body"] for message in messages if message["type"] == "http.response.body")
+        assert http_response.status_code == 206
+        assert http_response.headers["x-test"] == "yes"
+        assert http_response.headers["content-type"] == "text/plain; charset=utf-8"
+        assert http_response.headers["content-length"] == "15"
+        assert http_response.headers["content-disposition"] == 'inline; filename="report.txt"'
+        assert "session=token" in http_response.headers["set-cookie"]
+        assert body == b"report contents"
+
+    async def test_streams_sync_content_and_applies_cookies(self, scope_f: ScopeFactory) -> None:
+        def chunks() -> typing.Iterator[str]:
+            yield "hello"
+            yield " world"
+
+        request = Request(scope_f())
+        builder = response(request).with_cookie("session", "token")
+        http_response = builder.stream(
+            chunks(),
+            status_code=206,
+            headers={"X-Test": "yes"},
+            media_type="text/plain",
+        )
+        messages: list[typing.Any] = []
+
+        receive = typing.cast(Receive, Mock())
+
+        async def send(message: typing.Any) -> None:
+            messages.append(message)
+
+        await http_response(scope_f(), receive, send)
+
+        body = b"".join(message["body"] for message in messages if message["type"] == "http.response.body")
+        assert http_response.status_code == 206
+        assert http_response.headers["x-test"] == "yes"
+        assert http_response.headers["content-type"] == "text/plain; charset=utf-8"
+        assert "session=token" in http_response.headers["set-cookie"]
+        assert body == b"hello world"
+
+    def test_returns_an_sse_response(self, scope_f: ScopeFactory) -> None:
+        request = Request(scope_f())
+        builder = response(request).with_cookie("session", "token")
+
+        http_response = builder.sse(status_code=201, headers={"X-Test": "yes"})
+
+        assert http_response.status_code == 201
+        assert http_response.headers["x-test"] == "yes"
+        assert "session=token" in http_response.headers["set-cookie"]
 
     def test_fluent_methods_clone_and_isolate_state(self) -> None:
         request = typing.cast(Request, Mock())

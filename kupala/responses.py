@@ -22,6 +22,10 @@ from kupala.templates import RendersToResponse
 __all__ = ["BackResponse", "Response", "response"]
 
 
+class HTMLLike(typing.Protocol):
+    def __html__(self) -> str: ...
+
+
 class ResponseBuilder:
     def __init__(self, request: Request) -> None:
         self._request = request
@@ -83,23 +87,27 @@ class ResponseBuilder:
 
     def text(
         self,
-        text: str,
+        content: str,
         *,
         status_code: int = 200,
         headers: typing.Mapping[str, str] | None = None,
         media_type: str | None = None,
     ) -> Response:
-        response = PlainTextResponse(text, status_code=status_code, headers=headers, media_type=media_type)
+        response = PlainTextResponse(content, status_code=status_code, headers=headers, media_type=media_type)
         return self._apply_cookies(response)
 
     def html(
         self,
+        content: str | HTMLLike,
         *,
         status_code: int = 200,
         headers: typing.Mapping[str, str] | None = None,
         media_type: str | None = None,
     ) -> Response:
-        response = HTMLResponse(status_code=status_code, headers=headers, media_type=media_type)
+        if hasattr(content, "__html__"):
+            content = content.__html__()
+
+        response = HTMLResponse(content, status_code=status_code, headers=headers, media_type=media_type)
         return self._apply_cookies(response)
 
     def redirect(
@@ -148,14 +156,6 @@ class ResponseBuilder:
         stat_result: os.stat_result | None = None,
         content_disposition: typing.Literal["inline", "attachment"] = "attachment",
     ) -> Response:
-        headers = dict(headers or {})
-        if content_disposition is not None:
-            file_name = os.path.basename(filename or "data.bin")
-            headers.setdefault(
-                "content-disposition",
-                f'{content_disposition}; filename="{file_name}"',
-            )
-
         response = FileResponse(
             path,
             filename=filename,
@@ -163,6 +163,7 @@ class ResponseBuilder:
             media_type=media_type,
             status_code=status_code,
             headers=headers,
+            content_disposition_type=content_disposition,
         )
         return self._apply_cookies(response)
 
@@ -210,10 +211,10 @@ def response(request: Request) -> ResponseBuilder:
     return ResponseBuilder(request)
 
 
-class SSEResponse(Response): ...
+class SSEResponse(Response): ...  # pragma: no branch
 
 
-class JSONResponse(BaseJSONResponse): ...
+class JSONResponse(BaseJSONResponse): ...  # pragma: no branch
 
 
 class BackResponse(RedirectResponse):
