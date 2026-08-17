@@ -45,13 +45,16 @@ class Kupala:
         self.error_handlers = {
             BaseHTTPError: http_error_handler,
             HTTPException: http_error_handler,
-            Exception: server_error_handler,
             WebSocketError: websocket_error_handler,
             **(error_handlers or {}),
         }
+        # ExceptionMiddleware resolves handlers by MRO, so a catch-all left in this map would match
+        # every error and return before ServerErrorMiddleware can re-raise it for the server to log.
+        # Starlette splits it out the same way.
+        self.server_error_handler = self.error_handlers.pop(Exception, server_error_handler)
 
         asgi_middleware = [
-            ASGIMiddlewareWrapper(ServerErrorMiddleware, handler=server_error_handler),
+            ASGIMiddlewareWrapper(ServerErrorMiddleware, handler=self.server_error_handler),
             *asgi_middleware,
             ASGIMiddlewareWrapper(ExceptionMiddleware, handlers=self.error_handlers),
         ]
@@ -68,7 +71,7 @@ class Kupala:
         self._asgi_app = app
 
     @contextlib.asynccontextmanager
-    async def lifespan(self, app: None) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+    async def lifespan(self, app: typing.Self) -> typing.AsyncGenerator[dict[str, typing.Any]]:
         yield {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:

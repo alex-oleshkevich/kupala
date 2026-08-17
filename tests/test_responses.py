@@ -6,6 +6,7 @@ import anyio
 import pytest
 from markupsafe import Markup
 from starlette.datastructures import URLPath
+from starlette.requests import ClientDisconnect
 from starlette.types import Receive
 
 from kupala.requests import Request
@@ -466,7 +467,27 @@ class TestSSEResponse:
 
         assert http_response.headers["cache-control"] == "no-store"
 
-    async def test_sends_keepalives_while_the_source_is_idle(self, scope_f: ScopeFactory) -> None:
+    def test_rejects_a_non_positive_keepalive_interval(self) -> None:
+        for interval in (0, -1.0):
+            with pytest.raises(ValueError, match="keepalive interval must be positive"):
+                SSEResponse([], keepalive_interval=interval)
+
+    async def test_translates_a_client_disconnect(self, scope_f: ScopeFactory) -> None:
+        async def events() -> typing.AsyncIterator[ServerSentEvent]:
+            yield ServerSentEvent(data="first")
+
+        http_response = SSEResponse(events(), keepalive_interval=None)
+        receive = typing.cast(Receive, Mock())
+
+        async def send(message: typing.Any) -> None:
+            if message["type"] == "http.response.body":
+                raise OSError("client went away")
+
+        # Starlette maps OSError onto ClientDisconnect, which only works if the type survives
+        with pytest.raises(ClientDisconnect):
+            await http_response(scope_f(), receive, send)
+
+    async def test_sends_keepalives_on_a_fixed_interval(self, scope_f: ScopeFactory) -> None:
         async def events() -> typing.AsyncIterator[ServerSentEvent]:
             await anyio.sleep(0.15)
             yield ServerSentEvent(data="late")
@@ -483,7 +504,8 @@ class TestSSEResponse:
 
         body = b"".join(message["body"] for message in messages if message["type"] == "http.response.body")
         assert body.count(b": keepalive\r\n\r\n") >= 1
-        assert body.endswith(b"data: late\r\n\r\n")
+        # a keepalive may still land between the event and the end of the stream
+        assert b"data: late\r\n\r\n" in body
 
     async def test_propagates_a_failing_source_without_terminating_the_stream(self, scope_f: ScopeFactory) -> None:
         async def events() -> typing.AsyncIterator[ServerSentEvent]:
@@ -498,7 +520,8 @@ class TestSSEResponse:
         async def send(message: typing.Any) -> None:
             messages.append(message)
 
-        with pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, match="boom")):
+        # the cause keeps its own type: it must not arrive wrapped in an ExceptionGroup
+        with pytest.raises(RuntimeError, match="boom"):
             await http_response(scope_f(), receive, send)
 
         body = b"".join(message["body"] for message in messages if message["type"] == "http.response.body")

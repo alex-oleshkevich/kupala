@@ -225,6 +225,25 @@ class TestHTTPRoutes:
         assert http_response.status_code == 200
         assert http_response.text == "sync"
 
+    def test_callable_object_endpoint(self) -> None:
+        class AsyncView:
+            async def __call__(self, request: Request) -> Response:
+                return response(request).text("async view")
+
+        class SyncView:
+            def __call__(self, request: Request) -> Response:
+                return response(request).text("sync view")
+
+        routes = Routes()
+        # an instance carries its coroutine marker on __call__ and has no __name__ at all
+        routes.get("/async")(AsyncView())
+        routes.get("/sync")(SyncView())
+        app = Kupala("tests", routes=routes)
+
+        with TestClient(app) as client:
+            assert client.get("/async").text == "async view"
+            assert client.get("/sync").text == "sync view"
+
     def test_route_middleware_order(self, test_client: TestClient, events: list[str]) -> None:
         assert test_client.get("/middleware").text == "ok"
         assert events == [

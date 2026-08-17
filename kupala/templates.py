@@ -16,7 +16,6 @@ type ContextProcessor = typing.Callable[[Request], dict[str, typing.Any]]
 class RendersToString(typing.Protocol):
     def render(
         self,
-        request: Request,
         template_name: str,
         context: typing.Mapping[str, typing.Any] | None = None,
     ) -> str: ...
@@ -61,14 +60,9 @@ class JinjaTemplates(templating.Jinja2Templates):
         for extension in extensions:
             self.env.add_extension(extension)
 
-    def render(
-        self,
-        request: Request,
-        template_name: str,
-        context: typing.Mapping[str, typing.Any] | None = None,
-    ) -> str:
+    def render(self, template_name: str, context: typing.Mapping[str, typing.Any] | None = None) -> str:
         template = self.env.get_template(template_name)
-        return template.render(request=request, **(context or {}))
+        return template.render(context or {})
 
     def render_to_response(
         self,

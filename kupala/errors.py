@@ -21,7 +21,8 @@ class BaseHTTPError(HTTPException):
         self.title = title or self.title
         self.type = type or self.type
         self.status_code = status_code or self.status_code
-        self.headers = headers or self.headers
+        headers = headers or self.headers
+        self.headers = dict(headers) if headers else None
 
         super().__init__(
             status_code=self.status_code,

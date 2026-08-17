@@ -19,7 +19,8 @@ class DependencyResolver:
         *_args: P.args,
         **kwargs: P.kwargs,
     ) -> R:
-        assert not _args, "Positional arguments are not supported"
+        if _args:
+            raise TypeError("Positional arguments are not supported.")
 
         wrapped = self.bind(fn)
         return await wrapped(**kwargs)

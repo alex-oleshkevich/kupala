@@ -308,7 +308,7 @@ class Routes:
                         )
 
                     case WebSocketDefinition():
-                        route_name = join_namespace(namespace, definition.name or definition.fn.__name__)
+                        route_name = join_namespace(namespace, definition.name or endpoint_name(definition.fn))
                         route_path = join_path(prefix, definition.path)
                         register_name(route_name, f"WebSocket route {route_path!r}")
                         compiled.append(
@@ -323,11 +323,10 @@ class Routes:
                         )
 
                     case RouteDefinition():
-                        route_name = join_namespace(namespace, definition.name or definition.fn.__name__)
+                        route_name = join_namespace(namespace, definition.name or endpoint_name(definition.fn))
                         route_path = join_path(prefix, definition.path)
                         register_name(route_name, f"HTTP route {route_path!r}")
                         register_http_route(route_path, definition.methods, route_name)
-                        middleware = (*parent_middleware, *group.middleware)
                         compiled.append(
                             Route(
                                 path=route_path,
@@ -378,6 +377,12 @@ def join_path(parent: str, child: str) -> str:
     return result
 
 
+def endpoint_name(fn: AnyEndpoint | WebSocketEndpoint) -> str:
+    # callable objects have no `__name__`, so fall back to their class name
+    name: str = getattr(fn, "__name__", type(fn).__name__)
+    return name
+
+
 def join_namespace(parent: str, child: str, separator: str = ".") -> str:
     if parent and child:
         return f"{parent}{separator}{child}"
@@ -425,11 +430,14 @@ def chain_websocket_middleware(
 
 
 def is_async_endpoint(fn: AnyEndpoint) -> typing.TypeGuard[AsyncEndpoint]:
-    return inspect.iscoroutinefunction(fn)
+    # a callable object carries its coroutine marker on `__call__`, not on the instance
+    return inspect.iscoroutinefunction(fn) or inspect.iscoroutinefunction(
+        getattr(fn, "__call__", None)  # noqa: B004 - reading the coroutine marker, not a callability test
+    )
 
 
 def is_sync_endpoint(fn: AnyEndpoint) -> typing.TypeGuard[SyncEndpoint]:
-    return not inspect.iscoroutinefunction(fn)
+    return not is_async_endpoint(fn)
 
 
 async def invoke_endpoint(request: Request, endpoint: AnyEndpoint) -> Response:

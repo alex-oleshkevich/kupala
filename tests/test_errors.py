@@ -37,6 +37,18 @@ class TestBaseHTTPError:
         assert error.status_code == 418
         assert error.headers == headers
 
+    def test_headers_are_copied_from_the_class_attribute(self) -> None:
+        class CustomError(BaseHTTPError):
+            headers = {"X-Shared": "1"}  # noqa: RUF012 - a shared mutable default is the point here
+
+        first = CustomError()
+        second = CustomError()
+        assert first.headers is not None
+        first.headers["X-Leaked"] = "yes"
+
+        assert second.headers == {"X-Shared": "1"}
+        assert CustomError.headers == {"X-Shared": "1"}
+
     def test_http_handler_preserves_error_response(self) -> None:
         routes = Routes()
 
@@ -52,6 +64,9 @@ class TestBaseHTTPError:
         assert http_response.status_code == 400
         assert http_response.text == "400: invalid request"
         assert http_response.headers["X-Error"] == "bad-request"
+        # a body without a content type is MIME-sniffed, and the detail may echo user input
+        assert http_response.headers["content-type"] == "text/plain; charset=utf-8"
+        assert http_response.headers["x-content-type-options"] == "nosniff"
 
     def test_server_error_handler_hides_details_in_production(self) -> None:
         routes = Routes()
@@ -66,11 +81,49 @@ class TestBaseHTTPError:
         ):
             app = Kupala("tests", debug=debug, routes=routes)
 
-            with TestClient(app) as client:
+            with TestClient(app, raise_server_exceptions=False) as client:
                 http_response = client.get("/error")
 
             assert http_response.status_code == 500
             assert http_response.text == expected_body
+            assert http_response.headers["content-type"] == "text/plain; charset=utf-8"
+            assert http_response.headers["x-content-type-options"] == "nosniff"
+
+    def test_server_error_handler_can_be_overridden(self) -> None:
+        routes = Routes()
+
+        @routes.get("/error")
+        async def endpoint(request: Request) -> Response:
+            raise RuntimeError("secret")
+
+        async def handler(request: Request, exc: Exception) -> Response:
+            return Response("custom handler", status_code=503)
+
+        app = Kupala("tests", routes=routes, error_handlers={Exception: handler})
+
+        with TestClient(app, raise_server_exceptions=False) as client:
+            http_response = client.get("/error")
+
+        assert http_response.status_code == 503
+        assert http_response.text == "custom handler"
+
+        # an overridden handler must not cost us the re-raise the server logs from
+        with TestClient(app) as client, pytest.raises(RuntimeError, match="secret"):
+            client.get("/error")
+
+    def test_unhandled_errors_reach_the_server_for_logging(self) -> None:
+        routes = Routes()
+
+        @routes.get("/error")
+        async def endpoint(request: Request) -> Response:
+            raise RuntimeError("secret")
+
+        app = Kupala("tests", routes=routes)
+
+        # ServerErrorMiddleware re-raises after responding; swallowing it would leave crashes
+        # entirely unlogged
+        with TestClient(app) as client, pytest.raises(RuntimeError, match="secret"):
+            client.get("/error")
 
     def test_websocket_error_handler_closes_with_exception_code(self) -> None:
         routes = Routes()

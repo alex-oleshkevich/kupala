@@ -286,6 +286,9 @@ class SSEResponse(StreamingResponse):
         headers: typing.Mapping[str, str] | None = None,
         keepalive_interval: float | None = 15.0,
     ) -> None:
+        if keepalive_interval is not None and keepalive_interval <= 0:
+            raise ValueError("Server-sent event keepalive interval must be positive.")
+
         self.keepalive_interval = keepalive_interval
         super().__init__(
             self._encode_events(content),
@@ -322,17 +325,25 @@ class SSEResponse(StreamingResponse):
         # a rendezvous stream merges events and keepalives; cancelling a pending `receive()` would drop
         # an already handed-off item, so the producer signals completion with a `None` sentinel
         send_stream, receive_stream = anyio.create_memory_object_stream[bytes | None](0)
-        async with anyio.create_task_group() as task_group, receive_stream:
-            if self.keepalive_interval is not None:
-                task_group.start_soon(self._produce_keepalives, send_stream.clone(), self.keepalive_interval)
-            task_group.start_soon(self._produce_events, send_stream)
+        try:
+            async with anyio.create_task_group() as task_group, receive_stream:
+                if self.keepalive_interval is not None:
+                    task_group.start_soon(self._produce_keepalives, send_stream.clone(), self.keepalive_interval)
+                task_group.start_soon(self._produce_events, send_stream)
 
-            async for chunk in receive_stream:
-                if chunk is None:
-                    break
-                await send({"type": "http.response.body", "body": chunk, "more_body": True})
+                async for chunk in receive_stream:
+                    if chunk is None:
+                        break
+                    await send({"type": "http.response.body", "body": chunk, "more_body": True})
 
-            task_group.cancel_scope.cancel()
+                task_group.cancel_scope.cancel()
+        except BaseExceptionGroup as group:
+            # callers match on exception type: Starlette turns OSError into ClientDisconnect and
+            # ExceptionMiddleware looks handlers up by MRO, so the group must not hide the cause
+            error: BaseException = group
+            while isinstance(error, BaseExceptionGroup) and len(error.exceptions) == 1:
+                error = error.exceptions[0]
+            raise error from None
 
         await send({"type": "http.response.body", "body": b"", "more_body": False})
 
