@@ -229,12 +229,6 @@ class ResponseBuilder:
     def with_delete_cookie(self, key: str) -> typing.Self:
         return self.clone(delete_cookies=(*self._delete_cookies, key))
 
-    def with_signed_cookie(self) -> typing.Self:
-        return self.clone()
-
-    def with_encrypted_cookie(self) -> typing.Self:
-        return self.clone()
-
 
 def response(request: Request) -> ResponseBuilder:
     return ResponseBuilder(request)

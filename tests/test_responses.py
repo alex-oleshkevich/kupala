@@ -233,15 +233,10 @@ class TestResponseBuilder:
         authenticated = builder.with_cookie("session", "token")
         logged_out = builder.with_delete_cookie("session")
         overridden = builder.clone(cookies={"override": "value"}, delete_cookies=("old",))
-        fluent_clones = (
-            builder.with_signed_cookie(),
-            builder.with_encrypted_cookie(),
-        )
 
         assert authenticated is not builder
         assert logged_out is not builder
         assert overridden is not builder
-        assert all(clone is not builder for clone in fluent_clones)
 
         base_response = builder.text("base", status_code=201, headers={"X-Base": "base"})
         authenticated_response = authenticated.text("authenticated", status_code=201)
