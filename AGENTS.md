@@ -33,6 +33,10 @@ Important: this git history contains previous version. The current version is co
 ## Testing
 
 - do not create one-time use fixtures, inline then into test function
+- Pytest discovers shared fixtures from `tests/conftest.py`; reference them by fixture name in test parameters and do not import or duplicate them in test modules.
+- A fixture name ending in `_f` returns a callable factory, so use it as `scope_f(...)`; keep the factory's reusable type contract and test-only aliases in `tests/types.py`.
+- Factory fixtures should provide fresh values for common scope attributes on every call and accept keyword overrides for test-specific values.
+- In tests, bind request and response-builder objects to local variables before calling methods, such as `request = Request(scope_f())` followed by `response(request).back()`, so LSP has stable symbols and positions for navigation.
 - use classes to group related tests `TestRoutes`, instead of separate functions.
 - use functions for standalone features that cannot be grouped
 - `tests` directory is included into coverage, we don't want dead tests. Use `# pragma: no cover` to exclude dead paths
