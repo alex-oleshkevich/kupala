@@ -1,8 +1,14 @@
+import itertools
+import json
+import typing
+
+import anyio
+
 from kupala.applications import Kupala
 from kupala.errors import BadRequestError
 from kupala.middleware import CallNext
 from kupala.requests import Request
-from kupala.responses import Response, response
+from kupala.responses import Response, ServerSentEvent, response
 from kupala.routing import Routes
 
 routes = Routes()
@@ -41,6 +47,20 @@ async def unhandled_error_view(request: Request) -> Response:
 @routes.post("/post")
 async def post_view(request: Request) -> Response:
     return response(request).text("ok")
+
+
+@routes.get("/sse", name="sse")
+async def sse_view(request: Request) -> Response:
+    async def ticks() -> typing.AsyncIterator[ServerSentEvent]:
+        try:
+            for tick in itertools.count(1):
+                yield ServerSentEvent(event="tick", id=str(tick), data=json.dumps({"tick": tick}))
+                await anyio.sleep(1)
+        finally:
+            # the generator is closed when the browser goes away, so the stream never leaks
+            print("SSE CLIENT GONE")
+
+    return response(request).sse(ticks(), keepalive_interval=5.0)
 
 
 app = Kupala(

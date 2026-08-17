@@ -1,7 +1,11 @@
+import dataclasses
 import os
 import typing
 from urllib.parse import SplitResult, unquote, urlsplit, urlunsplit
 
+import anyio
+from anyio.streams.memory import MemoryObjectSendStream
+from starlette.concurrency import iterate_in_threadpool
 from starlette.datastructures import URL
 from starlette.responses import (
     ContentStream,
@@ -15,11 +19,29 @@ from starlette.responses import (
 from starlette.responses import (
     JSONResponse as BaseJSONResponse,
 )
+from starlette.types import Send
 
 from kupala.requests import Request
 from kupala.templates import RendersToResponse
 
-__all__ = ["BackResponse", "Response", "response"]
+__all__ = [
+    "BackResponse",
+    "ContentStream",
+    "FileResponse",
+    "HTMLResponse",
+    "JSONResponse",
+    "PlainTextResponse",
+    "RedirectResponse",
+    "Response",
+    "ResponseBuilder",
+    "SSEResponse",
+    "ServerSentEvent",
+    "ServerSentEventStream",
+    "StreamingResponse",
+    "response",
+]
+
+type ServerSentEventStream = typing.Iterable[ServerSentEvent | str] | typing.AsyncIterable[ServerSentEvent | str]
 
 
 class HTMLLike(typing.Protocol):
@@ -185,11 +207,18 @@ class ResponseBuilder:
 
     def sse(
         self,
+        content: ServerSentEventStream,
         *,
         status_code: int = 200,
         headers: typing.Mapping[str, str] | None = None,
+        keepalive_interval: float | None = 15.0,
     ) -> Response:
-        response = SSEResponse(status_code=status_code, headers=headers)
+        response = SSEResponse(
+            content,
+            status_code=status_code,
+            headers=headers,
+            keepalive_interval=keepalive_interval,
+        )
         return self._apply_cookies(response)
 
     def with_cookie(self, key: str, value: str) -> typing.Self:
@@ -211,7 +240,107 @@ def response(request: Request) -> ResponseBuilder:
     return ResponseBuilder(request)
 
 
-class SSEResponse(Response): ...  # pragma: no branch
+@dataclasses.dataclass(frozen=True, slots=True)
+class ServerSentEvent:
+    data: str | None = None
+    event: str | None = None
+    id: str | None = None
+    retry: int | None = None
+    comment: str | None = None
+
+    LINE_SEPARATOR: typing.ClassVar[str] = "\r\n"
+    FORBIDDEN_CHARS: typing.ClassVar[frozenset[str]] = frozenset({"\r", "\n", "\x00"})
+
+    def __post_init__(self) -> None:
+        for field_name, value in (("event", self.event), ("id", self.id)):
+            if value is not None and self.FORBIDDEN_CHARS.intersection(value):
+                raise ValueError(f"Server-sent event field {field_name!r} must not contain CR, LF or NUL.")
+
+        if self.retry is not None and self.retry < 0:
+            raise ValueError("Server-sent event field 'retry' must not be negative.")
+
+    def encode(self, charset: str = "utf-8") -> bytes:
+        lines: list[str] = []
+        if self.comment is not None:
+            lines.extend(self._field_lines(":", self.comment))
+        if self.event is not None:
+            lines.append(f"event: {self.event}")
+        if self.id is not None:
+            lines.append(f"id: {self.id}")
+        if self.retry is not None:
+            lines.append(f"retry: {self.retry}")
+        if self.data is not None:
+            lines.extend(self._field_lines("data:", self.data))
+
+        frame = self.LINE_SEPARATOR.join([*lines, ""]) + self.LINE_SEPARATOR
+        return frame.encode(charset)
+
+    @staticmethod
+    def _field_lines(prefix: str, value: str) -> typing.Iterator[str]:
+        for line in value.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+            yield f"{prefix} {line}"
+
+
+class SSEResponse(StreamingResponse):
+    keepalive_event: typing.ClassVar[ServerSentEvent] = ServerSentEvent(comment="keepalive")
+
+    def __init__(
+        self,
+        content: ServerSentEventStream,
+        *,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+        keepalive_interval: float | None = 15.0,
+    ) -> None:
+        self.keepalive_interval = keepalive_interval
+        super().__init__(
+            self._encode_events(content),
+            status_code=status_code,
+            headers=headers,
+            media_type="text/event-stream",
+        )
+        # buffering proxies defeat streaming, and a cached event stream is never correct
+        self.headers["cache-control"] = "no-store"
+        self.headers["x-accel-buffering"] = "no"
+
+    async def _encode_events(self, content: ServerSentEventStream) -> typing.AsyncIterator[bytes]:
+        events = content if isinstance(content, typing.AsyncIterable) else iterate_in_threadpool(content)
+        async for event in events:
+            frame = event if isinstance(event, ServerSentEvent) else ServerSentEvent(data=event)
+            yield frame.encode(self.charset)
+
+    async def _produce_events(self, stream: MemoryObjectSendStream[bytes | None]) -> None:
+        async with stream:
+            async for chunk in self.body_iterator:
+                await stream.send(typing.cast(bytes, chunk))
+            await stream.send(None)
+
+    async def _produce_keepalives(self, stream: MemoryObjectSendStream[bytes | None], interval: float) -> None:
+        frame = self.keepalive_event.encode(self.charset)
+        async with stream:
+            while True:
+                await anyio.sleep(interval)
+                await stream.send(frame)
+
+    async def stream_response(self, send: Send) -> None:
+        await send({"type": "http.response.start", "status": self.status_code, "headers": self.raw_headers})
+
+        # a rendezvous stream merges events and keepalives; cancelling a pending `receive()` would drop
+        # an already handed-off item, so the producer signals completion with a `None` sentinel
+        send_stream, receive_stream = anyio.create_memory_object_stream[bytes | None](0)
+        async with anyio.create_task_group() as task_group, receive_stream:
+            if self.keepalive_interval is not None:
+                task_group.start_soon(self._produce_keepalives, send_stream.clone(), self.keepalive_interval)
+            task_group.start_soon(self._produce_events, send_stream)
+
+            async for chunk in receive_stream:
+                if chunk is None:
+                    break
+                await send({"type": "http.response.body", "body": chunk, "more_body": True})
+
+            task_group.cancel_scope.cancel()
+
+        await send({"type": "http.response.body", "body": b"", "more_body": False})
 
 
 class JSONResponse(BaseJSONResponse): ...  # pragma: no branch

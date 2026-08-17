@@ -2,13 +2,14 @@ import typing
 from pathlib import Path
 from unittest.mock import Mock
 
+import anyio
 import pytest
 from markupsafe import Markup
 from starlette.datastructures import URLPath
 from starlette.types import Receive
 
 from kupala.requests import Request
-from kupala.responses import BackResponse, Response, response
+from kupala.responses import BackResponse, Response, ServerSentEvent, SSEResponse, response
 from tests.types import ScopeFactory
 
 
@@ -211,10 +212,18 @@ class TestResponseBuilder:
         request = Request(scope_f())
         builder = response(request).with_cookie("session", "token")
 
-        http_response = builder.sse(status_code=201, headers={"X-Test": "yes"})
+        http_response = builder.sse(
+            [ServerSentEvent(data="hello")],
+            status_code=201,
+            headers={"X-Test": "yes"},
+            keepalive_interval=None,
+        )
 
+        assert isinstance(http_response, SSEResponse)
+        assert http_response.keepalive_interval is None
         assert http_response.status_code == 201
         assert http_response.headers["x-test"] == "yes"
+        assert http_response.headers["content-type"] == "text/event-stream; charset=utf-8"
         assert "session=token" in http_response.headers["set-cookie"]
 
     def test_fluent_methods_clone_and_isolate_state(self) -> None:
@@ -353,3 +362,169 @@ class TestBackResponse:
         for status_code in invalid_status_codes:
             with pytest.raises(ValueError, match="only supports 302 or 303"):
                 response(request).back(status_code=status_code)
+
+
+class TestServerSentEvent:
+    def test_encodes_a_data_only_event(self) -> None:
+        event = ServerSentEvent(data="hello")
+
+        assert event.encode() == b"data: hello\r\n\r\n"
+
+    def test_encodes_every_field_in_specification_order(self) -> None:
+        event = ServerSentEvent(data="payload", event="update", id="42", retry=3000, comment="note")
+
+        assert event.encode() == b": note\r\nevent: update\r\nid: 42\r\nretry: 3000\r\ndata: payload\r\n\r\n"
+
+    def test_splits_multiline_data_into_one_line_per_field(self) -> None:
+        event = ServerSentEvent(data="first\nsecond\r\nthird\rfourth")
+
+        assert event.encode() == b"data: first\r\ndata: second\r\ndata: third\r\ndata: fourth\r\n\r\n"
+
+    def test_splits_a_multiline_comment(self) -> None:
+        event = ServerSentEvent(comment="first\nsecond")
+
+        assert event.encode() == b": first\r\n: second\r\n\r\n"
+
+    def test_keeps_trailing_and_exotic_line_breaks_inside_data(self) -> None:
+        # the client joins data lines with LF and strips one trailing LF, so a trailing newline
+        # must survive the round trip; U+2028 and friends are payload, not line terminators
+        assert ServerSentEvent(data="text\n").encode() == b"data: text\r\ndata: \r\n\r\n"
+        assert ServerSentEvent(data="a\u2028b").encode() == "data: a\u2028b\r\n\r\n".encode()
+        assert ServerSentEvent(data="a\x0bb").encode() == b"data: a\x0bb\r\n\r\n"
+
+    def test_encodes_empty_data_as_a_single_empty_field(self) -> None:
+        event = ServerSentEvent(data="")
+
+        assert event.encode() == b"data: \r\n\r\n"
+
+    def test_encodes_a_comment_only_frame(self) -> None:
+        event = ServerSentEvent(comment="keepalive")
+
+        assert event.encode() == b": keepalive\r\n\r\n"
+
+    def test_encodes_data_with_a_custom_charset(self) -> None:
+        event = ServerSentEvent(data="привет")
+
+        assert event.encode("cp1251") == "data: привет\r\n\r\n".encode("cp1251")
+
+    def test_rejects_frame_injection_via_metadata_fields(self) -> None:
+        with pytest.raises(ValueError, match="'event' must not contain CR, LF or NUL"):
+            ServerSentEvent(data="payload", event="update\ndata: forged")
+
+        with pytest.raises(ValueError, match="'id' must not contain CR, LF or NUL"):
+            ServerSentEvent(data="payload", id="1\r\nevent: forged")
+
+        with pytest.raises(ValueError, match="'id' must not contain CR, LF or NUL"):
+            ServerSentEvent(data="payload", id="1\x00")
+
+    def test_rejects_a_negative_retry(self) -> None:
+        with pytest.raises(ValueError, match="'retry' must not be negative"):
+            ServerSentEvent(retry=-1)
+
+
+class TestSSEResponse:
+    async def test_streams_events_and_declares_streaming_headers(self, scope_f: ScopeFactory) -> None:
+        async def events() -> typing.AsyncIterator[ServerSentEvent | str]:
+            yield ServerSentEvent(data="first", event="update", id="1")
+            yield "second"
+
+        http_response = SSEResponse(events(), headers={"X-Test": "yes"}, keepalive_interval=None)
+        messages: list[typing.Any] = []
+
+        receive = typing.cast(Receive, Mock())
+
+        async def send(message: typing.Any) -> None:
+            messages.append(message)
+
+        await http_response(scope_f(), receive, send)
+
+        body = b"".join(message["body"] for message in messages if message["type"] == "http.response.body")
+        assert http_response.status_code == 200
+        assert http_response.headers["content-type"] == "text/event-stream; charset=utf-8"
+        assert http_response.headers["cache-control"] == "no-store"
+        assert http_response.headers["x-accel-buffering"] == "no"
+        assert http_response.headers["x-test"] == "yes"
+        assert "content-length" not in http_response.headers
+        assert body == b"event: update\r\nid: 1\r\ndata: first\r\n\r\ndata: second\r\n\r\n"
+        assert messages[-1] == {"type": "http.response.body", "body": b"", "more_body": False}
+
+    async def test_streams_a_sync_iterable_of_events(self, scope_f: ScopeFactory) -> None:
+        def events() -> typing.Iterator[ServerSentEvent]:
+            yield ServerSentEvent(data="first")
+            yield ServerSentEvent(data="second")
+
+        http_response = SSEResponse(events(), keepalive_interval=None)
+        messages: list[typing.Any] = []
+
+        receive = typing.cast(Receive, Mock())
+
+        async def send(message: typing.Any) -> None:
+            messages.append(message)
+
+        await http_response(scope_f(), receive, send)
+
+        body = b"".join(message["body"] for message in messages if message["type"] == "http.response.body")
+        assert body == b"data: first\r\n\r\ndata: second\r\n\r\n"
+
+    def test_overrides_a_caller_supplied_cache_control(self) -> None:
+        http_response = SSEResponse([], headers={"Cache-Control": "public, max-age=3600"}, keepalive_interval=None)
+
+        assert http_response.headers["cache-control"] == "no-store"
+
+    async def test_sends_keepalives_while_the_source_is_idle(self, scope_f: ScopeFactory) -> None:
+        async def events() -> typing.AsyncIterator[ServerSentEvent]:
+            await anyio.sleep(0.15)
+            yield ServerSentEvent(data="late")
+
+        http_response = SSEResponse(events(), keepalive_interval=0.01)
+        messages: list[typing.Any] = []
+
+        receive = typing.cast(Receive, Mock())
+
+        async def send(message: typing.Any) -> None:
+            messages.append(message)
+
+        await http_response(scope_f(), receive, send)
+
+        body = b"".join(message["body"] for message in messages if message["type"] == "http.response.body")
+        assert body.count(b": keepalive\r\n\r\n") >= 1
+        assert body.endswith(b"data: late\r\n\r\n")
+
+    async def test_propagates_a_failing_source_without_terminating_the_stream(self, scope_f: ScopeFactory) -> None:
+        async def events() -> typing.AsyncIterator[ServerSentEvent]:
+            yield ServerSentEvent(data="first")
+            raise RuntimeError("boom")
+
+        http_response = SSEResponse(events(), keepalive_interval=None)
+        messages: list[typing.Any] = []
+
+        receive = typing.cast(Receive, Mock())
+
+        async def send(message: typing.Any) -> None:
+            messages.append(message)
+
+        with pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, match="boom")):
+            await http_response(scope_f(), receive, send)
+
+        body = b"".join(message["body"] for message in messages if message["type"] == "http.response.body")
+        assert body == b"data: first\r\n\r\n"
+        # the stream is left unterminated so the client sees a truncated response, not a clean end
+        assert messages[-1]["more_body"] is True
+
+    async def test_does_not_send_keepalives_when_disabled(self, scope_f: ScopeFactory) -> None:
+        async def events() -> typing.AsyncIterator[ServerSentEvent]:
+            await anyio.sleep(0.05)
+            yield ServerSentEvent(data="late")
+
+        http_response = SSEResponse(events(), keepalive_interval=None)
+        messages: list[typing.Any] = []
+
+        receive = typing.cast(Receive, Mock())
+
+        async def send(message: typing.Any) -> None:
+            messages.append(message)
+
+        await http_response(scope_f(), receive, send)
+
+        body = b"".join(message["body"] for message in messages if message["type"] == "http.response.body")
+        assert body == b"data: late\r\n\r\n"
