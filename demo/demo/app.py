@@ -1,3 +1,5 @@
+import dataclasses
+import decimal
 import itertools
 import json
 import typing
@@ -5,7 +7,7 @@ import typing
 import anyio
 
 from kupala.applications import Kupala
-from kupala.dependencies import Value
+from kupala.dependencies import Factory, Value
 from kupala.errors import BadRequestError
 from kupala.middleware import CallNext
 from kupala.requests import Request
@@ -15,14 +17,42 @@ from kupala.routing import Routes
 routes = Routes()
 
 
-class User: ...
+@dataclasses.dataclass(frozen=True, slots=True)
+class Customer:
+    id: int
+    name: str
+    email: str
 
 
-class RuleEnforcer: ...
+class OrderBook:
+    """Stands in for a repository that has to be closed when the request ends."""
+
+    def __init__(self) -> None:
+        self.orders = {42: [decimal.Decimal("649.00"), decimal.Decimal("779.00")]}
+
+    def lifetime_value(self, customer_id: int) -> decimal.Decimal:
+        return sum(self.orders.get(customer_id, []), decimal.Decimal("0.00"))
 
 
-type Guard = typing.Annotated[RuleEnforcer, Value("guard")]
-type CurrentUser = typing.Annotated[User, Value("user")]
+def load_customer() -> Customer:
+    """A plain factory: in a real app this would read the session."""
+
+    return Customer(id=42, name="Marta Kowalska", email="marta@northwind.pl")
+
+
+def open_order_book() -> typing.Iterator[OrderBook]:
+    """A generator factory: whatever follows the yield runs after the response is sent."""
+
+    book = OrderBook()
+    try:
+        yield book
+    finally:
+        print("ORDER BOOK CLOSED")
+
+
+type CurrentCustomer = typing.Annotated[Customer, Factory(load_customer)]
+type Orders = typing.Annotated[OrderBook, Factory(open_order_book)]
+type Currency = typing.Annotated[str, Value("EUR")]
 
 
 async def app_middleware(request: Request, call_next: CallNext) -> Response:
@@ -46,8 +76,19 @@ async def index_view(request: Request) -> Response:
 
 
 @routes.get("/dependency")
-async def dependency_view(request: Request, user: CurrentUser, guard: Guard) -> Response:
-    return response(request).text(f"{user} - {guard}")
+async def dependency_view(
+    request: Request,
+    customer: CurrentCustomer,
+    orders: Orders,
+    currency: Currency,
+) -> Response:
+    return response(request).json(
+        {
+            "customer": customer.name,
+            "email": customer.email,
+            "lifetime_value": f"{orders.lifetime_value(customer.id)} {currency}",
+        }
+    )
 
 
 @routes.get("/error")

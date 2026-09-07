@@ -1,14 +1,14 @@
 import annotationlib
 import contextlib
 import dataclasses
-import functools
 import inspect
 import logging
-import operator
 import types
 import typing
 
 from starlette.concurrency import run_in_threadpool
+
+from kupala import inspection
 
 type Key = type[typing.Any]
 
@@ -17,20 +17,6 @@ INVOCATION_CONTEXT_KEY = "kupala.invocation_context"
 MISSING = object()
 
 logger = logging.getLogger(__name__)
-
-
-def callable_name(fn: typing.Any) -> str:
-    """Render a callable as `module.qualname` for error messages."""
-
-    name: str = getattr(fn, "__qualname__", None) or type(fn).__name__
-    module: str | None = getattr(fn, "__module__", None)
-    return f"{module}.{name}" if module else name
-
-
-def type_name(key: typing.Any) -> str:
-    """Render a binding key the way a developer wrote it in the annotation."""
-
-    return typing.cast(str, getattr(key, "__qualname__", None) or repr(key))
 
 
 class DependencyError(Exception):
@@ -74,7 +60,7 @@ class UnresolvedDependencyError(DependencyError):
                 where += f" of {self.owner}()"
 
         return (
-            f"No binding for {type_name(self.key)}{where}. "
+            f"No binding for {inspection.type_name(self.key)}{where}. "
             f"Bind it on the injection scope, or give the parameter a default value."
         )
 
@@ -117,11 +103,7 @@ class InvocationContext:
 
         try:
             await stack.__aexit__(exc_type, exc, traceback)
-        except Exception as error:
-            if error is exc:
-                # our own caller's error travelled back out through a dependency, so let it continue
-                raise
-
+        except Exception:
             # the response has already been sent, so there is nobody left to tell but the log
             logger.exception("Failed to release a dependency.")
 
@@ -178,10 +160,87 @@ class Factory:
     cache: bool = True
 
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
-        raise NotImplementedError
+        if self in context.chain:
+            path = " -> ".join(inspection.callable_name(entry.factory) for entry in (*context.chain, self))
+            raise CircularDependencyError(
+                f"Circular dependency detected: {path}. "
+                f"A factory cannot depend on itself, directly or through another factory."
+            )
+
+        # compiling eagerly means a broken factory fails on import, not on the first request
+        plan = compile_call_plan(self.factory, context.enter(self))
+        open_dependency = open_dependency_for(self.factory)
+
+        async def resolve(ctx: InvocationContext) -> object:
+            if self.cache and self in ctx.cache:
+                return ctx.cache[self]
+
+            kwargs = await resolve_arguments(plan, ctx)
+            if open_dependency is None:
+                value = await run_callable(plan.callable, kwargs)
+            else:
+                value = await enter_dependency(ctx, open_dependency(**kwargs))
+
+            if self.cache:
+                ctx.cache[self] = value
+
+            return value
+
+        return resolve
 
 
 type Injected[T] = typing.Annotated[T, Inject()]
+
+
+def open_dependency_for(
+    factory: typing.Callable[..., typing.Any],
+) -> typing.Callable[..., contextlib.AbstractAsyncContextManager[typing.Any]] | None:
+    """Wrap a generator factory so the value it yields is released when the invocation ends."""
+
+    if inspection.is_async_generator_callable(factory):
+        return contextlib.asynccontextmanager(factory)
+
+    if inspection.is_generator_callable(factory):
+        open_sync_dependency = contextlib.contextmanager(factory)
+
+        def open_in_threadpool(**kwargs: object) -> contextlib.AbstractAsyncContextManager[typing.Any]:
+            return run_context_in_threadpool(open_sync_dependency(**kwargs))
+
+        return open_in_threadpool
+
+    return None
+
+
+async def enter_dependency(
+    context: InvocationContext,
+    dependency: contextlib.AbstractAsyncContextManager[typing.Any],
+) -> object:
+    """Open a dependency that needs releasing, tying its lifetime to the invocation."""
+
+    if context.exit_stack is None:
+        raise DependencyError(
+            "Cannot open a dependency that needs cleanup outside an active invocation context. "
+            "Enter the context with `async with context:` before invoking."
+        )
+
+    return await context.exit_stack.enter_async_context(dependency)
+
+
+@contextlib.asynccontextmanager
+async def run_context_in_threadpool[T](
+    manager: contextlib.AbstractContextManager[T],
+) -> typing.AsyncIterator[T]:
+    """Run a synchronous context manager's enter and exit off the event loop."""
+
+    value = await run_in_threadpool(manager.__enter__)
+    try:
+        yield value
+    except BaseException as exc:
+        # forward the real exception so `except` and `finally` inside the generator behave normally
+        if not await run_in_threadpool(manager.__exit__, type(exc), exc, exc.__traceback__):
+            raise
+    else:
+        await run_in_threadpool(manager.__exit__, None, None, None)
 
 
 @dataclasses.dataclass
@@ -207,11 +266,11 @@ class CallableInfo[**PS, R]:
 
 
 def parse_parameter(param: inspect.Parameter) -> ParamInfo:
-    type_, metadata = unwrap_annotation(param.annotation)
+    type_, metadata = inspection.unwrap_annotation(param.annotation)
     default = param.default if param.default is not inspect.Parameter.empty else MISSING
 
-    if is_optional(type_):
-        type_ = strip_none(type_)
+    if inspection.is_optional(type_):
+        type_ = inspection.strip_none(type_)
         if default is MISSING:
             default = None
 
@@ -228,28 +287,6 @@ def parse_parameter(param: inspect.Parameter) -> ParamInfo:
     )
 
 
-def is_async_callable(fn: typing.Any) -> typing.TypeGuard[typing.Callable[..., typing.Awaitable[typing.Any]]]:
-    """Detect coroutine functions, including callable objects with an async `__call__`."""
-
-    return inspect.iscoroutinefunction(fn) or inspect.iscoroutinefunction(
-        getattr(fn, "__call__", None)  # noqa: B004 - reading the coroutine marker, not a callability test
-    )
-
-
-def is_generator_callable(fn: typing.Any) -> typing.TypeGuard[typing.Callable[..., typing.Iterator[typing.Any]]]:
-    """Detect generator functions, including callable objects with a generator `__call__`."""
-
-    raise NotImplementedError
-
-
-def is_async_generator_callable(
-    fn: typing.Any,
-) -> typing.TypeGuard[typing.Callable[..., typing.AsyncIterator[typing.Any]]]:
-    """Detect async generator functions, including callable objects with one as `__call__`."""
-
-    raise NotImplementedError
-
-
 def inspect_callable[**PS, R](fn: typing.Callable[PS, R]) -> CallableInfo[PS, R]:
     signature = inspect.signature(fn, annotation_format=annotationlib.Format.FORWARDREF)
     return_type = signature.return_annotation
@@ -257,49 +294,8 @@ def inspect_callable[**PS, R](fn: typing.Callable[PS, R]) -> CallableInfo[PS, R]
         callable=fn,
         parameters=tuple(parse_parameter(param) for param in signature.parameters.values()),
         return_type=MISSING if return_type is inspect.Signature.empty else return_type,
-        is_async=is_async_callable(fn),
+        is_async=inspection.is_async_callable(fn),
     )
-
-
-def unwrap_alias(annotation: typing.Any) -> typing.Any:
-    """Resolve type aliases, including subscripted ones like `Injected[str]`."""
-
-    while True:
-        if isinstance(annotation, typing.TypeAliasType):
-            annotation = annotationlib.call_evaluate_function(
-                annotation.evaluate_value,
-                format=annotationlib.Format.FORWARDREF,
-            )
-            continue
-
-        origin = typing.get_origin(annotation)
-        if isinstance(origin, typing.TypeAliasType):
-            annotation = unwrap_alias(origin)[typing.get_args(annotation)]
-            continue
-
-        return annotation
-
-
-def unwrap_annotation(annotation: typing.Any) -> tuple[typing.Any, tuple[typing.Any, ...]]:
-    """Strip aliases and `Annotated` layers, collecting metadata innermost first."""
-
-    metadata: list[typing.Any] = []
-    while True:
-        annotation = unwrap_alias(annotation)
-        if typing.get_origin(annotation) is not typing.Annotated:
-            return annotation, tuple(metadata)
-
-        annotation, *extra = typing.get_args(annotation)
-        metadata[:0] = extra
-
-
-def is_optional(annotation: typing.Any) -> typing.TypeGuard[types.UnionType]:
-    return isinstance(annotation, types.UnionType) and types.NoneType in typing.get_args(annotation)
-
-
-def strip_none(annotation: typing.Any) -> typing.Any:
-    args = (arg for arg in typing.get_args(annotation) if arg is not types.NoneType)
-    return functools.reduce(operator.or_, args)
 
 
 @dataclasses.dataclass
@@ -322,7 +318,7 @@ def compile_call_plan[**PS, R](
     if context is None:
         context = CompileContext()
 
-    owner = callable_name(fn)
+    owner = inspection.callable_name(fn)
     for param in info.parameters:
         validate_parameter(param, owner)
 
@@ -367,7 +363,8 @@ def find_binding(param: ParamInfo, owner: str) -> Binding:
         candidate for candidate in param.metadata if not isinstance(candidate, type) and isinstance(candidate, Binding)
     )
     if len(bindings) > 1:
-        listed = ", ".join(repr(binding) for binding in bindings)
+        # name the binding types rather than repr them, so a bound secret never reaches the log
+        listed = ", ".join(type(binding).__name__ for binding in bindings)
         raise AmbiguousBindingError(
             f"Parameter {param.name!r} of {owner}() has {len(bindings)} bindings: {listed}. "
             f"Annotate it with exactly one."
@@ -379,7 +376,20 @@ def find_binding(param: ParamInfo, owner: str) -> Binding:
 async def resolve_arguments(plan: CallPlan[..., typing.Any], context: InvocationContext) -> dict[str, object]:
     """Resolve every parameter of a plan into the keyword arguments its callable expects."""
 
-    raise NotImplementedError
+    try:
+        return {parameter.param.name: await parameter.resolve(context) for parameter in plan.parameters}
+    except UnresolvedDependencyError as exc:
+        exc.owner = exc.owner or inspection.callable_name(plan.callable.callable)
+        raise
+
+
+async def run_callable(info: CallableInfo[..., typing.Any], kwargs: dict[str, object]) -> object:
+    """Call a callable with resolved arguments, keeping synchronous work off the event loop."""
+
+    if info.is_async:
+        return await info.callable(**kwargs)
+
+    return await run_in_threadpool(info.callable, **kwargs)
 
 
 @typing.overload
@@ -391,16 +401,5 @@ async def invoke[R](plan: CallPlan[..., R | typing.Awaitable[R]], context: Invoc
 
 
 async def invoke[R](plan: CallPlan[..., typing.Any], context: InvocationContext) -> R:
-    try:
-        kwargs = {plan_param.param.name: await plan_param.resolve(context) for plan_param in plan.parameters}
-    except UnresolvedDependencyError as exc:
-        exc.owner = exc.owner or callable_name(plan.callable.callable)
-        raise
-
-    if plan.callable.is_async:
-        result = await plan.callable.callable(**kwargs)
-    else:
-        # sync callables must never block the event loop
-        result = await run_in_threadpool(plan.callable.callable, **kwargs)
-
-    return typing.cast(R, result)
+    kwargs = await resolve_arguments(plan, context)
+    return typing.cast(R, await run_callable(plan.callable, kwargs))
