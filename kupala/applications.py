@@ -11,6 +11,7 @@ from starlette.types import Receive, Scope, Send
 
 from kupala.dependencies import (
     INVOCATION_CONTEXT_KEY,
+    Binding,
     InjectionScope,
     InvocationContext,
 )
@@ -40,6 +41,7 @@ class Kupala:
         error_handlers: typing.Mapping[type[Exception], ErrorHandler] | None = None,
     ) -> None:
         self.name = package_name
+        self._overrides: typing.Mapping[typing.Any, Binding] = {}
         self.routes = routes
         self.debug = debug
         self.commands = commands
@@ -76,9 +78,27 @@ class Kupala:
     async def lifespan(self, app: typing.Self) -> typing.AsyncGenerator[dict[str, typing.Any]]:
         yield {}
 
+    @contextlib.contextmanager
+    def override_dependencies(self, overrides: typing.Mapping[typing.Any, Binding]) -> typing.Iterator[None]:
+        """Replace dependencies for requests made inside this block, keyed by the annotation they are declared with.
+
+        Intended for tests. The replacements apply to every request the application handles while the
+        block is open, so they are not safe to use around concurrent requests.
+        """
+
+        previous = self._overrides
+        self._overrides = {**previous, **overrides}
+        try:
+            yield
+        finally:
+            self._overrides = previous
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         scope["app"] = self
-        context = InvocationContext(scope=InjectionScope(bindings={Kupala: self}))
+        context = InvocationContext(
+            scope=InjectionScope(bindings={Kupala: self}),
+            overrides=self._overrides,
+        )
         scope[INVOCATION_CONTEXT_KEY] = context
 
         async with context:

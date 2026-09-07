@@ -1,12 +1,18 @@
 import typing
 
+import pytest
 from starlette.exceptions import HTTPException
 from starlette.testclient import TestClient
 
 from kupala.applications import Kupala
-from kupala.dependencies import Factory
+from kupala.dependencies import Factory, Value
+from kupala.requests import Request
 from kupala.responses import Response, StreamingResponse
 from kupala.routing import Routes
+from kupala.websockets import WebSocket
+
+type _Greeting = typing.Annotated[str, Value("real")]
+type _Uncached = typing.Annotated[str, Factory(lambda: "real", cache=False)]
 
 
 class TestDependencyLifetime:
@@ -110,3 +116,105 @@ class TestDependencyLifetime:
 
         with TestClient(Kupala("tests", routes=routes)) as client:
             assert client.get("/").text == "tests"
+
+
+@pytest.fixture
+def overridable_app() -> Kupala:
+    """An app whose every endpoint reads a dependency the tests below replace."""
+
+    routes = Routes()
+
+    @routes.get("/greeting")
+    async def greeting(greeting: _Greeting) -> Response:
+        return Response(greeting)
+
+    @routes.get("/uncached")
+    async def uncached(value: _Uncached) -> Response:
+        return Response(value)
+
+    @routes.get("/who")
+    async def who(request: Request) -> Response:
+        # names the class actually injected, so a replaced Request is visible
+        return Response(type(request).__name__)
+
+    @routes.websocket("/ws")
+    async def socket(websocket: WebSocket, greeting: _Greeting) -> None:
+        await websocket.accept()
+        await websocket.send_text(greeting)
+        await websocket.close()
+
+    return Kupala("tests", routes=routes)
+
+
+@pytest.fixture
+def overridable_client(overridable_app: Kupala) -> typing.Iterator[TestClient]:
+    with TestClient(overridable_app) as client:
+        yield client
+
+
+class TestOverrideDependencies:
+    def test_applies_inside_the_block_only(self, overridable_app: Kupala, overridable_client: TestClient) -> None:
+        with overridable_app.override_dependencies({_Greeting: Value("fake")}):
+            assert overridable_client.get("/greeting").text == "fake"
+
+        assert overridable_client.get("/greeting").text == "real"
+
+    def test_restores_after_an_error_inside_the_block(
+        self, overridable_app: Kupala, overridable_client: TestClient
+    ) -> None:
+        with (
+            pytest.raises(RuntimeError, match="boom"),
+            overridable_app.override_dependencies({_Greeting: Value("fake")}),
+        ):
+            raise RuntimeError("boom")
+
+        assert overridable_client.get("/greeting").text == "real"
+
+    def test_nested_blocks_merge(self, overridable_app: Kupala, overridable_client: TestClient) -> None:
+        with overridable_app.override_dependencies({_Greeting: Value("outer")}):
+            with overridable_app.override_dependencies({_Uncached: Value("inner")}):
+                assert overridable_client.get("/greeting").text == "outer"
+                assert overridable_client.get("/uncached").text == "inner"
+
+            # the inner block is gone, the outer one still stands
+            assert overridable_client.get("/uncached").text == "real"
+            assert overridable_client.get("/greeting").text == "outer"
+
+    def test_replaces_a_dependency_that_never_caches(
+        self, overridable_app: Kupala, overridable_client: TestClient
+    ) -> None:
+        # a cache=False factory has no cache entry to seed, so only an override can reach it
+        with overridable_app.override_dependencies({_Uncached: Value("fake")}):
+            assert overridable_client.get("/uncached").text == "fake"
+
+    def test_wins_over_a_binding_the_router_makes(
+        self, overridable_app: Kupala, overridable_client: TestClient
+    ) -> None:
+        # the router binds the real Request on every request, and the override still takes precedence
+        class StubRequest: ...
+
+        with overridable_app.override_dependencies({Request: Value(StubRequest())}):
+            assert overridable_client.get("/who").text == "StubRequest"
+
+        assert overridable_client.get("/who").text == "Request"
+
+    def test_replaces_a_dependency_with_a_factory(
+        self, overridable_app: Kupala, overridable_client: TestClient
+    ) -> None:
+        # overrides are bindings rather than plain values, so a double can bring its own cleanup
+        events: list[str] = []
+
+        def fake_greeting() -> typing.Iterator[str]:
+            yield "fake"
+            events.append("released")
+
+        with overridable_app.override_dependencies({_Greeting: Factory(fake_greeting)}):
+            assert overridable_client.get("/greeting").text == "fake"
+            assert events == ["released"]
+
+    def test_reaches_websocket_endpoints(self, overridable_app: Kupala, overridable_client: TestClient) -> None:
+        with (
+            overridable_app.override_dependencies({_Greeting: Value("fake")}),
+            overridable_client.websocket_connect("/ws") as websocket,
+        ):
+            assert websocket.receive_text() == "fake"

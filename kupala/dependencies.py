@@ -77,6 +77,8 @@ class InjectionScope:
 class InvocationContext:
     scope: InjectionScope
     cache: dict[Binding, object] = dataclasses.field(default_factory=dict)
+    # replacements keyed by the annotation as written, checked before any binding runs
+    overrides: typing.Mapping[typing.Any, Binding] = dataclasses.field(default_factory=dict)
     # only set while the context is entered, so a dependency that needs cleanup can tell
     exit_stack: contextlib.AsyncExitStack | None = None
 
@@ -373,11 +375,26 @@ def find_binding(param: ParamInfo, owner: str) -> Binding:
     return bindings[0] if bindings else Inject()
 
 
+async def resolve_parameter(plan: ParameterPlan, context: InvocationContext) -> object:
+    """Resolve one parameter, letting an override stand in for whatever binding it carries."""
+
+    override = context.overrides.get(plan.param.annotation)
+    if override is None:
+        return await plan.resolve(context)
+
+    # overrides only exist in tests, so compiling one per call costs nothing that matters
+    return await override.compile(CompileContext(), plan.param)(context)
+
+
 async def resolve_arguments(plan: CallPlan[..., typing.Any], context: InvocationContext) -> dict[str, object]:
     """Resolve every parameter of a plan into the keyword arguments its callable expects."""
 
     try:
-        return {parameter.param.name: await parameter.resolve(context) for parameter in plan.parameters}
+        # overrides are a testing tool, so requests that use none keep the shorter path
+        if not context.overrides:
+            return {parameter.param.name: await parameter.resolve(context) for parameter in plan.parameters}
+
+        return {parameter.param.name: await resolve_parameter(parameter, context) for parameter in plan.parameters}
     except UnresolvedDependencyError as exc:
         exc.owner = exc.owner or inspection.callable_name(plan.callable.callable)
         raise

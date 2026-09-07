@@ -1096,3 +1096,64 @@ class TestCircularDependency:
 
     def test_is_an_invalid_dependency_error(self) -> None:
         assert issubclass(CircularDependencyError, InvalidDependencyError)
+
+
+class TestOverrides:
+    async def test_replaces_the_binding_of_an_annotation(self) -> None:
+        type Greeting = typing.Annotated[str, Value("real")]
+
+        def fn(greeting: Greeting) -> str:
+            return greeting
+
+        context = InvocationContext(scope=InjectionScope(bindings={}), overrides={Greeting: Value("fake")})
+
+        assert await invoke(compile_call_plan(fn), context) == "fake"
+
+    async def test_leaves_other_parameters_alone(self) -> None:
+        type Greeting = typing.Annotated[str, Value("real")]
+        type Subject = typing.Annotated[str, Value("world")]
+
+        def fn(greeting: Greeting, subject: Subject) -> str:
+            return f"{greeting} {subject}"
+
+        context = InvocationContext(scope=InjectionScope(bindings={}), overrides={Greeting: Value("fake")})
+
+        assert await invoke(compile_call_plan(fn), context) == "fake world"
+
+    async def test_replaces_a_binding_that_never_caches(self) -> None:
+        # a cache=False factory keeps no cache entry, so an override is the only way to reach it
+        def make() -> str:
+            return "real"  # pragma: no cover
+
+        type Uncached = typing.Annotated[str, Factory(make, cache=False)]
+
+        def fn(value: Uncached) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}), overrides={Uncached: Value("fake")})
+
+        assert await invoke(compile_call_plan(fn), context) == "fake"
+
+    async def test_replaces_with_a_generator_factory(self) -> None:
+        events: list[str] = []
+
+        def real() -> str:
+            return "real"  # pragma: no cover
+
+        def fake() -> typing.Iterator[str]:
+            yield "fake"
+            events.append("released")
+
+        type Greeting = typing.Annotated[str, Factory(real)]
+
+        def fn(greeting: Greeting) -> str:
+            return greeting
+
+        context = InvocationContext(scope=InjectionScope(bindings={}), overrides={Greeting: Factory(fake)})
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "fake"
+            assert events == []
+
+        # the replacement is released with the invocation, exactly like the binding it stands in for
+        assert events == ["released"]
