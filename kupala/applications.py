@@ -78,8 +78,11 @@ class Kupala:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         scope["app"] = self
-        scope[INVOCATION_CONTEXT_KEY] = InvocationContext(scope=InjectionScope(bindings={Kupala: self}))
-        await self._asgi_app(scope, receive, send)
+        context = InvocationContext(scope=InjectionScope(bindings={Kupala: self}))
+        scope[INVOCATION_CONTEXT_KEY] = context
+
+        async with context:
+            await self._asgi_app(scope, receive, send)
 
     def cli(self) -> None:
         pass

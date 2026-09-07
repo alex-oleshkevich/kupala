@@ -1,4 +1,5 @@
 import annotationlib
+import contextlib
 import dataclasses
 import functools
 import inspect
@@ -69,6 +70,28 @@ class UnannotatedParameterError(InvalidDependencyError):
         )
 
 
+class AmbiguousBindingError(InvalidDependencyError):
+    """A parameter carries more than one binding, so the injector cannot tell which one to use."""
+
+    def __init__(self, param: ParamInfo, owner: str, bindings: tuple[Binding, ...]) -> None:
+        listed = ", ".join(repr(binding) for binding in bindings)
+        super().__init__(
+            f"Parameter {param.name!r} of {owner}() has {len(bindings)} bindings: {listed}. "
+            f"Annotate it with exactly one."
+        )
+
+
+class CircularDependencyError(InvalidDependencyError):
+    """A factory depends on itself, directly or through other factories."""
+
+    def __init__(self, factory: Factory, context: CompileContext) -> None:
+        path = " -> ".join(callable_name(entry.factory) for entry in (*context.chain, factory))
+        super().__init__(
+            f"Circular dependency detected: {path}. "
+            f"A factory cannot depend on itself, directly or through another factory."
+        )
+
+
 class UnresolvedDependencyError(DependencyError):
     """Nothing was bound for a requested key and the parameter has no default."""
 
@@ -102,6 +125,8 @@ class InjectionScope:
 @dataclasses.dataclass(frozen=True, slots=True)
 class InvocationContext:
     scope: InjectionScope
+    cache: dict[Binding, object] = dataclasses.field(default_factory=dict)
+    exit_stack: contextlib.AsyncExitStack = dataclasses.field(default_factory=contextlib.AsyncExitStack)
 
     async def resolve(self, type_: Key, default: object = MISSING) -> object:
         value = self.scope.bindings.get(type_, default)
@@ -110,18 +135,43 @@ class InvocationContext:
 
         return value
 
+    async def __aenter__(self) -> typing.Self:
+        await self.exit_stack.__aenter__()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: types.TracebackType | None,
+    ) -> None:
+        await self.exit_stack.__aexit__(exc_type, exc, traceback)
+
 
 type Resolver = typing.Callable[[InvocationContext], typing.Awaitable[object]]
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class CompileContext:
+    """State of compiling one callable: who it is, and the factories we descended through to reach it."""
+
+    owner: str
+    chain: tuple[Factory, ...] = ()
+
+    def enter(self, factory: Factory) -> typing.Self:
+        """Descend into a factory's own callable."""
+
+        raise NotImplementedError
+
+
 @typing.runtime_checkable
 class Binding(typing.Protocol):
-    def compile(self, param: ParamInfo) -> Resolver: ...
+    def compile(self, param: ParamInfo, context: CompileContext) -> Resolver: ...
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Inject:
-    def compile(self, param: ParamInfo) -> Resolver:
+    def compile(self, param: ParamInfo, context: CompileContext) -> Resolver:
         async def resolve(ctx: InvocationContext) -> object:
             try:
                 return await ctx.resolve(param.type, param.default)
@@ -136,11 +186,22 @@ class Inject:
 class Value:
     value: typing.Any
 
-    def compile(self, param: ParamInfo) -> Resolver:
+    def compile(self, param: ParamInfo, context: CompileContext) -> Resolver:
         async def resolve(ctx: InvocationContext) -> object:
             return self.value
 
         return resolve
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class Factory:
+    """Build a value on demand from a callable, a generator, or an async generator."""
+
+    factory: typing.Callable[..., typing.Any]
+    cache: bool = True
+
+    def compile(self, param: ParamInfo, context: CompileContext) -> Resolver:
+        raise NotImplementedError
 
 
 type Injected[T] = typing.Annotated[T, Inject()]
@@ -190,12 +251,26 @@ def parse_parameter(param: inspect.Parameter) -> ParamInfo:
     )
 
 
-def is_async_callable(fn: typing.Any) -> bool:
+def is_async_callable(fn: typing.Any) -> typing.TypeGuard[typing.Callable[..., typing.Awaitable[typing.Any]]]:
     """Detect coroutine functions, including callable objects with an async `__call__`."""
 
     return inspect.iscoroutinefunction(fn) or inspect.iscoroutinefunction(
         getattr(fn, "__call__", None)  # noqa: B004 - reading the coroutine marker, not a callability test
     )
+
+
+def is_generator_callable(fn: typing.Any) -> typing.TypeGuard[typing.Callable[..., typing.Iterator[typing.Any]]]:
+    """Detect generator functions, including callable objects with a generator `__call__`."""
+
+    raise NotImplementedError
+
+
+def is_async_generator_callable(
+    fn: typing.Any,
+) -> typing.TypeGuard[typing.Callable[..., typing.AsyncIterator[typing.Any]]]:
+    """Detect async generator functions, including callable objects with one as `__call__`."""
+
+    raise NotImplementedError
 
 
 def inspect_callable[**PS, R](fn: typing.Callable[PS, R]) -> CallableInfo[PS, R]:
@@ -241,7 +316,7 @@ def unwrap_annotation(annotation: typing.Any) -> tuple[typing.Any, tuple[typing.
         metadata[:0] = extra
 
 
-def is_optional(annotation: typing.Any) -> bool:
+def is_optional(annotation: typing.Any) -> typing.TypeGuard[types.UnionType]:
     return isinstance(annotation, types.UnionType) and types.NoneType in typing.get_args(annotation)
 
 
@@ -262,15 +337,20 @@ class CallPlan[**PS, R]:
     parameters: tuple[ParameterPlan, ...]
 
 
-def compile_call_plan[**PS, R](fn: typing.Callable[PS, R]) -> CallPlan[PS, R]:
+def compile_call_plan[**PS, R](
+    fn: typing.Callable[PS, R],
+    context: CompileContext | None = None,
+) -> CallPlan[PS, R]:
     info = inspect_callable(fn)
-    owner = callable_name(fn)
+    if context is None:
+        context = CompileContext(owner=callable_name(fn))
+
     for param in info.parameters:
-        validate_parameter(param, owner)
+        validate_parameter(param, context.owner)
 
     return CallPlan(
         callable=info,
-        parameters=tuple(compile_parameter(param) for param in info.parameters),
+        parameters=tuple(compile_parameter(param, context) for param in info.parameters),
     )
 
 
@@ -284,9 +364,9 @@ def validate_parameter(param: ParamInfo, owner: str) -> None:
         raise UnannotatedParameterError(param, owner)
 
 
-def compile_parameter(param: ParamInfo) -> ParameterPlan:
+def compile_parameter(param: ParamInfo, context: CompileContext) -> ParameterPlan:
     binding = find_binding(param)
-    return ParameterPlan(param=param, resolve=binding.compile(param))
+    return ParameterPlan(param=param, resolve=binding.compile(param, context))
 
 
 def find_binding(param: ParamInfo) -> Binding:
@@ -295,6 +375,12 @@ def find_binding(param: ParamInfo) -> Binding:
             return candidate
 
     return Inject()
+
+
+async def resolve_arguments(plan: CallPlan[..., typing.Any], context: InvocationContext) -> dict[str, object]:
+    """Resolve every parameter of a plan into the keyword arguments its callable expects."""
+
+    raise NotImplementedError
 
 
 @typing.overload
