@@ -1,8 +1,3 @@
-from starlette.requests import Request as BaseRequest
-
-
-class Request(BaseRequest):
-    pass
-
+from starlette.requests import Request
 
 __all__ = ["Request"]
