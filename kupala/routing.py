@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dataclasses
 import functools
-import inspect
 import typing
 
 from starlette.concurrency import run_in_threadpool
@@ -10,7 +9,13 @@ from starlette.middleware import Middleware as ASGIMiddlewareWrapper
 from starlette.routing import BaseRoute, Host, Mount, Route, WebSocketRoute
 from starlette.types import ASGIApp
 
-from kupala.dependencies import DependencyResolver
+from kupala.dependencies import (
+    INVOCATION_CONTEXT_KEY,
+    InvocationContext,
+    compile_call_plan,
+    invoke,
+    is_async_callable,
+)
 from kupala.middleware import (
     CallNext,
     Middleware,
@@ -21,12 +26,13 @@ from kupala.requests import Request
 from kupala.responses import Response
 from kupala.websockets import WebSocket
 
-type SyncEndpoint = typing.Callable[[Request], Response]
-type AnyEndpoint = typing.Callable[[Request], Response | typing.Awaitable[Response]]
+# endpoints receive their arguments from the dependency injector, so any signature is valid
+type SyncEndpoint = typing.Callable[..., Response]
+type AnyEndpoint = typing.Callable[..., Response | typing.Awaitable[Response]]
 type AnyResponse = Response | typing.Awaitable[Response]
-type AsyncEndpoint = typing.Callable[[Request], typing.Awaitable[Response]]
+type AsyncEndpoint = typing.Callable[..., typing.Awaitable[Response]]
 type EndpointWrapper = typing.Callable[[AnyEndpoint], AnyEndpoint]
-type WebSocketEndpoint = typing.Callable[[WebSocket], typing.Awaitable[None]]
+type WebSocketEndpoint = typing.Callable[..., typing.Awaitable[None]]
 type WebSocketEndpointWrapper = typing.Callable[[WebSocketEndpoint], WebSocketEndpoint]
 
 
@@ -240,7 +246,6 @@ class Routes:
 
     def compile(
         self,
-        binder: DependencyResolver,
         http_middleware: tuple[Middleware, ...],
         websocket_middleware: tuple[WebSocketMiddleware, ...] = (),
     ) -> list[BaseRoute]:
@@ -316,7 +321,7 @@ class Routes:
                                 path=route_path,
                                 name=route_name,
                                 endpoint=chain_websocket_middleware(
-                                    definition.fn,
+                                    bind_websocket_dependencies(definition.fn),
                                     [*websocket_middleware, *group_websocket_middleware, *definition.middleware],
                                 ),
                             )
@@ -333,7 +338,7 @@ class Routes:
                                 name=route_name,
                                 methods=definition.methods,
                                 endpoint=chain_middleware(
-                                    definition.fn,
+                                    bind_http_dependencies(definition.fn),
                                     [*http_middleware, *middleware, *definition.middleware],
                                 ),
                             )
@@ -430,10 +435,7 @@ def chain_websocket_middleware(
 
 
 def is_async_endpoint(fn: AnyEndpoint) -> typing.TypeGuard[AsyncEndpoint]:
-    # a callable object carries its coroutine marker on `__call__`, not on the instance
-    return inspect.iscoroutinefunction(fn) or inspect.iscoroutinefunction(
-        getattr(fn, "__call__", None)  # noqa: B004 - reading the coroutine marker, not a callability test
-    )
+    return is_async_callable(fn)
 
 
 def is_sync_endpoint(fn: AnyEndpoint) -> typing.TypeGuard[SyncEndpoint]:
@@ -448,3 +450,25 @@ async def invoke_endpoint(request: Request, endpoint: AnyEndpoint) -> Response:
         return await run_in_threadpool(endpoint, request)
 
     raise AssertionError("Unsupported endpoint")
+
+
+def bind_http_dependencies(fn: AnyEndpoint) -> AnyEndpoint:
+    plan = compile_call_plan(fn)
+
+    async def wrapped(request: Request) -> Response:
+        context: InvocationContext = request.scope[INVOCATION_CONTEXT_KEY]
+        context.scope.bind(Request, request)
+        return await invoke(plan, context)
+
+    return wrapped
+
+
+def bind_websocket_dependencies(fn: WebSocketEndpoint) -> WebSocketEndpoint:
+    plan = compile_call_plan(fn)
+
+    async def wrapped(ws: WebSocket) -> None:
+        context: InvocationContext = ws.scope[INVOCATION_CONTEXT_KEY]
+        context.scope.bind(WebSocket, ws)
+        await invoke(plan, context)
+
+    return wrapped

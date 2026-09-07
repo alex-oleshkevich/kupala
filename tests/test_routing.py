@@ -11,6 +11,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocketDisconnect
 
 from kupala.applications import Kupala
+from kupala.dependencies import Injected, Value
 from kupala.middleware import (
     CallNext,
     Middleware,
@@ -268,7 +269,7 @@ class TestRouteDefinitions:
 
     def test_nested_groups_compile_prefix_and_namespace(self, nested_routes: Routes) -> None:
         app = Kupala("tests", routes=nested_routes)
-        compiled_routes = nested_routes.compile(app.resolver, tuple(app.middleware))
+        compiled_routes = nested_routes.compile(tuple(app.middleware))
 
         profile_route = next(
             route for route in compiled_routes if isinstance(route, Route) and route.name == "api.users.private.profile"
@@ -287,6 +288,23 @@ class TestWebSocketRoutes:
             "websocket-endpoint",
             "websocket-after",
         ]
+
+    def test_websocket_endpoint_resolves_dependencies(self) -> None:
+        routes = Routes()
+
+        @routes.websocket("/socket")
+        async def websocket_endpoint(
+            websocket: WebSocket,
+            application: Injected[Kupala],
+            greeting: typing.Annotated[str, Value("hello")],
+        ) -> None:
+            await websocket.accept()
+            await websocket.send_text(f"{greeting} {application.name}")
+
+        app = Kupala("di-app", routes=routes)
+
+        with TestClient(app) as client, client.websocket_connect("/socket") as websocket:
+            assert websocket.receive_text() == "hello di-app"
 
     def test_application_and_group_websocket_middleware_order(self) -> None:
         events: list[str] = []
@@ -427,13 +445,13 @@ class TestHostRoutes:
 class TestCompileRoutes:
     def test_compiles_all_definition_types(self, routes: Routes, composed_routes: Routes) -> None:
         app = Kupala("tests", routes=routes)
-        compiled_routes = routes.compile(app.resolver, tuple(app.middleware))
+        compiled_routes = routes.compile(tuple(app.middleware))
 
         assert any(isinstance(route, Route) for route in compiled_routes)
         assert any(isinstance(route, WebSocketRoute) for route in compiled_routes)
 
         app = Kupala("tests", routes=composed_routes)
-        compiled_routes = composed_routes.compile(app.resolver, tuple(app.middleware))
+        compiled_routes = composed_routes.compile(tuple(app.middleware))
 
         assert any(isinstance(route, Mount) for route in compiled_routes)
         assert any(isinstance(route, Host) for route in compiled_routes)
@@ -500,7 +518,7 @@ class TestCompileRoutes:
 
         app = Kupala("tests", routes=routes)
 
-        assert len(routes.compile(app.resolver, tuple(app.middleware))) == 2
+        assert len(routes.compile(tuple(app.middleware))) == 2
 
     def test_preserves_static_before_parameter_route_order(self) -> None:
         routes = Routes()

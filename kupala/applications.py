@@ -9,7 +9,12 @@ from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.routing import Router
 from starlette.types import Receive, Scope, Send
 
-from kupala.dependencies import DependencyResolver
+from kupala.dependencies import (
+    INVOCATION_CONTEXT_KEY,
+    DependencyRegistry,
+    InjectionScope,
+    InvocationContext,
+)
 from kupala.error_handlers import (
     ErrorHandler,
     http_error_handler,
@@ -41,7 +46,7 @@ class Kupala:
         self.commands = commands
         self.middleware = list(middleware)
         self.websocket_middleware = list(websocket_middleware)
-        self.resolver = DependencyResolver()
+        self.dependencies = DependencyRegistry()
         self.error_handlers = {
             BaseHTTPError: http_error_handler,
             HTTPException: http_error_handler,
@@ -61,7 +66,6 @@ class Kupala:
         app = Router(
             lifespan=self.lifespan,
             routes=routes.compile(
-                self.resolver,
                 tuple(self.middleware),
                 tuple(self.websocket_middleware),
             ),
@@ -76,6 +80,7 @@ class Kupala:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         scope["app"] = self
+        scope[INVOCATION_CONTEXT_KEY] = InvocationContext(scope=InjectionScope(bindings={Kupala: self}))
         await self._asgi_app(scope, receive, send)
 
     def cli(self) -> None:

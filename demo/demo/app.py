@@ -5,6 +5,7 @@ import typing
 import anyio
 
 from kupala.applications import Kupala
+from kupala.dependencies import Value
 from kupala.errors import BadRequestError
 from kupala.middleware import CallNext
 from kupala.requests import Request
@@ -12,6 +13,16 @@ from kupala.responses import Response, ServerSentEvent, response
 from kupala.routing import Routes
 
 routes = Routes()
+
+
+class User: ...
+
+
+class RuleEnforcer: ...
+
+
+type Guard = typing.Annotated[RuleEnforcer, Value("guard")]
+type CurrentUser = typing.Annotated[User, Value("user")]
 
 
 async def app_middleware(request: Request, call_next: CallNext) -> Response:
@@ -32,6 +43,11 @@ async def example_middleware(request: Request, call_next: CallNext) -> Response:
 @routes.get("/overview", name="overview")
 async def index_view(request: Request) -> Response:
     return response(request).text("hi")
+
+
+@routes.get("/dependency")
+async def dependency_view(request: Request, user: CurrentUser, guard: Guard) -> Response:
+    return response(request).text(f"{user} - {guard}")
 
 
 @routes.get("/error")
