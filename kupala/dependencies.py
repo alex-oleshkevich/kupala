@@ -3,6 +3,7 @@ import contextlib
 import dataclasses
 import functools
 import inspect
+import logging
 import operator
 import types
 import typing
@@ -14,6 +15,8 @@ type Key = type[typing.Any]
 INVOCATION_CONTEXT_KEY = "kupala.invocation_context"
 
 MISSING = object()
+
+logger = logging.getLogger(__name__)
 
 
 def callable_name(fn: typing.Any) -> str:
@@ -84,11 +87,12 @@ class InjectionScope:
         self.bindings[type_] = value
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(slots=True)
 class InvocationContext:
     scope: InjectionScope
     cache: dict[Binding, object] = dataclasses.field(default_factory=dict)
-    exit_stack: contextlib.AsyncExitStack = dataclasses.field(default_factory=contextlib.AsyncExitStack)
+    # only set while the context is entered, so a dependency that needs cleanup can tell
+    exit_stack: contextlib.AsyncExitStack | None = None
 
     async def resolve(self, type_: Key, default: object = MISSING) -> object:
         value = self.scope.bindings.get(type_, default)
@@ -98,7 +102,7 @@ class InvocationContext:
         return value
 
     async def __aenter__(self) -> typing.Self:
-        await self.exit_stack.__aenter__()
+        self.exit_stack = contextlib.AsyncExitStack()
         return self
 
     async def __aexit__(
@@ -107,7 +111,19 @@ class InvocationContext:
         exc: BaseException | None,
         traceback: types.TracebackType | None,
     ) -> None:
-        await self.exit_stack.__aexit__(exc_type, exc, traceback)
+        stack, self.exit_stack = self.exit_stack, None
+        if stack is None:  # pragma: no cover - __aexit__ only ever runs after __aenter__
+            return
+
+        try:
+            await stack.__aexit__(exc_type, exc, traceback)
+        except Exception as error:
+            if error is exc:
+                # our own caller's error travelled back out through a dependency, so let it continue
+                raise
+
+            # the response has already been sent, so there is nobody left to tell but the log
+            logger.exception("Failed to release a dependency.")
 
 
 type Resolver = typing.Callable[[InvocationContext], typing.Awaitable[object]]
@@ -122,7 +138,7 @@ class CompileContext:
     def enter(self, factory: Factory) -> typing.Self:
         """Descend into a factory's own callable."""
 
-        raise NotImplementedError
+        return dataclasses.replace(self, chain=(*self.chain, factory))
 
 
 @typing.runtime_checkable
