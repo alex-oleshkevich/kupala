@@ -166,12 +166,12 @@ class CompileContext:
 
 @typing.runtime_checkable
 class Binding(typing.Protocol):
-    def compile(self, param: ParamInfo, context: CompileContext) -> Resolver: ...
+    def compile(self, context: CompileContext, param: ParamInfo) -> Resolver: ...
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Inject:
-    def compile(self, param: ParamInfo, context: CompileContext) -> Resolver:
+    def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
         async def resolve(ctx: InvocationContext) -> object:
             try:
                 return await ctx.resolve(param.type, param.default)
@@ -186,7 +186,7 @@ class Inject:
 class Value:
     value: typing.Any
 
-    def compile(self, param: ParamInfo, context: CompileContext) -> Resolver:
+    def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
         async def resolve(ctx: InvocationContext) -> object:
             return self.value
 
@@ -200,7 +200,7 @@ class Factory:
     factory: typing.Callable[..., typing.Any]
     cache: bool = True
 
-    def compile(self, param: ParamInfo, context: CompileContext) -> Resolver:
+    def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
         raise NotImplementedError
 
 
@@ -350,7 +350,7 @@ def compile_call_plan[**PS, R](
 
     return CallPlan(
         callable=info,
-        parameters=tuple(compile_parameter(param, context) for param in info.parameters),
+        parameters=tuple(compile_parameter(context, param) for param in info.parameters),
     )
 
 
@@ -364,9 +364,9 @@ def validate_parameter(param: ParamInfo, owner: str) -> None:
         raise UnannotatedParameterError(param, owner)
 
 
-def compile_parameter(param: ParamInfo, context: CompileContext) -> ParameterPlan:
+def compile_parameter(context: CompileContext, param: ParamInfo) -> ParameterPlan:
     binding = find_binding(param)
-    return ParameterPlan(param=param, resolve=binding.compile(param, context))
+    return ParameterPlan(param=param, resolve=binding.compile(context, param))
 
 
 def find_binding(param: ParamInfo) -> Binding:
