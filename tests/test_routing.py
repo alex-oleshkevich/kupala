@@ -1,6 +1,5 @@
 import threading
 import typing
-from unittest.mock import Mock
 
 import pytest
 from starlette.applications import Starlette
@@ -37,6 +36,14 @@ class HostEventMiddleware:
         self.events.append("before")
         await self.app(scope, receive, send)
         self.events.append("after")
+
+
+def stub_endpoint(request: Request) -> Response:
+    raise AssertionError("route-shape tests never invoke the endpoint")  # pragma: no cover
+
+
+async def stub_websocket_endpoint(websocket: WebSocket) -> None:
+    raise AssertionError("route-shape tests never invoke the endpoint")  # pragma: no cover
 
 
 @pytest.fixture
@@ -400,7 +407,7 @@ class TestWebSocketRoutes:
             await websocket.close(code=4403)
 
         routes = Routes()
-        endpoint = typing.cast(typing.Callable[[WebSocket], typing.Awaitable[None]], Mock())
+        endpoint = stub_websocket_endpoint
         routes.websocket("/blocked", name="blocked", middleware=[blocking_middleware])(endpoint)
 
         app = Kupala("tests", routes=routes)
@@ -505,7 +512,7 @@ class TestCompileRoutes:
 
     def test_rejects_duplicate_http_routes(self) -> None:
         routes = Routes()
-        endpoint = typing.cast(typing.Callable[[Request], Response], Mock())
+        endpoint = stub_endpoint
         routes.get("/users", name="first")(endpoint)
         routes.get("/users", name="second")(endpoint)
 
@@ -516,7 +523,7 @@ class TestCompileRoutes:
         routes = Routes()
         first = routes.group("/api")
         second = routes.group("/api")
-        endpoint = typing.cast(typing.Callable[[Request], Response], Mock())
+        endpoint = stub_endpoint
         first.get("/users", name="first")(endpoint)
         second.get("/users", name="second")(endpoint)
 
@@ -525,7 +532,7 @@ class TestCompileRoutes:
 
     def test_rejects_duplicate_route_names(self) -> None:
         routes = Routes()
-        endpoint = typing.cast(typing.Callable[[Request], Response], Mock())
+        endpoint = stub_endpoint
         routes.get("/users", name="shared")(endpoint)
         routes.get("/accounts", name="shared")(endpoint)
 
@@ -534,7 +541,7 @@ class TestCompileRoutes:
 
     def test_allows_same_path_for_different_http_methods(self) -> None:
         routes = Routes()
-        endpoint = typing.cast(typing.Callable[[Request], Response], Mock())
+        endpoint = stub_endpoint
         routes.get("/users", name="get_users")(endpoint)
         routes.post("/users", name="create_user")(endpoint)
 
@@ -549,7 +556,7 @@ class TestCompileRoutes:
         async def current_user(request: Request) -> Response:
             return response(request).text("me")
 
-        routes.get("/users/{user_id}", name="user_detail")(typing.cast(typing.Callable[[Request], Response], Mock()))
+        routes.get("/users/{user_id}", name="user_detail")(stub_endpoint)
 
         app = Kupala("tests", routes=routes)
 

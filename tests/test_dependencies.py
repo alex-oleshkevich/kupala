@@ -6,12 +6,16 @@ import pytest
 
 from kupala.dependencies import (
     MISSING,
-    DependencyRegistry,
+    DependencyError,
     Inject,
     Injected,
     InjectionScope,
+    InvalidDependencyError,
     InvocationContext,
     ParamInfo,
+    UnannotatedParameterError,
+    UnresolvedDependencyError,
+    UnsupportedParameterError,
     Value,
     compile_call_plan,
     find_binding,
@@ -301,7 +305,7 @@ class TestInvocationContext:
     async def test_raises_without_binding_or_default(self) -> None:
         context = InvocationContext(scope=InjectionScope(bindings={}))
 
-        with pytest.raises(KeyError):
+        with pytest.raises(UnresolvedDependencyError):
             await context.resolve(str)
 
 
@@ -410,16 +414,8 @@ class TestInvoke:
 
         context = InvocationContext(scope=InjectionScope(bindings={}))
 
-        with pytest.raises(KeyError):
+        with pytest.raises(UnresolvedDependencyError):
             await invoke(compile_call_plan(fn), context)
-
-
-class TestDependencyRegistry:
-    def test_provide_accepts_a_binding(self) -> None:
-        registry = DependencyRegistry()
-        registry.provide(str, "demovalue")
-
-        assert isinstance(registry, DependencyRegistry)
 
 
 class TestIsAsyncCallable:
@@ -462,3 +458,91 @@ class TestCallableInfoIsAsync:
             pass  # pragma: no cover
 
         assert inspect_callable(fn).is_async is False
+
+
+class TestValidateParameter:
+    def test_rejects_positional_only_parameter(self) -> None:
+        def fn(param: str, /) -> None:
+            pass  # pragma: no cover
+
+        with pytest.raises(UnsupportedParameterError) as info:
+            compile_call_plan(fn)
+
+        assert "Cannot inject parameter 'param'" in str(info.value)
+        assert "test_rejects_positional_only_parameter.<locals>.fn()" in str(info.value)
+
+    def test_rejects_variadic_positional_parameter(self) -> None:
+        def fn(*args: str) -> None:
+            pass  # pragma: no cover
+
+        with pytest.raises(UnsupportedParameterError) as info:
+            compile_call_plan(fn)
+
+        assert "*args can never be filled" in str(info.value)
+
+    def test_rejects_variadic_keyword_parameter(self) -> None:
+        def fn(**kwargs: str) -> None:
+            pass  # pragma: no cover
+
+        with pytest.raises(UnsupportedParameterError) as info:
+            compile_call_plan(fn)
+
+        assert "**kwargs can never be filled" in str(info.value)
+
+    def test_rejects_unannotated_parameter(self) -> None:
+        def fn(param) -> None:  # type: ignore[no-untyped-def]
+            pass  # pragma: no cover
+
+        with pytest.raises(UnannotatedParameterError) as info:
+            compile_call_plan(fn)
+
+        assert "has no type annotation" in str(info.value)
+
+    def test_allows_unannotated_parameter_with_default(self) -> None:
+        def fn(param="default") -> None:  # type: ignore[no-untyped-def]
+            pass  # pragma: no cover
+
+        assert compile_call_plan(fn).parameters[0].param.name == "param"
+
+    def test_keyword_only_parameter_is_supported(self) -> None:
+        def fn(*, param: str) -> None:
+            pass  # pragma: no cover
+
+        assert compile_call_plan(fn).parameters[0].param.name == "param"
+
+
+class TestUnresolvedDependencyError:
+    async def test_names_the_key_parameter_and_callable(self) -> None:
+        def fn(param: complex) -> None:
+            pass  # pragma: no cover
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        with pytest.raises(UnresolvedDependencyError) as info:
+            await invoke(compile_call_plan(fn), context)
+
+        message = str(info.value)
+        assert "No binding for complex" in message
+        assert "parameter 'param'" in message
+        assert "test_names_the_key_parameter_and_callable.<locals>.fn()" in message
+
+    async def test_reports_the_key_when_resolved_directly(self) -> None:
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        with pytest.raises(UnresolvedDependencyError) as info:
+            await context.resolve(complex)
+
+        assert str(info.value).startswith("No binding for complex.")
+
+    def test_is_a_dependency_error(self) -> None:
+        assert issubclass(UnsupportedParameterError, InvalidDependencyError)
+        assert issubclass(InvalidDependencyError, DependencyError)
+        assert issubclass(UnresolvedDependencyError, DependencyError)
+
+    def test_names_the_parameter_without_a_callable(self) -> None:
+        error = UnresolvedDependencyError(complex, parameter="param")
+
+        assert str(error) == (
+            "No binding for complex requested by parameter 'param'. "
+            "Bind it on the injection scope, or give the parameter a default value."
+        )

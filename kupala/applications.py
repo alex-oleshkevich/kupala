@@ -11,7 +11,6 @@ from starlette.types import Receive, Scope, Send
 
 from kupala.dependencies import (
     INVOCATION_CONTEXT_KEY,
-    DependencyRegistry,
     InjectionScope,
     InvocationContext,
 )
@@ -46,7 +45,6 @@ class Kupala:
         self.commands = commands
         self.middleware = list(middleware)
         self.websocket_middleware = list(websocket_middleware)
-        self.dependencies = DependencyRegistry()
         self.error_handlers = {
             BaseHTTPError: http_error_handler,
             HTTPException: http_error_handler,

@@ -14,6 +14,82 @@ INVOCATION_CONTEXT_KEY = "kupala.invocation_context"
 
 MISSING = object()
 
+# why the injector cannot fill each unsupported parameter kind
+UNSUPPORTED_PARAMETER_KINDS: dict[inspect._ParameterKind, str] = {
+    inspect.Parameter.POSITIONAL_ONLY: (
+        "Dependencies are passed by keyword, so use a regular or keyword-only parameter."
+    ),
+    inspect.Parameter.VAR_POSITIONAL: (
+        "The injector passes a fixed set of named arguments, so *args can never be filled."
+    ),
+    inspect.Parameter.VAR_KEYWORD: (
+        "The injector passes a fixed set of named arguments, so **kwargs can never be filled."
+    ),
+}
+
+
+def callable_name(fn: typing.Any) -> str:
+    """Render a callable as `module.qualname` for error messages."""
+
+    name: str = getattr(fn, "__qualname__", None) or type(fn).__name__
+    module: str | None = getattr(fn, "__module__", None)
+    return f"{module}.{name}" if module else name
+
+
+def type_name(key: typing.Any) -> str:
+    """Render a binding key the way a developer wrote it in the annotation."""
+
+    return typing.cast(str, getattr(key, "__qualname__", None) or repr(key))
+
+
+class DependencyError(Exception):
+    """Base class for every dependency injection error."""
+
+
+class InvalidDependencyError(DependencyError):
+    """A callable cannot be injected at all. Raised while compiling the call plan."""
+
+
+class UnsupportedParameterError(InvalidDependencyError):
+    """A parameter uses a calling convention the injector cannot fill."""
+
+    def __init__(self, param: ParamInfo, owner: str) -> None:
+        super().__init__(
+            f"Cannot inject parameter {param.name!r} of {owner}(). {UNSUPPORTED_PARAMETER_KINDS[param.kind]}"
+        )
+
+
+class UnannotatedParameterError(InvalidDependencyError):
+    """A parameter has neither a type annotation nor a default, so nothing identifies it."""
+
+    def __init__(self, param: ParamInfo, owner: str) -> None:
+        super().__init__(
+            f"Parameter {param.name!r} of {owner}() has no type annotation. "
+            f"Annotate it so the injector knows what to provide, or give it a default value."
+        )
+
+
+class UnresolvedDependencyError(DependencyError):
+    """Nothing was bound for a requested key and the parameter has no default."""
+
+    def __init__(self, key: typing.Any, *, parameter: str | None = None, owner: str | None = None) -> None:
+        super().__init__()
+        self.key = key
+        self.parameter = parameter
+        self.owner = owner
+
+    def __str__(self) -> str:
+        where = ""
+        if self.parameter:
+            where = f" requested by parameter {self.parameter!r}"
+            if self.owner:
+                where += f" of {self.owner}()"
+
+        return (
+            f"No binding for {type_name(self.key)}{where}. "
+            f"Bind it on the injection scope, or give the parameter a default value."
+        )
+
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class InjectionScope:
@@ -30,7 +106,7 @@ class InvocationContext:
     async def resolve(self, type_: Key, default: object = MISSING) -> object:
         value = self.scope.bindings.get(type_, default)
         if value is MISSING:
-            raise KeyError(type_)
+            raise UnresolvedDependencyError(type_)
 
         return value
 
@@ -47,7 +123,11 @@ class Binding(typing.Protocol):
 class Inject:
     def compile(self, param: ParamInfo) -> Resolver:
         async def resolve(ctx: InvocationContext) -> object:
-            return await ctx.resolve(param.type, param.default)
+            try:
+                return await ctx.resolve(param.type, param.default)
+            except UnresolvedDependencyError as exc:
+                exc.parameter = exc.parameter or param.name
+                raise
 
         return resolve
 
@@ -64,11 +144,6 @@ class Value:
 
 
 type Injected[T] = typing.Annotated[T, Inject()]
-
-
-class DependencyRegistry:
-    def provide(self, type_: object, value: object) -> None:
-        pass
 
 
 @dataclasses.dataclass
@@ -189,10 +264,24 @@ class CallPlan[**PS, R]:
 
 def compile_call_plan[**PS, R](fn: typing.Callable[PS, R]) -> CallPlan[PS, R]:
     info = inspect_callable(fn)
+    owner = callable_name(fn)
+    for param in info.parameters:
+        validate_parameter(param, owner)
+
     return CallPlan(
         callable=info,
         parameters=tuple(compile_parameter(param) for param in info.parameters),
     )
+
+
+def validate_parameter(param: ParamInfo, owner: str) -> None:
+    """Reject signatures the injector can never fill, while the route is being compiled."""
+
+    if param.kind in UNSUPPORTED_PARAMETER_KINDS:
+        raise UnsupportedParameterError(param, owner)
+
+    if param.type is MISSING and param.default is MISSING:
+        raise UnannotatedParameterError(param, owner)
 
 
 def compile_parameter(param: ParamInfo) -> ParameterPlan:
@@ -217,7 +306,12 @@ async def invoke[R](plan: CallPlan[..., R | typing.Awaitable[R]], context: Invoc
 
 
 async def invoke[R](plan: CallPlan[..., typing.Any], context: InvocationContext) -> R:
-    kwargs = {plan_param.param.name: await plan_param.resolve(context) for plan_param in plan.parameters}
+    try:
+        kwargs = {plan_param.param.name: await plan_param.resolve(context) for plan_param in plan.parameters}
+    except UnresolvedDependencyError as exc:
+        exc.owner = exc.owner or callable_name(plan.callable.callable)
+        raise
+
     if plan.callable.is_async:
         result = await plan.callable.callable(**kwargs)
     else:
