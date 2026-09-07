@@ -1,3 +1,4 @@
+import threading
 import typing
 from unittest.mock import Mock
 
@@ -244,6 +245,27 @@ class TestHTTPRoutes:
         with TestClient(app) as client:
             assert client.get("/async").text == "async view"
             assert client.get("/sync").text == "sync view"
+
+    def test_sync_endpoint_runs_off_the_event_loop(self) -> None:
+        threads: dict[str, int] = {}
+        routes = Routes()
+
+        @routes.get("/async")
+        async def async_endpoint(request: Request) -> Response:
+            threads["async"] = threading.get_ident()
+            return response(request).text("async")
+
+        @routes.get("/sync")
+        def sync_endpoint(request: Request) -> Response:
+            threads["sync"] = threading.get_ident()
+            return response(request).text("sync")
+
+        app = Kupala("tests", routes=routes)
+        with TestClient(app) as client:
+            client.get("/async")
+            client.get("/sync")
+
+        assert threads["sync"] != threads["async"]
 
     def test_route_middleware_order(self, test_client: TestClient, events: list[str]) -> None:
         assert test_client.get("/middleware").text == "ok"

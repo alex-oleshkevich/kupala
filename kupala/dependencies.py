@@ -6,6 +6,8 @@ import operator
 import types
 import typing
 
+from starlette.concurrency import run_in_threadpool
+
 type Key = type[typing.Any]
 
 INVOCATION_CONTEXT_KEY = "kupala.invocation_context"
@@ -216,8 +218,10 @@ async def invoke[R](plan: CallPlan[..., R | typing.Awaitable[R]], context: Invoc
 
 async def invoke[R](plan: CallPlan[..., typing.Any], context: InvocationContext) -> R:
     kwargs = {plan_param.param.name: await plan_param.resolve(context) for plan_param in plan.parameters}
-    result = plan.callable.callable(**kwargs)
     if plan.callable.is_async:
-        result = await result
+        result = await plan.callable.callable(**kwargs)
+    else:
+        # sync callables must never block the event loop
+        result = await run_in_threadpool(plan.callable.callable, **kwargs)
 
     return typing.cast(R, result)

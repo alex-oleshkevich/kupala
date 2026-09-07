@@ -4,7 +4,6 @@ import dataclasses
 import functools
 import typing
 
-from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware as ASGIMiddlewareWrapper
 from starlette.routing import BaseRoute, Host, Mount, Route, WebSocketRoute
 from starlette.types import ASGIApp
@@ -14,7 +13,6 @@ from kupala.dependencies import (
     InvocationContext,
     compile_call_plan,
     invoke,
-    is_async_callable,
 )
 from kupala.middleware import (
     CallNext,
@@ -395,11 +393,11 @@ def join_namespace(parent: str, child: str, separator: str = ".") -> str:
 
 
 def chain_middleware(
-    endpoint: AnyEndpoint,
+    endpoint: AsyncEndpoint,
     middleware: typing.Sequence[Middleware],
 ) -> AsyncEndpoint:
     async def call_next(request: Request) -> Response:
-        return await invoke_endpoint(request, endpoint)
+        return await endpoint(request)
 
     async def middleware_wrapper(request: Request, call_next: CallNext, mw: Middleware) -> Response:
         return await mw(request, call_next)
@@ -434,25 +432,7 @@ def chain_websocket_middleware(
     return call_next
 
 
-def is_async_endpoint(fn: AnyEndpoint) -> typing.TypeGuard[AsyncEndpoint]:
-    return is_async_callable(fn)
-
-
-def is_sync_endpoint(fn: AnyEndpoint) -> typing.TypeGuard[SyncEndpoint]:
-    return not is_async_endpoint(fn)
-
-
-async def invoke_endpoint(request: Request, endpoint: AnyEndpoint) -> Response:
-    if is_async_endpoint(endpoint):
-        return await endpoint(request)
-
-    if is_sync_endpoint(endpoint):
-        return await run_in_threadpool(endpoint, request)
-
-    raise AssertionError("Unsupported endpoint")
-
-
-def bind_http_dependencies(fn: AnyEndpoint) -> AnyEndpoint:
+def bind_http_dependencies(fn: AnyEndpoint) -> AsyncEndpoint:
     plan = compile_call_plan(fn)
 
     async def wrapped(request: Request) -> Response:

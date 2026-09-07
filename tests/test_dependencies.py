@@ -1,4 +1,5 @@
 import inspect
+import threading
 import typing
 
 import pytest
@@ -386,6 +387,22 @@ class TestInvoke:
         context = InvocationContext(scope=InjectionScope(bindings={}))
 
         assert await invoke(compile_call_plan(fn), context) is None
+
+    async def test_runs_sync_callable_in_a_worker_thread(self) -> None:
+        def fn() -> int:
+            return threading.get_ident()
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        assert await invoke(compile_call_plan(fn), context) != threading.get_ident()
+
+    async def test_runs_async_callable_on_the_event_loop(self) -> None:
+        async def fn() -> int:
+            return threading.get_ident()
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        assert await invoke(compile_call_plan(fn), context) == threading.get_ident()
 
     async def test_raises_for_unresolvable_parameter(self) -> None:
         def fn(user: Injected[str]) -> str:
