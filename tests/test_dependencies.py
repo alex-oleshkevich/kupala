@@ -1,4 +1,6 @@
+import contextlib
 import inspect
+import logging
 import threading
 import typing
 
@@ -6,7 +8,11 @@ import pytest
 
 from kupala.dependencies import (
     MISSING,
+    AmbiguousBindingError,
+    CircularDependencyError,
+    CompileContext,
     DependencyError,
+    Factory,
     Inject,
     Injected,
     InjectionScope,
@@ -22,8 +28,11 @@ from kupala.dependencies import (
     inspect_callable,
     invoke,
     is_async_callable,
+    is_async_generator_callable,
+    is_generator_callable,
     is_optional,
     parse_parameter,
+    resolve_arguments,
     strip_none,
     unwrap_alias,
     unwrap_annotation,
@@ -308,30 +317,129 @@ class TestInvocationContext:
         with pytest.raises(UnresolvedDependencyError):
             await context.resolve(str)
 
+    def test_starts_with_an_empty_cache(self) -> None:
+        assert InvocationContext(scope=InjectionScope(bindings={})).cache == {}
+
+    def test_starts_without_an_exit_stack(self) -> None:
+        assert InvocationContext(scope=InjectionScope(bindings={})).exit_stack is None
+
+    async def test_opens_the_exit_stack_on_entry(self) -> None:
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context as entered:
+            assert entered is context
+            assert context.exit_stack is not None
+
+    async def test_forgets_the_exit_stack_on_exit(self) -> None:
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            pass
+
+        assert context.exit_stack is None
+
+    async def test_unwinds_callbacks_in_reverse_order(self) -> None:
+        events: list[str] = []
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            assert context.exit_stack is not None
+            context.exit_stack.callback(events.append, "first")
+            context.exit_stack.callback(events.append, "second")
+
+        assert events == ["second", "first"]
+
+    async def test_logs_and_swallows_a_failing_callback(self, caplog: pytest.LogCaptureFixture) -> None:
+        def boom() -> None:
+            raise RuntimeError("teardown failed")
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        with caplog.at_level(logging.ERROR, logger="kupala.dependencies"):
+            async with context:
+                assert context.exit_stack is not None
+                context.exit_stack.callback(boom)
+
+        assert "teardown failed" in caplog.text
+
+    async def test_propagates_an_error_raised_inside_the_block(self) -> None:
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        with pytest.raises(RuntimeError, match="boom"):
+            async with context:
+                raise RuntimeError("boom")
+
+    async def test_does_not_log_an_error_that_only_passes_through(self, caplog: pytest.LogCaptureFixture) -> None:
+        # the block's own error travels back out through every registered generator,
+        # and re-emerging unchanged is not a teardown failure
+        def resource() -> typing.Iterator[str]:
+            yield "demovalue"
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        with (
+            caplog.at_level(logging.ERROR, logger="kupala.dependencies"),
+            pytest.raises(RuntimeError, match="boom"),
+        ):
+            async with context:
+                assert context.exit_stack is not None
+                context.exit_stack.enter_context(contextlib.contextmanager(resource)())
+                raise RuntimeError("boom")
+
+        assert caplog.text == ""
+
 
 class TestFindBinding:
     def test_returns_binding_from_metadata(self) -> None:
         param = inspect.Parameter("param", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=_ExampleDep)
 
-        assert find_binding(parse_parameter(param)) == Value("demovalue")
+        assert find_binding(parse_parameter(param), "demo.fn") == Value("demovalue")
 
     def test_defaults_to_inject(self) -> None:
         param = inspect.Parameter("param", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=str)
 
-        assert find_binding(parse_parameter(param)) == Inject()
+        assert find_binding(parse_parameter(param), "demo.fn") == Inject()
 
     def test_skips_plain_metadata(self) -> None:
         annotation = typing.Annotated[str, "note", Value("demovalue")]
         param = inspect.Parameter("param", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=annotation)
 
-        assert find_binding(parse_parameter(param)) == Value("demovalue")
+        assert find_binding(parse_parameter(param), "demo.fn") == Value("demovalue")
 
     def test_ignores_binding_classes(self) -> None:
         param = inspect.Parameter(
             "param", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=typing.Annotated[str, Value]
         )
 
-        assert find_binding(parse_parameter(param)) == Inject()
+        assert find_binding(parse_parameter(param), "demo.fn") == Inject()
+
+    def test_rejects_two_bindings(self) -> None:
+        annotation = typing.Annotated[str, Value("first"), Value("second")]
+        param = inspect.Parameter("param", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=annotation)
+
+        with pytest.raises(AmbiguousBindingError):
+            find_binding(parse_parameter(param), "demo.fn")
+
+    def test_rejects_injected_wrapping_a_bound_alias(self) -> None:
+        # `Injected[_ExampleDep]` flattens to (Value(...), Inject()), so the alias already carries its binding
+        param = inspect.Parameter("param", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=_NestedDep)
+
+        with pytest.raises(AmbiguousBindingError):
+            find_binding(parse_parameter(param), "demo.fn")
+
+    def test_names_the_parameter_and_owner(self) -> None:
+        annotation = typing.Annotated[str, Value("first"), Value("second")]
+        param = inspect.Parameter("param", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=annotation)
+
+        with pytest.raises(AmbiguousBindingError) as info:
+            find_binding(parse_parameter(param), "demo.fn")
+
+        message = str(info.value)
+        assert "Parameter 'param' of demo.fn() has 2 bindings" in message
+        assert "Annotate it with exactly one." in message
+
+    def test_is_an_invalid_dependency_error(self) -> None:
+        assert issubclass(AmbiguousBindingError, InvalidDependencyError)
 
 
 class TestCompileCallPlan:
@@ -546,3 +654,593 @@ class TestUnresolvedDependencyError:
             "No binding for complex requested by parameter 'param'. "
             "Bind it on the injection scope, or give the parameter a default value."
         )
+
+
+class TestCompileContext:
+    def test_starts_without_a_chain(self) -> None:
+        assert CompileContext().chain == ()
+
+    def test_enter_extends_the_chain(self) -> None:
+        def make() -> str:
+            return "demovalue"  # pragma: no cover
+
+        factory = Factory(make)
+
+        assert CompileContext().enter(factory).chain == (factory,)
+
+    def test_enter_appends_to_an_existing_chain(self) -> None:
+        def make_outer() -> str:
+            return "outer"  # pragma: no cover
+
+        def make_inner() -> str:
+            return "inner"  # pragma: no cover
+
+        outer, inner = Factory(make_outer), Factory(make_inner)
+
+        assert CompileContext().enter(outer).enter(inner).chain == (outer, inner)
+
+    def test_enter_leaves_the_parent_untouched(self) -> None:
+        def make() -> str:
+            return "demovalue"  # pragma: no cover
+
+        parent = CompileContext()
+        parent.enter(Factory(make))
+
+        assert parent.chain == ()
+
+    def test_finds_an_equal_factory_in_the_chain(self) -> None:
+        # cycle detection and cache identity must agree, so both compare by value
+        def make() -> str:
+            return "demovalue"  # pragma: no cover
+
+        context = CompileContext().enter(Factory(make))
+
+        assert Factory(make) in context.chain
+
+
+class TestResolveArguments:
+    async def test_resolves_every_parameter_by_name(self) -> None:
+        def fn(user: Injected[str], greeting: typing.Annotated[str, Value("hello")]) -> str:
+            return f"{greeting} {user}"  # pragma: no cover
+
+        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+
+        assert await resolve_arguments(compile_call_plan(fn), context) == {"user": "alex", "greeting": "hello"}
+
+    async def test_returns_an_empty_mapping_without_parameters(self) -> None:
+        def fn() -> str:
+            return "demovalue"  # pragma: no cover
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        assert await resolve_arguments(compile_call_plan(fn), context) == {}
+
+    async def test_names_the_owner_when_a_parameter_is_unresolvable(self) -> None:
+        def fn(param: complex) -> None:
+            pass  # pragma: no cover
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        with pytest.raises(UnresolvedDependencyError) as info:
+            await resolve_arguments(compile_call_plan(fn), context)
+
+        assert "test_names_the_owner_when_a_parameter_is_unresolvable.<locals>.fn()" in str(info.value)
+
+
+class TestIsGeneratorCallable:
+    def test_detects_generator_function(self) -> None:
+        def fn() -> typing.Iterator[str]:
+            yield "demovalue"  # pragma: no cover
+
+        assert is_generator_callable(fn) is True
+
+    def test_ignores_plain_function(self) -> None:
+        def fn() -> str:
+            return "demovalue"  # pragma: no cover
+
+        assert is_generator_callable(fn) is False
+
+    def test_ignores_async_generator_function(self) -> None:
+        async def fn() -> typing.AsyncIterator[str]:
+            yield "demovalue"  # pragma: no cover
+
+        assert is_generator_callable(fn) is False
+
+    def test_detects_object_with_generator_call(self) -> None:
+        class Maker:
+            def __call__(self) -> typing.Iterator[str]:
+                yield "demovalue"  # pragma: no cover
+
+        assert is_generator_callable(Maker()) is True
+
+    def test_ignores_contextmanager_decorated_function(self) -> None:
+        # the decorator hides the generator, so the injector must not try to enter what it returns
+        @contextlib.contextmanager
+        def fn() -> typing.Iterator[str]:
+            yield "demovalue"  # pragma: no cover
+
+        assert is_generator_callable(fn) is False
+
+
+class TestIsAsyncGeneratorCallable:
+    def test_detects_async_generator_function(self) -> None:
+        async def fn() -> typing.AsyncIterator[str]:
+            yield "demovalue"  # pragma: no cover
+
+        assert is_async_generator_callable(fn) is True
+
+    def test_ignores_coroutine_function(self) -> None:
+        async def fn() -> str:
+            return "demovalue"  # pragma: no cover
+
+        assert is_async_generator_callable(fn) is False
+
+    def test_ignores_generator_function(self) -> None:
+        def fn() -> typing.Iterator[str]:
+            yield "demovalue"  # pragma: no cover
+
+        assert is_async_generator_callable(fn) is False
+
+    def test_detects_object_with_async_generator_call(self) -> None:
+        class Maker:
+            async def __call__(self) -> typing.AsyncIterator[str]:
+                yield "demovalue"  # pragma: no cover
+
+        assert is_async_generator_callable(Maker()) is True
+
+    def test_ignores_asynccontextmanager_decorated_function(self) -> None:
+        @contextlib.asynccontextmanager
+        async def fn() -> typing.AsyncIterator[str]:
+            yield "demovalue"  # pragma: no cover
+
+        assert is_async_generator_callable(fn) is False
+
+
+class TestFactory:
+    async def test_calls_sync_factory(self) -> None:
+        def make() -> str:
+            return "demovalue"
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "demovalue"
+
+    async def test_runs_sync_factory_in_a_worker_thread(self) -> None:
+        def make() -> int:
+            return threading.get_ident()
+
+        def fn(value: typing.Annotated[int, Factory(make)]) -> int:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) != threading.get_ident()
+
+    async def test_calls_async_factory(self) -> None:
+        async def make() -> str:
+            return "demovalue"
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "demovalue"
+
+    async def test_yields_from_sync_generator(self) -> None:
+        def make() -> typing.Iterator[str]:
+            yield "demovalue"
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "demovalue"
+
+    async def test_closes_sync_generator_when_the_context_exits(self) -> None:
+        events: list[str] = []
+
+        def make() -> typing.Iterator[str]:
+            yield "demovalue"
+            events.append("closed")
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            await invoke(compile_call_plan(fn), context)
+            assert events == []
+
+        assert events == ["closed"]
+
+    async def test_runs_sync_generator_in_a_worker_thread(self) -> None:
+        threads: list[int] = []
+
+        def make() -> typing.Iterator[str]:
+            threads.append(threading.get_ident())
+            yield "demovalue"
+            threads.append(threading.get_ident())
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            await invoke(compile_call_plan(fn), context)
+
+        assert len(threads) == 2
+        assert all(thread != threading.get_ident() for thread in threads)
+
+    async def test_yields_from_async_generator(self) -> None:
+        async def make() -> typing.AsyncIterator[str]:
+            yield "demovalue"
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "demovalue"
+
+    async def test_closes_async_generator_when_the_context_exits(self) -> None:
+        events: list[str] = []
+
+        async def make() -> typing.AsyncIterator[str]:
+            yield "demovalue"
+            events.append("closed")
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            await invoke(compile_call_plan(fn), context)
+            assert events == []
+
+        assert events == ["closed"]
+
+    async def test_closes_generators_in_reverse_order(self) -> None:
+        events: list[str] = []
+
+        def make_first() -> typing.Iterator[str]:
+            yield "first"
+            events.append("first")
+
+        def make_second() -> typing.Iterator[str]:
+            yield "second"
+            events.append("second")
+
+        def fn(
+            first: typing.Annotated[str, Factory(make_first)],
+            second: typing.Annotated[str, Factory(make_second)],
+        ) -> str:
+            return f"{first} {second}"
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "first second"
+
+        assert events == ["second", "first"]
+
+    async def test_throws_an_escaping_error_into_the_generator(self) -> None:
+        seen: list[str] = []
+
+        def make() -> typing.Iterator[str]:
+            try:
+                yield "demovalue"
+            except RuntimeError as exc:
+                seen.append(str(exc))
+                raise
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        with pytest.raises(RuntimeError, match="boom"):
+            async with context:
+                await invoke(compile_call_plan(fn), context)
+                raise RuntimeError("boom")
+
+        assert seen == ["boom"]
+
+    async def test_caches_the_value_by_default(self) -> None:
+        calls: list[int] = []
+
+        def make() -> int:
+            calls.append(1)
+            return len(calls)
+
+        def fn(
+            first: typing.Annotated[int, Factory(make)],
+            second: typing.Annotated[int, Factory(make)],
+        ) -> tuple[int, int]:
+            return first, second
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == (1, 1)
+
+        assert len(calls) == 1
+
+    async def test_builds_each_time_when_caching_is_off(self) -> None:
+        calls: list[int] = []
+
+        def make() -> int:
+            calls.append(1)
+            return len(calls)
+
+        def fn(
+            first: typing.Annotated[int, Factory(make, cache=False)],
+            second: typing.Annotated[int, Factory(make, cache=False)],
+        ) -> tuple[int, int]:
+            return first, second
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == (1, 2)
+
+        assert len(calls) == 2
+
+    async def test_registers_one_teardown_for_a_cached_generator(self) -> None:
+        events: list[str] = []
+
+        def make() -> typing.Iterator[str]:
+            yield "demovalue"
+            events.append("closed")
+
+        def fn(
+            first: typing.Annotated[str, Factory(make)],
+            second: typing.Annotated[str, Factory(make)],
+        ) -> str:
+            return f"{first} {second}"
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            await invoke(compile_call_plan(fn), context)
+
+        assert events == ["closed"]
+
+    async def test_propagates_an_error_raised_by_the_factory(self) -> None:
+        def make() -> str:
+            raise RuntimeError("factory failed")
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value  # pragma: no cover
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        with pytest.raises(RuntimeError, match="factory failed"):
+            async with context:
+                await invoke(compile_call_plan(fn), context)
+
+    async def test_names_the_factory_whose_signature_is_invalid(self) -> None:
+        # the innermost callable names itself, so a broken factory is not blamed on its dependent
+        def make(*args: str) -> str:
+            return "".join(args)  # pragma: no cover
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value  # pragma: no cover
+
+        with pytest.raises(UnsupportedParameterError) as info:
+            compile_call_plan(fn)
+
+        assert "test_names_the_factory_whose_signature_is_invalid.<locals>.make()" in str(info.value)
+
+    async def test_registers_every_teardown_when_caching_is_off(self) -> None:
+        events: list[str] = []
+
+        def make() -> typing.Iterator[str]:
+            yield "demovalue"
+            events.append("closed")
+
+        def fn(
+            first: typing.Annotated[str, Factory(make, cache=False)],
+            second: typing.Annotated[str, Factory(make, cache=False)],
+        ) -> str:
+            return f"{first} {second}"
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            await invoke(compile_call_plan(fn), context)
+
+        assert events == ["closed", "closed"]
+
+    async def test_resolves_the_factory_own_parameters(self) -> None:
+        def make(user: Injected[str]) -> str:
+            return f"hello {user}"
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "hello alex"
+
+    async def test_resolves_a_factory_that_depends_on_a_factory(self) -> None:
+        def make_inner() -> str:
+            return "inner"
+
+        def make_outer(inner: typing.Annotated[str, Factory(make_inner)]) -> str:
+            return f"outer({inner})"
+
+        def fn(value: typing.Annotated[str, Factory(make_outer)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "outer(inner)"
+
+    async def test_shares_a_cached_factory_between_dependents(self) -> None:
+        calls: list[int] = []
+
+        def make_base() -> int:
+            calls.append(1)
+            return 7
+
+        def make_left(base: typing.Annotated[int, Factory(make_base)]) -> str:
+            return f"left{base}"
+
+        def make_right(base: typing.Annotated[int, Factory(make_base)]) -> str:
+            return f"right{base}"
+
+        def fn(
+            left: typing.Annotated[str, Factory(make_left)],
+            right: typing.Annotated[str, Factory(make_right)],
+        ) -> str:
+            return f"{left} {right}"
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "left7 right7"
+
+        assert len(calls) == 1
+
+    async def test_names_the_factory_when_its_dependency_is_missing(self) -> None:
+        def make(param: complex) -> str:
+            return str(param)  # pragma: no cover
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value  # pragma: no cover
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        with pytest.raises(UnresolvedDependencyError) as info:
+            async with context:
+                await invoke(compile_call_plan(fn), context)
+
+        assert "test_names_the_factory_when_its_dependency_is_missing.<locals>.make()" in str(info.value)
+
+    async def test_requires_an_entered_context_for_generators(self) -> None:
+        def make() -> typing.Iterator[str]:
+            yield "demovalue"  # pragma: no cover
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value  # pragma: no cover
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        with pytest.raises(DependencyError, match="outside an active invocation context"):
+            await invoke(compile_call_plan(fn), context)
+
+    async def test_does_not_require_an_entered_context_for_plain_factories(self) -> None:
+        def make() -> str:
+            return "demovalue"
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+
+        assert await invoke(compile_call_plan(fn), context) == "demovalue"
+
+    async def test_seeded_cache_entry_overrides_the_factory(self) -> None:
+        def make() -> str:
+            return "real"  # pragma: no cover
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={}))
+        context.cache[Factory(make)] = "override"
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "override"
+
+    def test_equal_factories_share_a_cache_key(self) -> None:
+        def make() -> str:
+            return "demovalue"  # pragma: no cover
+
+        assert Factory(make) == Factory(make)
+        assert hash(Factory(make)) == hash(Factory(make))
+
+    def test_caching_is_part_of_the_cache_key(self) -> None:
+        def make() -> str:
+            return "demovalue"  # pragma: no cover
+
+        assert Factory(make) != Factory(make, cache=False)
+
+
+class TestCircularDependency:
+    def test_rejects_a_factory_that_depends_on_itself(self) -> None:
+        def make(inner: typing.Annotated[str, Factory(make)]) -> str:
+            return inner  # pragma: no cover
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value  # pragma: no cover
+
+        with pytest.raises(CircularDependencyError):
+            compile_call_plan(fn)
+
+    def test_rejects_a_two_step_cycle(self) -> None:
+        def make_a(b: typing.Annotated[str, Factory(make_b)]) -> str:
+            return b  # pragma: no cover
+
+        def make_b(a: typing.Annotated[str, Factory(make_a)]) -> str:
+            return a  # pragma: no cover
+
+        def fn(value: typing.Annotated[str, Factory(make_a)]) -> str:
+            return value  # pragma: no cover
+
+        with pytest.raises(CircularDependencyError):
+            compile_call_plan(fn)
+
+    def test_renders_the_whole_path(self) -> None:
+        def make_a(b: typing.Annotated[str, Factory(make_b)]) -> str:
+            return b  # pragma: no cover
+
+        def make_b(a: typing.Annotated[str, Factory(make_a)]) -> str:
+            return a  # pragma: no cover
+
+        def fn(value: typing.Annotated[str, Factory(make_a)]) -> str:
+            return value  # pragma: no cover
+
+        with pytest.raises(CircularDependencyError) as info:
+            compile_call_plan(fn)
+
+        message = str(info.value)
+        assert "test_renders_the_whole_path.<locals>.make_a" in message
+        assert "test_renders_the_whole_path.<locals>.make_b" in message
+        assert " -> " in message
+
+    def test_accepts_a_diamond(self) -> None:
+        def make_base() -> str:
+            return "base"  # pragma: no cover
+
+        def make_left(base: typing.Annotated[str, Factory(make_base)]) -> str:
+            return base  # pragma: no cover
+
+        def make_right(base: typing.Annotated[str, Factory(make_base)]) -> str:
+            return base  # pragma: no cover
+
+        def fn(
+            left: typing.Annotated[str, Factory(make_left)],
+            right: typing.Annotated[str, Factory(make_right)],
+        ) -> str:
+            return f"{left} {right}"  # pragma: no cover
+
+        assert len(compile_call_plan(fn).parameters) == 2
+
+    def test_is_an_invalid_dependency_error(self) -> None:
+        assert issubclass(CircularDependencyError, InvalidDependencyError)

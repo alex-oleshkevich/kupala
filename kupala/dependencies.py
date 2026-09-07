@@ -15,19 +15,6 @@ INVOCATION_CONTEXT_KEY = "kupala.invocation_context"
 
 MISSING = object()
 
-# why the injector cannot fill each unsupported parameter kind
-UNSUPPORTED_PARAMETER_KINDS: dict[inspect._ParameterKind, str] = {
-    inspect.Parameter.POSITIONAL_ONLY: (
-        "Dependencies are passed by keyword, so use a regular or keyword-only parameter."
-    ),
-    inspect.Parameter.VAR_POSITIONAL: (
-        "The injector passes a fixed set of named arguments, so *args can never be filled."
-    ),
-    inspect.Parameter.VAR_KEYWORD: (
-        "The injector passes a fixed set of named arguments, so **kwargs can never be filled."
-    ),
-}
-
 
 def callable_name(fn: typing.Any) -> str:
     """Render a callable as `module.qualname` for error messages."""
@@ -54,42 +41,17 @@ class InvalidDependencyError(DependencyError):
 class UnsupportedParameterError(InvalidDependencyError):
     """A parameter uses a calling convention the injector cannot fill."""
 
-    def __init__(self, param: ParamInfo, owner: str) -> None:
-        super().__init__(
-            f"Cannot inject parameter {param.name!r} of {owner}(). {UNSUPPORTED_PARAMETER_KINDS[param.kind]}"
-        )
-
 
 class UnannotatedParameterError(InvalidDependencyError):
     """A parameter has neither a type annotation nor a default, so nothing identifies it."""
-
-    def __init__(self, param: ParamInfo, owner: str) -> None:
-        super().__init__(
-            f"Parameter {param.name!r} of {owner}() has no type annotation. "
-            f"Annotate it so the injector knows what to provide, or give it a default value."
-        )
 
 
 class AmbiguousBindingError(InvalidDependencyError):
     """A parameter carries more than one binding, so the injector cannot tell which one to use."""
 
-    def __init__(self, param: ParamInfo, owner: str, bindings: tuple[Binding, ...]) -> None:
-        listed = ", ".join(repr(binding) for binding in bindings)
-        super().__init__(
-            f"Parameter {param.name!r} of {owner}() has {len(bindings)} bindings: {listed}. "
-            f"Annotate it with exactly one."
-        )
-
 
 class CircularDependencyError(InvalidDependencyError):
     """A factory depends on itself, directly or through other factories."""
-
-    def __init__(self, factory: Factory, context: CompileContext) -> None:
-        path = " -> ".join(callable_name(entry.factory) for entry in (*context.chain, factory))
-        super().__init__(
-            f"Circular dependency detected: {path}. "
-            f"A factory cannot depend on itself, directly or through another factory."
-        )
 
 
 class UnresolvedDependencyError(DependencyError):
@@ -153,9 +115,8 @@ type Resolver = typing.Callable[[InvocationContext], typing.Awaitable[object]]
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class CompileContext:
-    """State of compiling one callable: who it is, and the factories we descended through to reach it."""
+    """The factories we descended through to reach the callable being compiled."""
 
-    owner: str
     chain: tuple[Factory, ...] = ()
 
     def enter(self, factory: Factory) -> typing.Self:
@@ -343,38 +304,60 @@ def compile_call_plan[**PS, R](
 ) -> CallPlan[PS, R]:
     info = inspect_callable(fn)
     if context is None:
-        context = CompileContext(owner=callable_name(fn))
+        context = CompileContext()
 
+    owner = callable_name(fn)
     for param in info.parameters:
-        validate_parameter(param, context.owner)
+        validate_parameter(param, owner)
 
     return CallPlan(
         callable=info,
-        parameters=tuple(compile_parameter(context, param) for param in info.parameters),
+        parameters=tuple(compile_parameter(context, owner, param) for param in info.parameters),
     )
 
 
 def validate_parameter(param: ParamInfo, owner: str) -> None:
     """Reject signatures the injector can never fill, while the route is being compiled."""
 
-    if param.kind in UNSUPPORTED_PARAMETER_KINDS:
-        raise UnsupportedParameterError(param, owner)
+    cannot_inject = f"Cannot inject parameter {param.name!r} of {owner}()."
+    match param.kind:
+        case inspect.Parameter.POSITIONAL_ONLY:
+            raise UnsupportedParameterError(
+                f"{cannot_inject} Dependencies are passed by keyword, so use a regular or keyword-only parameter."
+            )
+        case inspect.Parameter.VAR_POSITIONAL:
+            raise UnsupportedParameterError(
+                f"{cannot_inject} The injector passes a fixed set of named arguments, so *args can never be filled."
+            )
+        case inspect.Parameter.VAR_KEYWORD:
+            raise UnsupportedParameterError(
+                f"{cannot_inject} The injector passes a fixed set of named arguments, so **kwargs can never be filled."
+            )
 
     if param.type is MISSING and param.default is MISSING:
-        raise UnannotatedParameterError(param, owner)
+        raise UnannotatedParameterError(
+            f"Parameter {param.name!r} of {owner}() has no type annotation. "
+            f"Annotate it so the injector knows what to provide, or give it a default value."
+        )
 
 
-def compile_parameter(context: CompileContext, param: ParamInfo) -> ParameterPlan:
-    binding = find_binding(param)
+def compile_parameter(context: CompileContext, owner: str, param: ParamInfo) -> ParameterPlan:
+    binding = find_binding(param, owner)
     return ParameterPlan(param=param, resolve=binding.compile(context, param))
 
 
-def find_binding(param: ParamInfo) -> Binding:
-    for candidate in param.metadata:
-        if not isinstance(candidate, type) and isinstance(candidate, Binding):
-            return candidate
+def find_binding(param: ParamInfo, owner: str) -> Binding:
+    bindings = tuple(
+        candidate for candidate in param.metadata if not isinstance(candidate, type) and isinstance(candidate, Binding)
+    )
+    if len(bindings) > 1:
+        listed = ", ".join(repr(binding) for binding in bindings)
+        raise AmbiguousBindingError(
+            f"Parameter {param.name!r} of {owner}() has {len(bindings)} bindings: {listed}. "
+            f"Annotate it with exactly one."
+        )
 
-    return Inject()
+    return bindings[0] if bindings else Inject()
 
 
 async def resolve_arguments(plan: CallPlan[..., typing.Any], context: InvocationContext) -> dict[str, object]:
