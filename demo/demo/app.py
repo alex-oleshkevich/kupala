@@ -1,9 +1,12 @@
 import contextlib
 import dataclasses
+import datetime
 import decimal
+import enum
 import itertools
 import json
 import typing
+import uuid
 
 import anyio
 
@@ -11,11 +14,17 @@ from kupala.applications import Kupala
 from kupala.dependencies import Factory, FromState, Value
 from kupala.errors import BadRequestError
 from kupala.middleware import CallNext
+from kupala.params import Query, QueryParam
 from kupala.requests import Request
 from kupala.responses import Response, ServerSentEvent, response
 from kupala.routing import Routes
 
 routes = Routes()
+
+
+class Sort(enum.StrEnum):
+    NEWEST = "newest"
+    PRICE = "price"
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -104,6 +113,34 @@ async def dependency_view(
 @routes.get("/catalog")
 async def catalog_view(request: Request, catalog: ProductCatalog) -> Response:
     return response(request).json(catalog.products)
+
+
+@routes.get("/search")
+async def search_view(
+    request: Request,
+    q: Query[str],
+    page: Query[int] = 1,
+    per_page: typing.Annotated[int, QueryParam("limit")] = 20,
+    sort: Query[Sort] = Sort.NEWEST,
+    in_stock: Query[bool] = False,
+    max_price: Query[decimal.Decimal | None] = None,
+    since: Query[datetime.date | None] = None,
+    trace_id: Query[uuid.UUID | None] = None,
+) -> Response:
+    """Every scalar a query string can carry: `q` is required, and `?limit=` feeds `per_page`."""
+
+    return response(request).json(
+        {
+            "q": q,
+            "page": page,
+            "per_page": per_page,
+            "sort": sort.value,
+            "in_stock": in_stock,
+            "max_price": None if max_price is None else str(max_price),
+            "since": None if since is None else since.isoformat(),
+            "trace_id": None if trace_id is None else str(trace_id),
+        }
+    )
 
 
 @routes.get("/error")

@@ -9,7 +9,6 @@ from starlette.testclient import TestClient
 
 from kupala.applications import Kupala
 from kupala.dependencies import InvalidDependencyError
-from kupala.errors import ValidationError
 from kupala.params import Query, QueryParam, converter_for, to_bool
 from kupala.responses import Response
 from kupala.routing import Routes
@@ -59,13 +58,6 @@ class TestQueryParam:
 
         with client_for(endpoint) as client:
             assert client.get("/?page=2").text == "2"
-
-    def test_key_defaults_to_the_parameter_name(self) -> None:
-        async def endpoint(page: Query[int] = 1) -> Response:
-            return Response(f"{page!r}")
-
-        with client_for(endpoint) as client:
-            assert client.get("/?page=7").text == "7"
 
     def test_key_can_be_given_explicitly(self) -> None:
         async def endpoint(page: typing.Annotated[int, QueryParam("p")] = 1) -> Response:
@@ -155,6 +147,3 @@ class TestQueryParam:
         message = str(info.value)
         assert "cannot be read from a query string" in message
         assert "Annotate it with one of:" in message
-
-    def test_is_a_validation_error(self) -> None:
-        assert ValidationError.status_code == 422

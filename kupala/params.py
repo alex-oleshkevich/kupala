@@ -46,21 +46,21 @@ CONVERTERS: dict[typing.Any, Converter] = {
 # Decimal reports a bad value as InvalidOperation, which is an ArithmeticError rather than a ValueError
 CONVERSION_ERRORS = (TypeError, ValueError, ArithmeticError)
 
+SUPPORTED_TYPES = ", ".join(sorted(inspection.type_name(type_) for type_ in CONVERTERS)) + ", or an Enum"
+
 
 def converter_for(type_: typing.Any) -> Converter | None:
     """Find how to turn a request string into `type_`, or None when nothing can."""
 
-    if converter := CONVERTERS.get(type_):
+    # a lookup asks whether the key is present, never whether the converter is truthy
+    converter = CONVERTERS.get(type_)
+    if converter is not None:
         return converter
 
     if isinstance(type_, type) and issubclass(type_, enum.Enum):
         return type_
 
     return None
-
-
-def supported_types() -> str:
-    return ", ".join(sorted(inspection.type_name(type_) for type_ in CONVERTERS)) + ", or an Enum"
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -75,7 +75,7 @@ class QueryParam:
         if convert is None:
             raise InvalidDependencyError(
                 f"Query parameter {name!r} is annotated {inspection.type_name(param.type)}, "
-                f"which cannot be read from a query string. Annotate it with one of: {supported_types()}."
+                f"which cannot be read from a query string. Annotate it with one of: {SUPPORTED_TYPES}."
             )
 
         async def resolve(ctx: InvocationContext) -> object:
