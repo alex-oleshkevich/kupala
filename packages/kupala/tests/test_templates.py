@@ -3,7 +3,7 @@ import pytest
 
 from kupala.requests import Request
 from kupala.templates import JinjaTemplates
-from tests.types import ScopeFactory
+from kupala.testutils import ScopeFactory
 
 
 class TestJinjaTemplates:

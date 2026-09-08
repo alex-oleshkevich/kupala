@@ -25,9 +25,7 @@ class TestCallableName:
         def fn() -> None:
             pass  # pragma: no cover
 
-        assert (
-            callable_name(fn) == "tests.test_inspection.TestCallableName.test_renders_module_and_qualname.<locals>.fn"
-        )
+        assert callable_name(fn) == f"{__name__}.TestCallableName.test_renders_module_and_qualname.<locals>.fn"
 
     def test_falls_back_to_the_class_of_a_callable_object(self) -> None:
         class Endpoint:

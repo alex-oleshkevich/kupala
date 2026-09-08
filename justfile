@@ -5,6 +5,9 @@ dev:
 test *args:
     uv run pytest {{ args }}
 
+test-pkg pkg *args:
+    uv run pytest packages/{{ pkg }}/tests {{ args }}
+
 testc *args:
     uv run pytest --cov --cov-report=term-missing --cov-fail-under=100 {{ args }}
 

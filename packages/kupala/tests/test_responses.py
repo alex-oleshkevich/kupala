@@ -11,7 +11,7 @@ from starlette.types import Receive
 
 from kupala.requests import Request
 from kupala.responses import BackResponse, Response, ServerSentEvent, SSEResponse, response
-from tests.types import ScopeFactory
+from kupala.testutils import ScopeFactory
 
 
 class TestResponseBuilder:

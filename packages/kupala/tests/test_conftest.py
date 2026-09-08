@@ -1,4 +1,4 @@
-from tests.types import ScopeFactory
+from kupala.testutils import ScopeFactory
 
 
 class TestScopeFactory:
