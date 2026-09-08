@@ -8,12 +8,7 @@ from starlette.middleware import Middleware as ASGIMiddlewareWrapper
 from starlette.routing import BaseRoute, Host, Mount, Route, WebSocketRoute
 from starlette.types import ASGIApp
 
-from kupala.dependencies import (
-    INVOCATION_CONTEXT_KEY,
-    InvocationContext,
-    compile_call_plan,
-    invoke,
-)
+from kupala.dependencies import INVOCATION_CONTEXT_KEY, InvocationContext, compile_call_plan, invoke
 from kupala.middleware import (
     CallNext,
     Middleware,

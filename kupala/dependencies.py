@@ -7,6 +7,8 @@ import types
 import typing
 
 from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import State
+from starlette.requests import HTTPConnection
 
 from kupala import inspection
 
@@ -43,6 +45,10 @@ class CircularDependencyError(InvalidDependencyError):
     """A factory depends on itself, directly or through other factories."""
 
 
+class UnresolvedStateError(DependencyError):
+    """Nothing on the invocation state matches the requested key."""
+
+
 class UnresolvedDependencyError(DependencyError):
     """Nothing was bound for a requested key and the parameter has no default."""
 
@@ -76,18 +82,19 @@ class InjectionScope:
 @dataclasses.dataclass(slots=True)
 class InvocationContext:
     scope: InjectionScope
+    state: State = dataclasses.field(default_factory=State)
     cache: dict[Binding, object] = dataclasses.field(default_factory=dict)
     # replacements keyed by the annotation as written, checked before any binding runs
     overrides: typing.Mapping[typing.Any, Binding] = dataclasses.field(default_factory=dict)
     # only set while the context is entered, so a dependency that needs cleanup can tell
     exit_stack: contextlib.AsyncExitStack | None = None
 
-    async def resolve(self, type_: Key, default: object = MISSING) -> object:
+    async def resolve[T](self, type_: type[T], default: object = MISSING) -> T:
         value = self.scope.bindings.get(type_, default)
         if value is MISSING:
             raise UnresolvedDependencyError(type_)
 
-        return value
+        return typing.cast(T, value)
 
     async def __aenter__(self) -> typing.Self:
         self.exit_stack = contextlib.AsyncExitStack()
@@ -150,6 +157,40 @@ class Value:
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
         async def resolve(ctx: InvocationContext) -> object:
             return self.value
+
+        return resolve
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class FromQuery:
+    """Read a value from the query string."""
+
+    param_name: str
+
+    def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
+        async def resolve(ctx: InvocationContext) -> object:
+            conn = await ctx.resolve(HTTPConnection)
+            value = conn.query_params.get(self.param_name, param.default)
+            return param.type(value)
+
+        return resolve
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class FromState[T]:
+    """Select a value the lifespan or a middleware left on the invocation state."""
+
+    select: typing.Callable[[InvocationContext, State], T]
+
+    def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
+        async def resolve(ctx: InvocationContext) -> object:
+            try:
+                return self.select(ctx, ctx.state)
+            except AttributeError as exc:
+                raise UnresolvedStateError(
+                    f"Parameter {param.name!r} reads something the invocation state does not have: {exc}. "
+                    f"Set it in the application lifespan or in a middleware."
+                ) from exc
 
         return resolve
 

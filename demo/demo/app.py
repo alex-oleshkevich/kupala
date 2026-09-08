@@ -1,3 +1,4 @@
+import contextlib
 import dataclasses
 import decimal
 import itertools
@@ -7,7 +8,7 @@ import typing
 import anyio
 
 from kupala.applications import Kupala
-from kupala.dependencies import Factory, Value
+from kupala.dependencies import Factory, FromState, Value
 from kupala.errors import BadRequestError
 from kupala.middleware import CallNext
 from kupala.requests import Request
@@ -50,9 +51,18 @@ def open_order_book() -> typing.Iterator[OrderBook]:
         print("ORDER BOOK CLOSED")
 
 
+class Catalog:
+    """Loaded once at startup and shared by every request."""
+
+    def __init__(self) -> None:
+        self.products = {"DSK-01": "Standing desk", "CHR-07": "Ergonomic chair"}
+
+
 type CurrentCustomer = typing.Annotated[Customer, Factory(load_customer)]
 type Orders = typing.Annotated[OrderBook, Factory(open_order_book)]
 type Currency = typing.Annotated[str, Value("EUR")]
+# whatever the lifespan yields lands on the state of every request
+type ProductCatalog = typing.Annotated[Catalog, FromState(lambda ctx, state: state.catalog)]
 
 
 async def app_middleware(request: Request, call_next: CallNext) -> Response:
@@ -91,6 +101,11 @@ async def dependency_view(
     )
 
 
+@routes.get("/catalog")
+async def catalog_view(request: Request, catalog: ProductCatalog) -> Response:
+    return response(request).json(catalog.products)
+
+
 @routes.get("/error")
 async def http_error_view(request: Request) -> Response:
     raise BadRequestError()
@@ -120,7 +135,13 @@ async def sse_view(request: Request) -> Response:
     return response(request).sse(ticks(), keepalive_interval=5.0)
 
 
-app = Kupala(
+class DemoApp(Kupala):
+    @contextlib.asynccontextmanager
+    async def lifespan(self, app: typing.Self) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+        yield {"catalog": Catalog()}
+
+
+app = DemoApp(
     __name__,
     debug=True,
     routes=routes,

@@ -5,6 +5,7 @@ import threading
 import typing
 
 import pytest
+from starlette.datastructures import State
 
 from kupala.dependencies import (
     MISSING,
@@ -13,6 +14,7 @@ from kupala.dependencies import (
     CompileContext,
     DependencyError,
     Factory,
+    FromState,
     Inject,
     Injected,
     InjectionScope,
@@ -21,6 +23,7 @@ from kupala.dependencies import (
     ParamInfo,
     UnannotatedParameterError,
     UnresolvedDependencyError,
+    UnresolvedStateError,
     UnsupportedParameterError,
     Value,
     compile_call_plan,
@@ -1157,3 +1160,49 @@ class TestOverrides:
 
         # the replacement is released with the invocation, exactly like the binding it stands in for
         assert events == ["released"]
+
+
+class TestFromState:
+    async def test_selects_a_value_off_the_invocation_state(self) -> None:
+        def fn(db: typing.Annotated[str, FromState(lambda ctx, state: state.db)]) -> str:
+            return db
+
+        context = InvocationContext(scope=InjectionScope(bindings={}), state=State({"db": "session"}))
+
+        assert await invoke(compile_call_plan(fn), context) == "session"
+
+    async def test_the_selector_can_derive_a_value(self) -> None:
+        def fn(name: typing.Annotated[str, FromState(lambda ctx, state: state.db.upper())]) -> str:
+            return name
+
+        context = InvocationContext(scope=InjectionScope(bindings={}), state=State({"db": "session"}))
+
+        assert await invoke(compile_call_plan(fn), context) == "SESSION"
+
+    async def test_the_selector_receives_the_context(self) -> None:
+        def fn(bound: typing.Annotated[str, FromState(lambda ctx, state: ctx.scope.bindings[str])]) -> str:
+            return bound
+
+        context = InvocationContext(scope=InjectionScope(bindings={str: "from-scope"}), state=State({}))
+
+        assert await invoke(compile_call_plan(fn), context) == "from-scope"
+
+    async def test_reports_what_the_state_does_not_have(self) -> None:
+        def fn(db: typing.Annotated[str, FromState(lambda ctx, state: state.db)]) -> str:
+            return db  # pragma: no cover
+
+        context = InvocationContext(scope=InjectionScope(bindings={}), state=State({}))
+
+        with pytest.raises(UnresolvedStateError) as info:
+            await invoke(compile_call_plan(fn), context)
+
+        message = str(info.value)
+        assert "Parameter 'db' reads something the invocation state does not have" in message
+        assert "Set it in the application lifespan or in a middleware." in message
+
+    async def test_starts_with_empty_state(self) -> None:
+        # a context built without state still resolves, so a command can be invoked bare
+        assert InvocationContext(scope=InjectionScope(bindings={})).state._state == {}
+
+    def test_is_a_dependency_error(self) -> None:
+        assert issubclass(UnresolvedStateError, DependencyError)

@@ -1,3 +1,4 @@
+import contextlib
 import typing
 
 import pytest
@@ -5,7 +6,8 @@ from starlette.exceptions import HTTPException
 from starlette.testclient import TestClient
 
 from kupala.applications import Kupala
-from kupala.dependencies import Factory, Value
+from kupala.dependencies import INVOCATION_CONTEXT_KEY, Factory, FromState, InvocationContext, Value
+from kupala.middleware import CallNext, WebSocketCallNext
 from kupala.requests import Request
 from kupala.responses import Response, StreamingResponse
 from kupala.routing import Routes
@@ -218,3 +220,83 @@ class TestOverrideDependencies:
             overridable_client.websocket_connect("/ws") as websocket,
         ):
             assert websocket.receive_text() == "fake"
+
+
+class TestInvocationState:
+    def test_injects_what_a_middleware_left_on_request_state(self) -> None:
+        async def attach(request: Request, call_next: CallNext) -> Response:
+            request.state.db = "session"
+            return await call_next(request)
+
+        routes = Routes()
+
+        @routes.get("/")
+        async def index(db: typing.Annotated[str, FromState(lambda ctx, state: state.db)]) -> Response:
+            return Response(db)
+
+        with TestClient(Kupala("tests", routes=routes, middleware=[attach])) as client:
+            assert client.get("/").text == "session"
+
+    def test_injects_state_into_websocket_endpoints(self) -> None:
+        async def attach(websocket: WebSocket, call_next: WebSocketCallNext) -> None:
+            websocket.state.db = "session"
+            await call_next(websocket)
+
+        routes = Routes()
+
+        @routes.websocket("/ws")
+        async def socket(
+            websocket: WebSocket, db: typing.Annotated[str, FromState(lambda ctx, state: state.db)]
+        ) -> None:
+            await websocket.accept()
+            await websocket.send_text(db)
+            await websocket.close()
+
+        app = Kupala("tests", routes=routes, websocket_middleware=[attach])
+        with TestClient(app) as client, client.websocket_connect("/ws") as websocket:
+            assert websocket.receive_text() == "session"
+
+    def test_shares_one_dict_with_starlette(self) -> None:
+        # the injector and request.state must see each other's writes, not two copies
+        routes = Routes()
+
+        @routes.get("/")
+        async def index(request: Request) -> Response:
+            context: InvocationContext = request.scope[INVOCATION_CONTEXT_KEY]
+            request.state.written_by_starlette = "a"
+            context.state.written_by_injector = "b"
+            return Response(f"{context.state.written_by_starlette}{request.state.written_by_injector}")
+
+        with TestClient(Kupala("tests", routes=routes)) as client:
+            assert client.get("/").text == "ab"
+
+    def test_injects_what_the_lifespan_provided(self) -> None:
+        # the reason FromState exists: one object built at startup, injected into every request
+        class App(Kupala):
+            @contextlib.asynccontextmanager
+            async def lifespan(self, app: typing.Self) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+                yield {"catalog": "loaded once"}
+
+        routes = Routes()
+
+        @routes.get("/")
+        async def index(catalog: typing.Annotated[str, FromState(lambda ctx, state: state.catalog)]) -> Response:
+            return Response(catalog)
+
+        with TestClient(App("tests", routes=routes)) as client:
+            assert client.get("/").text == "loaded once"
+            assert client.get("/").text == "loaded once"
+
+    def test_a_state_dependency_can_be_overridden(self) -> None:
+        type Catalog = typing.Annotated[str, FromState(lambda ctx, state: state.catalog)]
+
+        routes = Routes()
+
+        @routes.get("/")
+        async def index(catalog: Catalog) -> Response:
+            return Response(catalog)
+
+        app = Kupala("tests", routes=routes)
+        with TestClient(app) as client, app.override_dependencies({Catalog: Value("fake")}):
+            # the selector never runs, so the missing state key is never reached
+            assert client.get("/").text == "fake"

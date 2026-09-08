@@ -2,19 +2,16 @@ import contextlib
 import typing
 
 import click
+from starlette.datastructures import State
 from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware as ASGIMiddlewareWrapper
 from starlette.middleware.errors import ServerErrorMiddleware
 from starlette.middleware.exceptions import ExceptionMiddleware
+from starlette.requests import HTTPConnection
 from starlette.routing import Router
 from starlette.types import Receive, Scope, Send
 
-from kupala.dependencies import (
-    INVOCATION_CONTEXT_KEY,
-    Binding,
-    InjectionScope,
-    InvocationContext,
-)
+from kupala.dependencies import INVOCATION_CONTEXT_KEY, Binding, InjectionScope, InvocationContext
 from kupala.error_handlers import (
     ErrorHandler,
     http_error_handler,
@@ -93,12 +90,21 @@ class Kupala:
         finally:
             self._overrides = previous
 
+    def injection_scope(self) -> InjectionScope:
+        return InjectionScope(bindings={Kupala: self})
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        scope["app"] = self
+        injection_scope = self.injection_scope()
+        if scope["type"] in ("http", "websocket"):
+            injection_scope.bind(HTTPConnection, HTTPConnection(scope, receive))
+
         context = InvocationContext(
-            scope=InjectionScope(bindings={Kupala: self}),
+            scope=injection_scope,
+            state=State(scope.setdefault("state", {})),
             overrides=self._overrides,
         )
+
+        scope["app"] = self
         scope[INVOCATION_CONTEXT_KEY] = context
 
         async with context:
