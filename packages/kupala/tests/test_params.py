@@ -9,8 +9,11 @@ from starlette.testclient import TestClient
 
 from kupala.applications import Kupala
 from kupala.dependencies import InvalidDependencyError
+from kupala.error_handlers import ErrorHandler
+from kupala.errors import ValidationError
 from kupala.params import Query, QueryParam, converter_for, to_bool
-from kupala.responses import Response
+from kupala.requests import Request
+from kupala.responses import JSONResponse, Response
 from kupala.routing import Routes
 
 
@@ -19,12 +22,24 @@ class Colour(enum.StrEnum):
     BLUE = "blue"
 
 
-def client_for(endpoint: typing.Callable[..., typing.Awaitable[Response]]) -> TestClient:
+async def show_field_errors(request: Request, exc: Exception) -> Response:
+    """The default handler renders only `detail`, so this one puts the field map on the wire."""
+
+    assert isinstance(exc, ValidationError)
+    return JSONResponse({field: list(messages) for field, messages in exc.errors.items()}, status_code=422)
+
+
+def client_for(
+    endpoint: typing.Callable[..., typing.Awaitable[Response]],
+    *,
+    error_handlers: typing.Mapping[type[Exception], ErrorHandler] | None = None,
+) -> TestClient:
     """Mount one endpoint at / so a test can drive it over a real request."""
 
     routes = Routes()
     routes.get("/")(endpoint)
-    return TestClient(Kupala("tests", routes=routes), raise_server_exceptions=False)
+    app = Kupala("tests", routes=routes, error_handlers=error_handlers)
+    return TestClient(app, raise_server_exceptions=False)
 
 
 class TestToBool:
@@ -103,6 +118,36 @@ class TestQueryParam:
         assert "must be int" in http_response.text
         # the submitted value must not travel into the response or the logs
         assert "abc" not in http_response.text
+
+    def test_a_missing_value_is_reported_per_field(self) -> None:
+        async def endpoint(page: Query[int]) -> Response:
+            return Response("unreachable")  # pragma: no cover
+
+        with client_for(endpoint, error_handlers={ValidationError: show_field_errors}) as client:
+            http_response = client.get("/")
+
+        assert http_response.json() == {"page": ["This field is required."]}
+
+    def test_an_unconvertible_value_is_reported_per_field(self) -> None:
+        async def endpoint(page: Query[int]) -> Response:
+            return Response("unreachable")  # pragma: no cover
+
+        with client_for(endpoint, error_handlers={ValidationError: show_field_errors}) as client:
+            http_response = client.get("/?page=abc")
+
+        assert http_response.json() == {"page": ["This field must be int."]}
+        # the submitted value must not travel into the response or the logs
+        assert "abc" not in http_response.text
+
+    def test_field_errors_are_keyed_by_the_name_the_client_sent(self) -> None:
+        # the client never saw `page`, so blaming it would send the developer's name back over the wire
+        async def endpoint(page: typing.Annotated[int, QueryParam("p")]) -> Response:
+            return Response("unreachable")  # pragma: no cover
+
+        with client_for(endpoint, error_handlers={ValidationError: show_field_errors}) as client:
+            http_response = client.get("/")
+
+        assert http_response.json() == {"p": ["This field is required."]}
 
     @pytest.mark.parametrize(("query", "expected"), [("flag=true", "True"), ("flag=false", "False")])
     def test_converts_booleans_by_spelling(self, query: str, expected: str) -> None:

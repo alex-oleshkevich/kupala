@@ -121,7 +121,7 @@ Files `tests`. Test file names must mirror `kupala/` file structure. For example
 - `just test $optional_test_pattern`
 - `just testc $optional_test_pattern` - runs tests with coverage
 - `uv run mypy`
-- `uv build --no-sources`
+- `uv build --all-packages --no-sources`
 - `git diff --check`
 
 <!-- gortex:communities:start -->

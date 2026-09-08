@@ -71,10 +71,11 @@ class QueryParam:
 
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
         name = self.name or param.name
+        type_label = inspection.type_name(param.type)
         convert = converter_for(param.type)
         if convert is None:
             raise InvalidDependencyError(
-                f"Query parameter {name!r} is annotated {inspection.type_name(param.type)}, "
+                f"Query parameter {name!r} is annotated {type_label}, "
                 f"which cannot be read from a query string. Annotate it with one of: {SUPPORTED_TYPES}."
             )
 
@@ -82,7 +83,11 @@ class QueryParam:
             connection = await ctx.resolve(HTTPConnection)
             if name not in connection.query_params:
                 if not param.optional:
-                    raise ValidationError(f"Query parameter {name!r} is required.")
+                    # the map is keyed by the name the client sent, which `QueryParam(...)` may rename
+                    raise ValidationError(
+                        f"Query parameter {name!r} is required.",
+                        errors={name: ["This field is required."]},
+                    )
 
                 # the default is whatever the signature says, so it is never converted
                 return param.default
@@ -91,7 +96,10 @@ class QueryParam:
                 return convert(connection.query_params[name])
             except CONVERSION_ERRORS as exc:
                 # name the expectation, never the submitted value, which would reach the logs
-                raise ValidationError(f"Query parameter {name!r} must be {inspection.type_name(param.type)}.") from exc
+                raise ValidationError(
+                    f"Query parameter {name!r} must be {type_label}.",
+                    errors={name: [f"This field must be {type_label}."]},
+                ) from exc
 
         return resolve
 

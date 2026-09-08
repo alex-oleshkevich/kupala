@@ -1,9 +1,11 @@
+import typing
+
 import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from kupala.applications import Kupala
-from kupala.errors import BadRequestError, BaseHTTPError
+from kupala.errors import BadRequestError, BaseHTTPError, ValidationError
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
@@ -138,3 +140,39 @@ class TestBaseHTTPError:
             client.websocket_connect("/socket").__enter__()
 
         assert error.value.code == 4403
+
+
+class TestValidationError:
+    def test_carries_no_field_errors_by_default(self) -> None:
+        error = ValidationError()
+
+        assert error.detail == "Validation error."
+        assert error.status_code == 422
+        assert error.errors == {}
+
+    def test_carries_field_errors(self) -> None:
+        error = ValidationError("Validation failed.", errors={"email": ["This field is required."]})
+
+        assert error.detail == "Validation failed."
+        assert error.errors == {"email": ("This field is required.",)}
+
+    def test_field_errors_are_detached_from_the_caller(self) -> None:
+        messages = ["This field is required."]
+
+        error = ValidationError(errors={"email": messages})
+        messages.append("leaked")
+
+        assert error.errors == {"email": ("This field is required.",)}
+
+    def test_field_errors_cannot_be_written_through(self) -> None:
+        error = ValidationError(errors={"email": ["This field is required."]})
+
+        # every instance shares the empty default, so a writable map would leak between errors
+        with pytest.raises(TypeError):
+            typing.cast("dict[str, typing.Sequence[str]]", error.errors)["email"] = []
+
+    def test_subclass_can_declare_default_field_errors(self) -> None:
+        class EmailTakenError(ValidationError):
+            errors = {"email": ["This email is already registered."]}  # noqa: RUF012 - a class default is the point
+
+        assert EmailTakenError().errors == {"email": ("This email is already registered.",)}

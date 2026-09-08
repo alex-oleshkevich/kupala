@@ -41,13 +41,11 @@ class ScopeFactory(typing.Protocol):
 
 
 @pytest.fixture
-def scope_f(
-    type: typing.Literal["http", "websocket", "lifespan"] = "http",
-) -> ScopeFactory:
+def scope_f() -> ScopeFactory:
     def factory(**overrides: typing.Any) -> Scope:
         path = typing.cast(str, overrides.get("path", "/"))
         scope: dict[str, typing.Any] = {
-            "type": type,
+            "type": "http",
             "asgi": {"version": "3.0", "spec_version": "2.4"},
             "http_version": "1.1",
             "method": "GET",

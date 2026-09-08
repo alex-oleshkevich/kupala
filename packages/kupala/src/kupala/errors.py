@@ -1,4 +1,12 @@
+import types
+import typing
+
 from starlette.exceptions import HTTPException
+
+type FieldErrors = typing.Mapping[str, typing.Sequence[str]]
+
+# a default shared by every instance is safe only while nothing can write to it
+NO_ERRORS: FieldErrors = types.MappingProxyType({})
 
 
 class BaseHTTPError(HTTPException):
@@ -134,6 +142,23 @@ class ValidationError(BaseHTTPError):
     title: str = "Validation error."
     type: str = "validation_error"
     status_code: int = 422
+    errors: FieldErrors = NO_ERRORS
+
+    def __init__(
+        self,
+        detail: str | None = None,
+        *,
+        errors: FieldErrors | None = None,
+        title: str | None = None,
+        type: str | None = None,
+        status_code: int | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(detail, title=title, type=type, status_code=status_code, headers=headers)
+
+        # rendering reads this map and nothing writes it, so a caller's lists cannot drift after the raise
+        errors = errors or self.errors
+        self.errors = types.MappingProxyType({field: tuple(messages) for field, messages in errors.items()})
 
 
 class FailedDependencyError(BaseHTTPError):
