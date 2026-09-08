@@ -203,7 +203,7 @@ def catalog_command(prefix: str, catalog: ProductCatalog) -> None:
             click.echo(f"{sku}\t{name}")
 
 
-@commands.command("greet", lifespan=False)
+@commands.command("greet", with_lifespan=False)
 def greet_command() -> None:
     """A command that never starts the application, so no lifespan runs."""
 

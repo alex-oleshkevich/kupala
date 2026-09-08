@@ -12,7 +12,7 @@ dependencies = [
 requires = ["uv_build>=0.12.5,<0.13"]
 build-backend = "uv_build"
 
-[tool.kupala]
+[project.entry-points."kupala.app"]
 app = "demo.app:app"
 
 # the demo keeps a flat layout rather than src/, and the CLI only imports what the environment can

@@ -10,6 +10,7 @@ from kupala.dependencies import CallPlan, compile_call_plan, resolve_arguments, 
 
 if typing.TYPE_CHECKING:
     from kupala.applications import Kupala
+    from kupala.cli import CliContext
 
 type CommandFunction = typing.Callable[..., typing.Any]
 type CommandDecorator = typing.Callable[[CommandFunction], CommandFunction]
@@ -29,14 +30,16 @@ class UsageError(click.UsageError):
 def current_application() -> Kupala:
     """The application the current command runs against."""
 
-    app: Kupala | None = click.get_current_context().find_root().obj.app
-    if app is None:
+    # a command mounted on a group Kupala did not build reaches this with no context object at all,
+    # which is the same "no application" story rather than an AttributeError from the attribute below
+    context: CliContext | None = click.get_current_context().find_root().obj
+    if context is None or context.app is None:
         raise UsageError(
             "This command needs an application and none was loaded.",
             "Set KUPALA_APP to 'module:attribute', or run the command through Kupala.cli().",
         )
 
-    return app
+    return context.app
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -83,6 +86,8 @@ def build_command(definition: CommandDefinition) -> click.Command:
 
     @functools.wraps(definition.fn)
     def placeholder(**kwargs: typing.Any) -> None:
+        # click derives the command name and help text from this function, then the real callback
+        # below replaces it, so this body is never reached
         raise AssertionError("the placeholder callback is replaced before the command is registered")
 
     # click consumes __click_params__ destructively, so hand it a copy and leave the original intact
