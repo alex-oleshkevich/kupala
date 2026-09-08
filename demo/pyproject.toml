@@ -1,12 +1,21 @@
 [project]
 name = "demo"
+version = "0"
 description = "Demo application exercising the framework."
 requires-python = ">=3.14"
-version = "0"
 dependencies = [
-    "kupala",
-    "uvicorn>=0.52.1",
+  "kupala",
+  "uvicorn>=0.52.1",
 ]
 
-[tool.uv]
-package = false
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13"]
+build-backend = "uv_build"
+
+[tool.kupala]
+app = "demo.app:app"
+
+# the demo keeps a flat layout rather than src/, and the CLI only imports what the environment can
+# already import, so it has to be installed like any other project
+[tool.uv.build-backend]
+module-root = ""

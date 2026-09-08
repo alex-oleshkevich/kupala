@@ -36,7 +36,7 @@ class Kupala:
         middleware: typing.Sequence[Middleware] = (),
         websocket_middleware: typing.Sequence[WebSocketMiddleware] = (),
         asgi_middleware: typing.Sequence[ASGIMiddlewareWrapper] = (),
-        commands: typing.Sequence[click.Command] = (),
+        commands: Commands | typing.Sequence[click.Command] = (),
         lifespans: typing.Sequence[Lifespan[Kupala]] = (),
         error_handlers: typing.Mapping[type[Exception], ErrorHandler] | None = None,
         model_binders: typing.Sequence[ModelBinder] = DEFAULT_MODEL_BINDERS,
@@ -45,7 +45,7 @@ class Kupala:
         self._overrides: typing.Mapping[typing.Any, Binding] = {}
         self.routes = routes
         self.debug = debug
-        self.commands = commands
+        self.commands = commands.compile() if isinstance(commands, Commands) else list(commands)
         self.middleware = list(middleware)
         self.websocket_middleware = list(websocket_middleware)
         self.model_binders = tuple(model_binders)
@@ -94,6 +94,15 @@ class Kupala:
 
             yield state
 
+    def lifespan(self) -> contextlib.AbstractAsyncContextManager[dict[str, typing.Any]]:
+        """Start the application outside a server, yielding the state its lifespans contribute.
+
+        The server reaches the same code through the ASGI lifespan protocol; this is the entry point
+        for everything else that has to run against a started application, such as the CLI.
+        """
+
+        return self._composed_lifespan(self)
+
     @contextlib.contextmanager
     def override_dependencies(self, overrides: typing.Mapping[typing.Any, Binding]) -> typing.Iterator[None]:
         """Replace dependencies for requests made inside this block, keyed by the annotation they are declared with.
@@ -112,22 +121,29 @@ class Kupala:
     def injection_scope(self) -> InjectionScope:
         return InjectionScope(bindings={Kupala: self})
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        injection_scope = self.injection_scope()
-        if scope["type"] in ("http", "websocket"):
-            injection_scope.bind(HTTPConnection, HTTPConnection(scope, receive))
+    def invocation_context(self, state: dict[str, typing.Any]) -> InvocationContext:
+        """Build the context one invocation resolves its dependencies from, over the given state."""
 
-        context = InvocationContext(
-            scope=injection_scope,
-            state=State(scope.setdefault("state", {})),
+        return InvocationContext(
+            scope=self.injection_scope(),
+            state=State(state),
             overrides=self._overrides,
         )
+
+    def cli(self, args: typing.Sequence[str] | None = None) -> int:
+        """Run the command line interface against this application, skipping app discovery."""
+
+        from kupala.cli import main
+
+        return main(args, app=self)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        context = self.invocation_context(scope.setdefault("state", {}))
+        if scope["type"] in ("http", "websocket"):
+            context.scope.bind(HTTPConnection, HTTPConnection(scope, receive))
 
         scope["app"] = self
         scope[INVOCATION_CONTEXT_KEY] = context
 
         async with context:
             await self._asgi_app(scope, receive, send)
-
-    def cli(self) -> None:
-        pass

@@ -13,3 +13,7 @@ testc *args:
 
 check:
     prek run --all-files
+
+[working-directory("demo")]
+cli *args:
+    uv run -- kupala {{ args }}

@@ -425,3 +425,22 @@ class TestLifespans:
             pass  # pragma: no cover
 
         assert events == ["up", "down"]
+
+
+class TestLifespanEntryPoint:
+    async def test_starts_the_application_outside_a_server(self) -> None:
+        @contextlib.asynccontextmanager
+        async def lifespan(app: Kupala) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+            yield {"catalog": "loaded"}
+
+        app = Kupala(__name__, routes=Routes(), lifespans=[lifespan])
+
+        async with app.lifespan() as state:
+            assert state == {"catalog": "loaded"}
+
+    async def test_builds_an_invocation_context_over_the_given_state(self) -> None:
+        app = Kupala(__name__, routes=Routes())
+        context = app.invocation_context({"catalog": "loaded"})
+
+        assert context.state.catalog == "loaded"
+        assert await context.resolve(Kupala) is app

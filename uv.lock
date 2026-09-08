@@ -216,7 +216,7 @@ wheels = [
 [[package]]
 name = "demo"
 version = "0"
-source = { virtual = "demo" }
+source = { editable = "demo" }
 dependencies = [
     { name = "kupala" },
     { name = "uvicorn" },
