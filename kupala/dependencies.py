@@ -8,7 +8,6 @@ import typing
 
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import State
-from starlette.requests import HTTPConnection
 
 from kupala import inspection
 
@@ -157,21 +156,6 @@ class Value:
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
         async def resolve(ctx: InvocationContext) -> object:
             return self.value
-
-        return resolve
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class FromQuery:
-    """Read a value from the query string."""
-
-    param_name: str
-
-    def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
-        async def resolve(ctx: InvocationContext) -> object:
-            conn = await ctx.resolve(HTTPConnection)
-            value = conn.query_params.get(self.param_name, param.default)
-            return param.type(value)
 
         return resolve
 
