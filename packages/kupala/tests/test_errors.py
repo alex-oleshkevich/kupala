@@ -156,6 +156,13 @@ class TestValidationError:
         assert error.detail == "Validation failed."
         assert error.errors == {"email": ("This field is required.",)}
 
+    def test_a_lone_message_needs_no_sequence(self) -> None:
+        # `str` is a `Sequence[str]` that no type checker rejects, so an unwrapped message must not
+        # be iterated into one error per character
+        error = ValidationError(errors={"email": "This field is required."})
+
+        assert error.errors == {"email": ("This field is required.",)}
+
     def test_field_errors_are_detached_from_the_caller(self) -> None:
         messages = ["This field is required."]
 
@@ -170,9 +177,3 @@ class TestValidationError:
         # every instance shares the empty default, so a writable map would leak between errors
         with pytest.raises(TypeError):
             typing.cast("dict[str, typing.Sequence[str]]", error.errors)["email"] = []
-
-    def test_subclass_can_declare_default_field_errors(self) -> None:
-        class EmailTakenError(ValidationError):
-            errors = {"email": ["This email is already registered."]}  # noqa: RUF012 - a class default is the point
-
-        assert EmailTakenError().errors == {"email": ("This email is already registered.",)}

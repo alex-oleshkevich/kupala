@@ -86,7 +86,7 @@ class QueryParam:
                     # the map is keyed by the name the client sent, which `QueryParam(...)` may rename
                     raise ValidationError(
                         f"Query parameter {name!r} is required.",
-                        errors={name: ["This field is required."]},
+                        errors={name: "This field is required."},
                     )
 
                 # the default is whatever the signature says, so it is never converted
@@ -98,7 +98,7 @@ class QueryParam:
                 # name the expectation, never the submitted value, which would reach the logs
                 raise ValidationError(
                     f"Query parameter {name!r} must be {type_label}.",
-                    errors={name: [f"This field must be {type_label}."]},
+                    errors={name: f"This field must be {type_label}."},
                 ) from exc
 
         return resolve
