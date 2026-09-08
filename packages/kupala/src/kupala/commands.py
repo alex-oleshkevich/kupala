@@ -27,15 +27,9 @@ class UsageError(click.UsageError):
 
 
 def current_application() -> Kupala:
-    """The application the current command runs against.
+    """The application the current command runs against."""
 
-    The command line resolves the application before it builds the group and carries it as the click
-    object, so an application's own commands and an extension's read it from the same place. The
-    variable is named as a literal rather than imported because the command line imports this module,
-    not the other way round; a test pins the two together.
-    """
-
-    app: Kupala | None = click.get_current_context().find_root().obj
+    app: Kupala | None = click.get_current_context().find_root().obj.app
     if app is None:
         raise UsageError(
             "This command needs an application and none was loaded.",
