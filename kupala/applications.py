@@ -9,7 +9,7 @@ from starlette.middleware.errors import ServerErrorMiddleware
 from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.requests import HTTPConnection
 from starlette.routing import Router
-from starlette.types import Receive, Scope, Send
+from starlette.types import Lifespan, Receive, Scope, Send
 
 from kupala.dependencies import INVOCATION_CONTEXT_KEY, Binding, InjectionScope, InvocationContext
 from kupala.error_handlers import (
@@ -35,6 +35,7 @@ class Kupala:
         websocket_middleware: typing.Sequence[WebSocketMiddleware] = (),
         asgi_middleware: typing.Sequence[ASGIMiddlewareWrapper] = (),
         commands: typing.Sequence[click.Command] = (),
+        lifespans: typing.Sequence[Lifespan[Kupala]] = (),
         error_handlers: typing.Mapping[type[Exception], ErrorHandler] | None = None,
     ) -> None:
         self.name = package_name
@@ -44,6 +45,7 @@ class Kupala:
         self.commands = commands
         self.middleware = list(middleware)
         self.websocket_middleware = list(websocket_middleware)
+        self.lifespans = list(lifespans)
         self.error_handlers = {
             BaseHTTPError: http_error_handler,
             HTTPException: http_error_handler,
@@ -61,7 +63,7 @@ class Kupala:
             ASGIMiddlewareWrapper(ExceptionMiddleware, handlers=self.error_handlers),
         ]
         app = Router(
-            lifespan=self.lifespan,
+            lifespan=self._composed_lifespan,
             routes=routes.compile(
                 tuple(self.middleware),
                 tuple(self.websocket_middleware),
@@ -72,8 +74,20 @@ class Kupala:
         self._asgi_app = app
 
     @contextlib.asynccontextmanager
-    async def lifespan(self, app: typing.Self) -> typing.AsyncGenerator[dict[str, typing.Any]]:
-        yield {}
+    async def _composed_lifespan(self, app: typing.Self) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+        """Enter every registered lifespan, merging what they yield into the state shared by all requests.
+
+        Registration order is startup order and the reverse of shutdown order, so a lifespan may rely on
+        everything registered before it. When two lifespans yield the same key, the later one wins.
+        """
+
+        state: dict[str, typing.Any] = {}
+        async with contextlib.AsyncExitStack() as stack:
+            for factory in self.lifespans:
+                if partial := await stack.enter_async_context(factory(app)):
+                    state.update(partial)
+
+            yield state
 
     @contextlib.contextmanager
     def override_dependencies(self, overrides: typing.Mapping[typing.Any, Binding]) -> typing.Iterator[None]:

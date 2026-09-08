@@ -272,10 +272,9 @@ class TestInvocationState:
 
     def test_injects_what_the_lifespan_provided(self) -> None:
         # the reason FromState exists: one object built at startup, injected into every request
-        class App(Kupala):
-            @contextlib.asynccontextmanager
-            async def lifespan(self, app: typing.Self) -> typing.AsyncGenerator[dict[str, typing.Any]]:
-                yield {"catalog": "loaded once"}
+        @contextlib.asynccontextmanager
+        async def open_catalog(app: Kupala) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+            yield {"catalog": "loaded once"}
 
         routes = Routes()
 
@@ -283,7 +282,7 @@ class TestInvocationState:
         async def index(catalog: typing.Annotated[str, FromState(lambda ctx, state: state.catalog)]) -> Response:
             return Response(catalog)
 
-        with TestClient(App("tests", routes=routes)) as client:
+        with TestClient(Kupala("tests", routes=routes, lifespans=[open_catalog])) as client:
             assert client.get("/").text == "loaded once"
             assert client.get("/").text == "loaded once"
 
@@ -300,3 +299,129 @@ class TestInvocationState:
         with TestClient(app) as client, app.override_dependencies({Catalog: Value("fake")}):
             # the selector never runs, so the missing state key is never reached
             assert client.get("/").text == "fake"
+
+
+class TestLifespans:
+    def test_merges_the_state_of_every_lifespan(self) -> None:
+        @contextlib.asynccontextmanager
+        async def open_catalog(app: Kupala) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+            yield {"catalog": "products"}
+
+        @contextlib.asynccontextmanager
+        async def open_mailer(app: Kupala) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+            yield {"mailer": "smtp"}
+
+        routes = Routes()
+
+        @routes.get("/")
+        async def index(
+            catalog: typing.Annotated[str, FromState(lambda ctx, state: state.catalog)],
+            mailer: typing.Annotated[str, FromState(lambda ctx, state: state.mailer)],
+        ) -> Response:
+            return Response(f"{catalog}/{mailer}")
+
+        app = Kupala("tests", routes=routes, lifespans=[open_catalog, open_mailer])
+        with TestClient(app) as client:
+            assert client.get("/").text == "products/smtp"
+
+    def test_the_last_lifespan_wins_a_key_collision(self) -> None:
+        @contextlib.asynccontextmanager
+        async def extension(app: Kupala) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+            yield {"db": "default"}
+
+        @contextlib.asynccontextmanager
+        async def application(app: Kupala) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+            yield {"db": "replaced"}
+
+        routes = Routes()
+
+        @routes.get("/")
+        async def index(db: typing.Annotated[str, FromState(lambda ctx, state: state.db)]) -> Response:
+            return Response(db)
+
+        app = Kupala("tests", routes=routes, lifespans=[extension, application])
+        with TestClient(app) as client:
+            assert client.get("/").text == "replaced"
+
+    def test_a_stateless_lifespan_contributes_nothing(self) -> None:
+        @contextlib.asynccontextmanager
+        async def warm_cache(app: Kupala) -> typing.AsyncGenerator[None]:
+            yield None
+
+        @contextlib.asynccontextmanager
+        async def open_catalog(app: Kupala) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+            yield {"catalog": "products"}
+
+        routes = Routes()
+
+        @routes.get("/")
+        async def index(request: Request) -> Response:
+            return Response(",".join(sorted(request.scope["state"])))
+
+        app = Kupala("tests", routes=routes, lifespans=[warm_cache, open_catalog])
+        with TestClient(app) as client:
+            assert client.get("/").text == "catalog"
+
+    def test_receives_the_application_instance(self) -> None:
+        # extensions read configuration off the app they are mounted on
+        seen: list[Kupala] = []
+
+        @contextlib.asynccontextmanager
+        async def record(app: Kupala) -> typing.AsyncGenerator[None]:
+            seen.append(app)
+            yield None
+
+        app = Kupala("tests", routes=Routes(), lifespans=[record])
+        with TestClient(app):
+            pass
+
+        assert seen == [app]
+
+    def test_starts_in_registration_order_and_shuts_down_in_reverse(self) -> None:
+        # a lifespan may depend on everything registered before it, so it must tear down first
+        events: list[str] = []
+
+        @contextlib.asynccontextmanager
+        async def first(app: Kupala) -> typing.AsyncGenerator[None]:
+            events.append("first up")
+            yield None
+            events.append("first down")
+
+        @contextlib.asynccontextmanager
+        async def second(app: Kupala) -> typing.AsyncGenerator[None]:
+            events.append("second up")
+            yield None
+            events.append("second down")
+
+        with TestClient(Kupala("tests", routes=Routes(), lifespans=[first, second])):
+            pass
+
+        assert events == ["first up", "second up", "second down", "first down"]
+
+    def test_unwinds_started_lifespans_when_a_later_one_fails(self) -> None:
+        events: list[str] = []
+
+        @contextlib.asynccontextmanager
+        async def healthy(app: Kupala) -> typing.AsyncGenerator[None]:
+            # the failure is thrown back in at the yield, so cleanup only runs from a finally block
+            events.append("up")
+            try:
+                yield None
+            finally:
+                events.append("down")
+
+        @contextlib.asynccontextmanager
+        async def broken(app: Kupala) -> typing.AsyncGenerator[None]:
+            raise RuntimeError("cannot connect")
+            yield None  # pragma: no cover
+
+        @contextlib.asynccontextmanager
+        async def never_started(app: Kupala) -> typing.AsyncGenerator[None]:
+            events.append("never")  # pragma: no cover
+            yield None  # pragma: no cover
+
+        app = Kupala("tests", routes=Routes(), lifespans=[healthy, broken, never_started])
+        with pytest.raises(RuntimeError, match="cannot connect"), TestClient(app):
+            pass  # pragma: no cover
+
+        assert events == ["up", "down"]

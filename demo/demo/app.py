@@ -135,15 +135,25 @@ async def sse_view(request: Request) -> Response:
     return response(request).sse(ticks(), keepalive_interval=5.0)
 
 
-class DemoApp(Kupala):
-    @contextlib.asynccontextmanager
-    async def lifespan(self, app: typing.Self) -> typing.AsyncGenerator[dict[str, typing.Any]]:
-        yield {"catalog": Catalog()}
+@contextlib.asynccontextmanager
+async def open_catalog(app: Kupala) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+    yield {"catalog": Catalog()}
 
 
-app = DemoApp(
+@contextlib.asynccontextmanager
+async def announce(app: Kupala) -> typing.AsyncGenerator[None]:
+    # what an extension looks like: it contributes no state, only startup and shutdown work
+    print("DEMO UP")
+    try:
+        yield None
+    finally:
+        print("DEMO DOWN")
+
+
+app = Kupala(
     __name__,
     debug=True,
     routes=routes,
     middleware=[app_middleware, example_middleware],
+    lifespans=[announce, open_catalog],
 )
