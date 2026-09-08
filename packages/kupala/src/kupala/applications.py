@@ -11,6 +11,8 @@ from starlette.requests import HTTPConnection
 from starlette.routing import Router
 from starlette.types import Lifespan, Receive, Scope, Send
 
+from kupala.binders import DEFAULT_MODEL_BINDERS, ModelBinder
+from kupala.commands import Commands
 from kupala.dependencies import INVOCATION_CONTEXT_KEY, Binding, InjectionScope, InvocationContext
 from kupala.error_handlers import (
     ErrorHandler,
@@ -37,6 +39,7 @@ class Kupala:
         commands: typing.Sequence[click.Command] = (),
         lifespans: typing.Sequence[Lifespan[Kupala]] = (),
         error_handlers: typing.Mapping[type[Exception], ErrorHandler] | None = None,
+        model_binders: typing.Sequence[ModelBinder] = DEFAULT_MODEL_BINDERS,
     ) -> None:
         self.name = package_name
         self._overrides: typing.Mapping[typing.Any, Binding] = {}
@@ -45,6 +48,7 @@ class Kupala:
         self.commands = commands
         self.middleware = list(middleware)
         self.websocket_middleware = list(websocket_middleware)
+        self.model_binders = tuple(model_binders)
         self.lifespans = list(lifespans)
         self.error_handlers = {
             BaseHTTPError: http_error_handler,
@@ -67,6 +71,7 @@ class Kupala:
             routes=routes.compile(
                 tuple(self.middleware),
                 tuple(self.websocket_middleware),
+                self.model_binders,
             ),
         )
         for cls, args, kwargs in reversed(asgi_middleware):

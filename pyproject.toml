@@ -1,7 +1,10 @@
 [dependency-groups]
 dev = [
   "httpx2>=2.10.0",
+  # both model binders ship with the framework, so the suite has to exercise both
+  "msgspec>=0.19",
   "mypy>=2.3.1",
+  "pydantic>=2.12",
   "pytest>=9.1.1",
   "pytest-cov>=7.1.0",
   "uvicorn>=0.52.1",

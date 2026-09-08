@@ -55,6 +55,8 @@ repos:
                 - httpx
                 - jinja2
                 - mailers
+                - msgspec
+                - pydantic
                 - pytest
                 - python-multipart
                 - starlette

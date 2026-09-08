@@ -15,7 +15,9 @@ members = [
 [manifest.dependency-groups]
 dev = [
     { name = "httpx2", specifier = ">=2.10.0" },
+    { name = "msgspec", specifier = ">=0.19" },
     { name = "mypy", specifier = ">=2.3.1" },
+    { name = "pydantic", specifier = ">=2.12" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "uvicorn", specifier = ">=0.52.1" },
@@ -317,6 +319,7 @@ name = "kupala"
 version = "0.60.0"
 source = { editable = "packages/kupala" }
 dependencies = [
+    { name = "anyio" },
     { name = "asgiref" },
     { name = "click" },
     { name = "jinja2" },
@@ -335,6 +338,7 @@ pydantic = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4" },
     { name = "asgiref", specifier = ">=3.12.1" },
     { name = "click", specifier = ">=8.4" },
     { name = "jinja2", specifier = ">=3.1.6" },

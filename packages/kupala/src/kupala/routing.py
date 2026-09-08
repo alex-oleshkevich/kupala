@@ -8,7 +8,14 @@ from starlette.middleware import Middleware as ASGIMiddlewareWrapper
 from starlette.routing import BaseRoute, Host, Mount, Route, WebSocketRoute
 from starlette.types import ASGIApp
 
-from kupala.dependencies import INVOCATION_CONTEXT_KEY, InvocationContext, compile_call_plan, invoke
+from kupala.binders import ModelBinder
+from kupala.dependencies import (
+    INVOCATION_CONTEXT_KEY,
+    CompileContext,
+    InvocationContext,
+    compile_call_plan,
+    invoke,
+)
 from kupala.middleware import (
     CallNext,
     Middleware,
@@ -241,6 +248,7 @@ class Routes:
         self,
         http_middleware: tuple[Middleware, ...],
         websocket_middleware: tuple[WebSocketMiddleware, ...] = (),
+        binders: tuple[ModelBinder, ...] = (),
     ) -> list[BaseRoute]:
         route_names: dict[str, str] = {}
         http_routes: dict[tuple[str, str], str] = {}
@@ -314,7 +322,7 @@ class Routes:
                                 path=route_path,
                                 name=route_name,
                                 endpoint=chain_websocket_middleware(
-                                    bind_websocket_dependencies(definition.fn),
+                                    bind_websocket_dependencies(definition.fn, binders),
                                     [*websocket_middleware, *group_websocket_middleware, *definition.middleware],
                                 ),
                             )
@@ -331,7 +339,7 @@ class Routes:
                                 name=route_name,
                                 methods=definition.methods,
                                 endpoint=chain_middleware(
-                                    bind_http_dependencies(definition.fn),
+                                    bind_http_dependencies(definition.fn, binders),
                                     [*http_middleware, *middleware, *definition.middleware],
                                 ),
                             )
@@ -427,8 +435,8 @@ def chain_websocket_middleware(
     return call_next
 
 
-def bind_http_dependencies(fn: AnyEndpoint) -> AsyncEndpoint:
-    plan = compile_call_plan(fn)
+def bind_http_dependencies(fn: AnyEndpoint, binders: tuple[ModelBinder, ...]) -> AsyncEndpoint:
+    plan = compile_call_plan(fn, CompileContext(binders=binders))
 
     async def wrapped(request: Request) -> Response:
         context: InvocationContext = request.scope[INVOCATION_CONTEXT_KEY]
@@ -438,8 +446,8 @@ def bind_http_dependencies(fn: AnyEndpoint) -> AsyncEndpoint:
     return wrapped
 
 
-def bind_websocket_dependencies(fn: WebSocketEndpoint) -> WebSocketEndpoint:
-    plan = compile_call_plan(fn)
+def bind_websocket_dependencies(fn: WebSocketEndpoint, binders: tuple[ModelBinder, ...]) -> WebSocketEndpoint:
+    plan = compile_call_plan(fn, CompileContext(binders=binders))
 
     async def wrapped(ws: WebSocket) -> None:
         context: InvocationContext = ws.scope[INVOCATION_CONTEXT_KEY]

@@ -10,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import State
 
 from kupala import inspection
+from kupala.binders import ModelBinder
 
 type Key = type[typing.Any]
 
@@ -124,6 +125,7 @@ class CompileContext:
     """The factories we descended through to reach the callable being compiled."""
 
     chain: tuple[Factory, ...] = ()
+    binders: tuple[ModelBinder, ...] = ()
 
     def enter(self, factory: Factory) -> typing.Self:
         """Descend into a factory's own callable."""
