@@ -56,6 +56,19 @@ def path_parameters(path: str) -> tuple[str, tuple[openapi.Parameter, ...]]:
     return template, parameters
 
 
+def merge_parameters(
+    generated: tuple[openapi.Parameter, ...],
+    authored: typing.Sequence[openapi.Parameter | openapi.Reference] | None,
+) -> tuple[openapi.Parameter | openapi.Reference, ...] | None:
+    """The parameters a path declares, plus whatever its author declared beside them."""
+
+    if not authored:
+        return generated or None
+
+    claimed = {(p.name, p.in_) for p in authored if isinstance(p, openapi.Parameter)}
+    return (*(p for p in generated if (p.name, p.in_) not in claimed), *authored)
+
+
 def documented_methods(definition: RouteDefinition) -> tuple[str, ...]:
     """The methods of a definition worth documenting, lowercased for a path item."""
 
@@ -77,7 +90,10 @@ def build_document(routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI
         if operation is None:
             continue
 
-        template, parameters = path_parameters(info.path)
+        # a route's inputs and responses are the same whichever of its methods is being described
+        template, declared = path_parameters(info.path)
+        parameters = merge_parameters(declared, operation.parameters)
+        responses = operation.responses or DEFAULT_RESPONSES
         methods = documented_methods(info.definition)
 
         for method in methods:
@@ -96,8 +112,8 @@ def build_document(routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI
             described = dataclasses.replace(
                 operation,
                 operation_id=operation_id,
-                parameters=parameters or None,
-                responses=operation.responses or DEFAULT_RESPONSES,
+                parameters=parameters,
+                responses=responses,
             )
             item = paths.get(template, openapi.PathItem())
             if getattr(item, method, None) is not None:

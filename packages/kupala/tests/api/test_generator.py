@@ -189,6 +189,47 @@ class TestBuildDocument:
         with pytest.raises(DuplicateOperationError, match="'same' describes both"):
             build_document(routes, DOCUMENT)
 
+    def test_an_authored_parameter_joins_the_ones_the_path_declares(self) -> None:
+        trace = openapi.Parameter(name="x-trace", in_=openapi.ParameterLocation.HEADER)
+        routes = Routes()
+        routes.get("/users/{id:int}", parameters=[trace])(view)
+
+        paths = build_document(routes, DOCUMENT).paths or {}
+        described = paths["/users/{id}"].get
+        assert described is not None
+
+        names = [typing.cast(openapi.Parameter, parameter).name for parameter in described.parameters or ()]
+        assert names == ["id", "x-trace"]
+
+    def test_an_authored_parameter_survives_a_path_without_variables(self) -> None:
+        trace = openapi.Parameter(name="x-trace", in_=openapi.ParameterLocation.HEADER)
+        routes = Routes()
+        routes.get("/users", parameters=[trace])(view)
+
+        paths = build_document(routes, DOCUMENT).paths or {}
+        described = paths["/users"].get
+        assert described is not None
+
+        assert described.parameters == (trace,)
+
+    def test_an_author_may_replace_a_parameter_the_path_declares(self) -> None:
+        # a document cannot carry two parameters of one name and location, so the author's wins
+        described_id = openapi.Parameter(
+            name="id",
+            in_=openapi.ParameterLocation.PATH,
+            required=True,
+            description="The user's id.",
+            schema={"type": "integer", "minimum": 1},
+        )
+        routes = Routes()
+        routes.get("/users/{id:int}", parameters=[described_id])(view)
+
+        paths = build_document(routes, DOCUMENT).paths or {}
+        described = paths["/users/{id}"].get
+        assert described is not None
+
+        assert described.parameters == (described_id,)
+
     def test_an_authored_response_replaces_the_default(self) -> None:
         routes = Routes()
         routes.get("/users", responses={"204": openapi.Response(description="Nothing.")})(view)
