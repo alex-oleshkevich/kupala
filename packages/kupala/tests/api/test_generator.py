@@ -189,6 +189,15 @@ class TestBuildDocument:
         with pytest.raises(DuplicateOperationError, match="'same' describes both"):
             build_document(routes, DOCUMENT)
 
+    def test_an_authored_response_replaces_the_default(self) -> None:
+        routes = Routes()
+        routes.get("/users", responses={"204": openapi.Response(description="Nothing.")})(view)
+
+        paths = build_document(routes, DOCUMENT).paths or {}
+
+        assert paths["/users"].get is not None
+        assert paths["/users"].get.responses == {"204": openapi.Response(description="Nothing.")}
+
     def test_an_operation_that_documents_no_response_still_declares_one(self) -> None:
         routes = Routes()
         routes.get("/users")(view)

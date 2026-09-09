@@ -166,16 +166,15 @@ class Routes:
         self.include(child)
         return child
 
-    def operation(self, fn: AnyEndpoint, options: OperationOptions) -> openapi.Operation | None:
-        """Describe one endpoint as far as its author's intent reaches, or nothing when it stays undocumented."""
+    def operation(self, fn: AnyEndpoint, options: OperationOptions) -> openapi.Operation:
+        """Describe one endpoint, deriving what the group and the docstring know and keeping the rest."""
 
         summary, description = split_docstring(fn.__doc__)
-        tags = (*self.tags, *(options.tags or ()))
-        return openapi.Operation(
-            tags=tags or None,
+        return dataclasses.replace(
+            options,
+            tags=(*self.tags, *(options.tags or ())) or None,
             summary=options.summary or summary,
             description=options.description or description,
-            operation_id=options.operation_id,
             deprecated=options.deprecated or None,
         )
 

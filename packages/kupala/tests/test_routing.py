@@ -538,6 +538,49 @@ class TestOperationMetadata:
         assert isinstance(definition, RouteDefinition)
         assert definition.openapi is None
 
+    def test_keeps_every_field_the_author_declared(self) -> None:
+        # an option is any field of an operation, so one spelled correctly but not derived here was
+        # accepted at the decorator and then dropped, which is the failure naming them all prevents
+        routes = Routes()
+        endpoint = routes.post(
+            "/users",
+            responses={"404": openapi.Response(description="No such user.")},
+            request_body=openapi.RequestBody(content={"application/json": openapi.MediaType()}),
+            parameters=[openapi.Parameter(name="trace", in_=openapi.ParameterLocation.HEADER)],
+            security=[{"bearer": ("write",)}],
+            external_docs=openapi.ExternalDocumentation(url="https://example.com/docs"),
+            servers=[openapi.Server(url="https://api.example.com")],
+            extensions={"x-internal": True},
+        )
+
+        endpoint(stub_endpoint)
+
+        definition = routes.definitions[0]
+        assert isinstance(definition, RouteDefinition)
+        assert definition.openapi is not None
+        assert definition.openapi.responses == {"404": openapi.Response(description="No such user.")}
+        assert definition.openapi.request_body == openapi.RequestBody(content={"application/json": openapi.MediaType()})
+        assert definition.openapi.parameters == [openapi.Parameter(name="trace", in_=openapi.ParameterLocation.HEADER)]
+        assert definition.openapi.security == [{"bearer": ("write",)}]
+        assert definition.openapi.external_docs == openapi.ExternalDocumentation(url="https://example.com/docs")
+        assert definition.openapi.servers == [openapi.Server(url="https://api.example.com")]
+        assert definition.openapi.extensions == {"x-internal": True}
+
+    def test_derives_over_an_authored_field_without_disturbing_the_rest(self) -> None:
+        routes = Routes(tags=["v1"])
+
+        @routes.get("/users", responses={"200": openapi.Response(description="Users.")})
+        async def list_users(request: Request) -> Response:
+            """List users."""
+            return Response()  # pragma: no cover - the metadata is what this test reads
+
+        definition = routes.definitions[0]
+        assert isinstance(definition, RouteDefinition)
+        assert definition.openapi is not None
+        assert definition.openapi.summary == "List users."
+        assert definition.openapi.tags == ("v1",)
+        assert definition.openapi.responses == {"200": openapi.Response(description="Users.")}
+
     def test_reports_a_misspelled_option_instead_of_dropping_it(self) -> None:
         routes = Routes()
 
