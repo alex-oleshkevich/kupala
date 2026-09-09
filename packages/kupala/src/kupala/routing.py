@@ -43,17 +43,7 @@ type EndpointWrapper = typing.Callable[[AnyEndpoint], AnyEndpoint]
 type WebSocketEndpoint = typing.Callable[..., typing.Awaitable[None]]
 type WebSocketEndpointWrapper = typing.Callable[[WebSocketEndpoint], WebSocketEndpoint]
 
-
-@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
-class OperationOptions:
-    """The parts of an operation only the author knows. The generator derives everything else."""
-
-    tags: typing.Sequence[str] = ()
-    summary: str | None = None
-    description: str | None = None
-    operation_id: str | None = None
-    deprecated: bool = False
-    include_in_schema: bool = True
+OperationOptions = openapi.Operation
 
 
 def split_docstring(docstring: str | None) -> tuple[str | None, str | None]:
@@ -151,18 +141,10 @@ class Routes:
         return child
 
     def operation(self, fn: AnyEndpoint, options: OperationOptions) -> openapi.Operation | None:
-        """Describe one endpoint as far as its author's intent reaches, or nothing when it stays undocumented.
-
-        Which routes reach a document is decided by the tree a generator is pointed at, not here, so
-        this records only what the author declared. `include_in_schema=False` withholds the
-        description entirely, which is how one route inside a documented tree stays out of it.
-        """
-
-        if not options.include_in_schema:
-            return None
+        """Describe one endpoint as far as its author's intent reaches, or nothing when it stays undocumented."""
 
         summary, description = split_docstring(fn.__doc__)
-        tags = (*self.tags, *options.tags)
+        tags = (*self.tags, *(options.tags or ()))
         return openapi.Operation(
             tags=tags or None,
             summary=options.summary or summary,
@@ -180,23 +162,42 @@ class Routes:
         middleware: typing.Sequence[Middleware] = (),
         **options: typing.Any,
     ) -> EndpointWrapper:
-        # building the options here is what rejects a keyword no operation has, at the decorator
+        include_in_schema = options.pop("include_in_schema", True)
         settings = OperationOptions(**options)
 
         def decorator(fn: AnyEndpoint) -> AnyEndpoint:
-            self.definitions.append(
-                RouteDefinition(
-                    path=path,
-                    methods=tuple(methods),
-                    name=name,
-                    middleware=tuple(middleware),
-                    fn=fn,
-                    openapi=self.operation(fn, settings),
-                )
+            self.add(
+                path=path,
+                methods=tuple(methods),
+                name=name,
+                middleware=tuple(middleware),
+                fn=fn,
+                openapi=self.operation(fn, settings) if include_in_schema else None,
             )
             return fn
 
         return decorator
+
+    def add(
+        self,
+        path: str,
+        fn: AnyEndpoint,
+        *,
+        methods: typing.Sequence[str],
+        name: str | None = None,
+        middleware: typing.Sequence[Middleware] = (),
+        openapi: Operation | None = None,
+    ) -> None:
+        self.definitions.append(
+            RouteDefinition(
+                path=path,
+                methods=tuple(methods),
+                name=name,
+                middleware=tuple(middleware),
+                fn=fn,
+                openapi=openapi,
+            )
+        )
 
     def get(
         self,

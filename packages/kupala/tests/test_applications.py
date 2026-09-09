@@ -1,6 +1,7 @@
 import contextlib
 import typing
 
+import jinja2
 import pytest
 from starlette.exceptions import HTTPException
 from starlette.testclient import TestClient
@@ -9,8 +10,9 @@ from kupala.applications import Kupala
 from kupala.dependencies import INVOCATION_CONTEXT_KEY, Factory, FromState, InvocationContext, Value
 from kupala.middleware import CallNext, WebSocketCallNext
 from kupala.requests import Request
-from kupala.responses import Response, StreamingResponse
+from kupala.responses import Response, StreamingResponse, response
 from kupala.routing import Routes
+from kupala.templates import Templates
 from kupala.websockets import WebSocket
 
 type _Greeting = typing.Annotated[str, Value("real")]
@@ -360,7 +362,7 @@ class TestLifespans:
 
         app = Kupala("tests", routes=routes, lifespans=[warm_cache, open_catalog])
         with TestClient(app) as client:
-            assert client.get("/").text == "catalog"
+            assert client.get("/").text == "catalog,template_renderer"
 
     def test_receives_the_application_instance(self) -> None:
         # extensions read configuration off the app they are mounted on
@@ -427,6 +429,40 @@ class TestLifespans:
         assert events == ["up", "down"]
 
 
+class TestTemplateRendering:
+    def test_a_route_renders_through_the_configured_engine(self) -> None:
+        routes = Routes()
+
+        @routes.get("/")
+        async def index(request: Request) -> Response:
+            return response(request).template("page.html", {"name": "world"})
+
+        templates = Templates(loaders=[jinja2.DictLoader({"page.html": "hello {{ name }}"})])
+        app = Kupala("tests", routes=routes, templates=templates)
+
+        with TestClient(app) as client:
+            assert client.get("/").text == "hello world"
+
+    def test_a_lifespan_may_replace_the_renderer(self) -> None:
+        replacement = Templates(loaders=[jinja2.DictLoader({"page.html": "replaced"})])
+
+        @contextlib.asynccontextmanager
+        async def override(app: Kupala) -> typing.AsyncGenerator[dict[str, typing.Any]]:
+            yield {"template_renderer": replacement}
+
+        routes = Routes()
+
+        @routes.get("/")
+        async def index(request: Request) -> Response:
+            return response(request).template("page.html")
+
+        templates = Templates(loaders=[jinja2.DictLoader({"page.html": "original"})])
+        app = Kupala("tests", routes=routes, templates=templates, lifespans=[override])
+
+        with TestClient(app) as client:
+            assert client.get("/").text == "replaced"
+
+
 class TestLifespanEntryPoint:
     async def test_starts_the_application_outside_a_server(self) -> None:
         @contextlib.asynccontextmanager
@@ -436,7 +472,7 @@ class TestLifespanEntryPoint:
         app = Kupala(__name__, routes=Routes(), lifespans=[lifespan])
 
         async with app.lifespan() as state:
-            assert state == {"catalog": "loaded"}
+            assert state == {"catalog": "loaded", "template_renderer": app.templates}
 
     async def test_builds_an_invocation_context_over_the_given_state(self) -> None:
         app = Kupala(__name__, routes=Routes())

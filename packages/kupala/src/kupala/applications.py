@@ -2,6 +2,7 @@ import contextlib
 import typing
 
 import click
+import jinja2
 from starlette.datastructures import State
 from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware as ASGIMiddlewareWrapper
@@ -55,6 +56,7 @@ class Kupala:
         self.model_binders = list(model_binders)
         self.lifespans = list(lifespans)
         self.templates = templates or Templates(auto_reload=debug)
+        self.templates.add_loader(jinja2.PackageLoader("kupala"))
 
         builder = AppBuilder()
         for extension in extensions:
@@ -106,7 +108,7 @@ class Kupala:
         everything registered before it. When two lifespans yield the same key, the later one wins.
         """
 
-        state: dict[str, typing.Any] = {}
+        state: dict[str, typing.Any] = {"template_renderer": self.templates}
         async with contextlib.AsyncExitStack() as stack:
             for factory in self.lifespans:
                 if partial := await stack.enter_async_context(factory(app)):

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{{ title }}</title>
+        <link rel="stylesheet" href="{{ base_url }}/swagger-ui.css">
+    </head>
+    <body>
+        <div id="swagger-ui"></div>
+        <script src="{{ base_url }}/swagger-ui-bundle.js"></script>
+        {#- `tojson` is the only escaping that holds inside a script element: autoescaping targets HTML #}
+        <script nonce="{{ nonce }}">
+            const specUrl = {{ spec_url|tojson }};
+            SwaggerUIBundle({url: specUrl, dom_id: "#swagger-ui", deepLinking: true});
+        </script>
+    </body>
+</html>

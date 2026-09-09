@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{{ title }}</title>
+    </head>
+    <body>
+        <div id="app"></div>
+        <script src="{{ base_url }}/standalone.js"></script>
+        {#- `tojson` is the only escaping that holds inside a script element: autoescaping targets HTML.
+           Scalar also offers `proxyUrl`, which relays the reader's requests -- credentials included --
+           through a host it operates. Nothing here opts into that. #}
+        <script nonce="{{ nonce }}">
+            const specUrl = {{ spec_url|tojson }};
+            Scalar.createApiReference("#app", {url: specUrl});
+        </script>
+    </body>
+</html>

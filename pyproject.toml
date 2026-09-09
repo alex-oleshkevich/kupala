@@ -46,6 +46,10 @@ exclude_also = [
 [tool.coverage.html]
 directory = "var/coverage/html_report"
 
+[tool.jinja]
+templates = ["packages/kupala/src/kupala/templates"]
+extras = ["starlette"]
+
 [tool.mypy]
 files = ["packages/", "demo/demo"]
 mypy_path = ["packages/kupala/src"]

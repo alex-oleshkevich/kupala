@@ -1,3 +1,4 @@
+from demo.api import api
 from demo.commands import commands
 from demo.lifespans import announce, open_catalog
 from demo.middleware import app_middleware, example_middleware
@@ -11,4 +12,5 @@ app = Kupala(
     middleware=[app_middleware, example_middleware],
     lifespans=[announce, open_catalog],
     commands=commands,
+    extensions=[api],
 )
