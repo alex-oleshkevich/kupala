@@ -8,7 +8,7 @@ from starlette.middleware import Middleware as ASGIMiddlewareWrapper
 from starlette.routing import BaseRoute, Host, Mount, Route, WebSocketRoute
 from starlette.types import ASGIApp
 
-from kupala import inspection
+from kupala import inspection, openapi
 from kupala.binders import ModelBinder
 from kupala.dependencies import (
     INVOCATION_CONTEXT_KEY,
@@ -26,6 +26,7 @@ from kupala.middleware import (
     WebSocketCallNext,
     WebSocketMiddleware,
 )
+from kupala.openapi import Operation
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.websockets import WebSocket
@@ -43,6 +44,32 @@ type WebSocketEndpoint = typing.Callable[..., typing.Awaitable[None]]
 type WebSocketEndpointWrapper = typing.Callable[[WebSocketEndpoint], WebSocketEndpoint]
 
 
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class OperationOptions:
+    """The parts of an operation only the author knows. The generator derives everything else."""
+
+    tags: typing.Sequence[str] = ()
+    summary: str | None = None
+    description: str | None = None
+    operation_id: str | None = None
+    deprecated: bool = False
+    include_in_schema: bool = True
+
+
+def split_docstring(docstring: str | None) -> tuple[str | None, str | None]:
+    """Read a docstring as an operation summary and description, the way the specification pairs them.
+
+    The first paragraph is the summary, joined onto one line because that is what a summary is, and
+    everything after it is the description.
+    """
+
+    if not docstring:
+        return None, None
+
+    summary, _, description = inspect.cleandoc(docstring).partition("\n\n")
+    return summary.replace("\n", " "), description.strip() or None
+
+
 @dataclasses.dataclass
 class RouteDefinition:
     path: str
@@ -50,6 +77,7 @@ class RouteDefinition:
     name: str | None
     methods: tuple[str, ...]
     middleware: tuple[Middleware, ...]
+    openapi: Operation | None = None
 
 
 @dataclasses.dataclass
@@ -88,11 +116,13 @@ class Routes:
         middleware: typing.Sequence[Middleware] = (),
         websocket_middleware: typing.Sequence[WebSocketMiddleware] = (),
         namespace: str = "",
+        tags: typing.Sequence[str] = (),
         children: typing.Sequence[Routes] = (),
     ) -> None:
         self.prefix = prefix
         self.namespace = namespace
         self.middleware = list(middleware)
+        self.tags = list(tags)
         self.websocket_middleware = list(websocket_middleware)
 
         self.definitions: list[RouteDefinition | WebSocketDefinition | MountDefinition | HostDefinition] = []
@@ -108,15 +138,38 @@ class Routes:
         namespace: str = "",
         middleware: typing.Sequence[Middleware] = (),
         websocket_middleware: typing.Sequence[WebSocketMiddleware] = (),
+        tags: typing.Sequence[str] = (),
     ) -> typing.Self:
         child = self.__class__(
             middleware=middleware,
             websocket_middleware=websocket_middleware,
             prefix=prefix,
             namespace=namespace,
+            tags=(*self.tags, *tags),
         )
         self.include(child)
         return child
+
+    def operation(self, fn: AnyEndpoint, options: OperationOptions) -> openapi.Operation | None:
+        """Describe one endpoint as far as its author's intent reaches, or nothing when it stays undocumented.
+
+        Which routes reach a document is decided by the tree a generator is pointed at, not here, so
+        this records only what the author declared. `include_in_schema=False` withholds the
+        description entirely, which is how one route inside a documented tree stays out of it.
+        """
+
+        if not options.include_in_schema:
+            return None
+
+        summary, description = split_docstring(fn.__doc__)
+        tags = (*self.tags, *options.tags)
+        return openapi.Operation(
+            tags=tags or None,
+            summary=options.summary or summary,
+            description=options.description or description,
+            operation_id=options.operation_id,
+            deprecated=options.deprecated or None,
+        )
 
     def _wrap(
         self,
@@ -125,10 +178,21 @@ class Routes:
         methods: typing.Sequence[str],
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
+        **options: typing.Any,
     ) -> EndpointWrapper:
+        # building the options here is what rejects a keyword no operation has, at the decorator
+        settings = OperationOptions(**options)
+
         def decorator(fn: AnyEndpoint) -> AnyEndpoint:
             self.definitions.append(
-                RouteDefinition(path=path, methods=tuple(methods), name=name, middleware=tuple(middleware), fn=fn)
+                RouteDefinition(
+                    path=path,
+                    methods=tuple(methods),
+                    name=name,
+                    middleware=tuple(middleware),
+                    fn=fn,
+                    openapi=self.operation(fn, settings),
+                )
             )
             return fn
 
@@ -140,8 +204,9 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
+        **options: typing.Any,
     ) -> EndpointWrapper:
-        return self._wrap(path, name=name, methods=["GET", "HEAD"], middleware=middleware)
+        return self._wrap(path, name=name, methods=["GET", "HEAD"], middleware=middleware, **options)
 
     def post(
         self,
@@ -149,8 +214,9 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
+        **options: typing.Any,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["POST"], middleware=middleware)
+        return self._wrap(path=path, name=name, methods=["POST"], middleware=middleware, **options)
 
     def get_or_post(
         self,
@@ -158,8 +224,9 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
+        **options: typing.Any,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["GET", "HEAD", "POST"], middleware=middleware)
+        return self._wrap(path=path, name=name, methods=["GET", "HEAD", "POST"], middleware=middleware, **options)
 
     def put(
         self,
@@ -167,8 +234,9 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
+        **options: typing.Any,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["PUT"], middleware=middleware)
+        return self._wrap(path=path, name=name, methods=["PUT"], middleware=middleware, **options)
 
     def patch(
         self,
@@ -176,8 +244,9 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
+        **options: typing.Any,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["PATCH"], middleware=middleware)
+        return self._wrap(path=path, name=name, methods=["PATCH"], middleware=middleware, **options)
 
     def delete(
         self,
@@ -185,8 +254,9 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
+        **options: typing.Any,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["DELETE"], middleware=middleware)
+        return self._wrap(path=path, name=name, methods=["DELETE"], middleware=middleware, **options)
 
     def head(
         self,
@@ -194,8 +264,9 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
+        **options: typing.Any,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["HEAD"], middleware=middleware)
+        return self._wrap(path=path, name=name, methods=["HEAD"], middleware=middleware, **options)
 
     def mount(
         self,
@@ -353,6 +424,9 @@ class Routes:
                                 ),
                             )
                         )
+
+                    case _:  # pragma: no cover - every definition type is handled above
+                        raise AssertionError(f"Unhandled route definition: {type(definition).__name__}.")
 
             for child in group._children:
                 compiled.extend(

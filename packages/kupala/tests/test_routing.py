@@ -10,6 +10,7 @@ from starlette.testclient import TestClient
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocketDisconnect
 
+from kupala import openapi
 from kupala.applications import Kupala
 from kupala.dependencies import Factory, Injected, UnsupportedParameterError, Value
 from kupala.middleware import (
@@ -23,6 +24,7 @@ from kupala.routing import (
     RouteConflictError,
     RouteDefinition,
     Routes,
+    split_docstring,
 )
 from kupala.websockets import WebSocket
 
@@ -313,6 +315,104 @@ class TestRouteDefinitions:
         )
 
         assert profile_route.path == "/api/users/private/profile"
+
+
+class TestSplitDocstring:
+    def test_reads_nothing_from_an_undocumented_endpoint(self) -> None:
+        assert split_docstring(None) == (None, None)
+
+    def test_a_single_paragraph_is_all_summary(self) -> None:
+        assert split_docstring("List every user.") == ("List every user.", None)
+
+    def test_the_first_paragraph_is_the_summary_and_the_rest_the_description(self) -> None:
+        summary, description = split_docstring("""
+            List every user,
+            newest first.
+
+            Paged at 100 per request.
+            """)
+
+        # a summary is one line in the specification, so a wrapped one is joined back up
+        assert summary == "List every user, newest first."
+        assert description == "Paged at 100 per request."
+
+
+class TestOperationMetadata:
+    def test_describes_an_endpoint_from_its_docstring(self) -> None:
+        routes = Routes()
+
+        @routes.get("/users")
+        async def list_users(request: Request) -> Response:
+            """List every user.
+
+            Ordered by signup date.
+            """
+            return Response()  # pragma: no cover - the metadata is what this test reads
+
+        definition = routes.definitions[0]
+        assert isinstance(definition, RouteDefinition)
+        assert definition.openapi is not None
+        assert definition.openapi.summary == "List every user."
+        assert definition.openapi.description == "Ordered by signup date."
+
+    def test_options_win_over_the_docstring(self) -> None:
+        routes = Routes()
+        endpoint = routes.post(
+            "/users",
+            summary="Create a user",
+            description="Long form.",
+            operation_id="createUser",
+            deprecated=True,
+            tags=["users"],
+        )
+
+        endpoint(stub_endpoint)
+
+        definition = routes.definitions[0]
+        assert isinstance(definition, RouteDefinition)
+        assert definition.openapi == openapi.Operation(
+            tags=("users",),
+            summary="Create a user",
+            description="Long form.",
+            operation_id="createUser",
+            deprecated=True,
+        )
+
+    def test_an_undeclared_flag_stays_absent_rather_than_false(self) -> None:
+        routes = Routes()
+        routes.get("/users")(stub_endpoint)
+
+        definition = routes.definitions[0]
+        assert isinstance(definition, RouteDefinition)
+        assert definition.openapi is not None
+        assert definition.openapi.deprecated is None
+        assert definition.openapi.tags is None
+
+    def test_a_route_excluded_from_the_schema_carries_no_description(self) -> None:
+        routes = Routes()
+        routes.get("/openapi.json", include_in_schema=False)(stub_endpoint)
+
+        definition = routes.definitions[0]
+        assert isinstance(definition, RouteDefinition)
+        assert definition.openapi is None
+
+    def test_reports_a_misspelled_option_instead_of_dropping_it(self) -> None:
+        routes = Routes()
+
+        # the options dataclass is built by the decorator, so an option that does not exist is
+        # rejected at the line that wrote it rather than silently losing its value
+        with pytest.raises(TypeError, match="unexpected keyword argument 'tgs'"):
+            routes.get("/users", tgs=["users"])
+
+    def test_group_tags_accumulate_down_the_tree(self) -> None:
+        routes = Routes(tags=["v1"])
+        users = routes.group("/users", tags=["users"])
+        users.get("/{id}", tags=["detail"])(stub_endpoint)
+
+        definition = users.definitions[0]
+        assert isinstance(definition, RouteDefinition)
+        assert definition.openapi is not None
+        assert definition.openapi.tags == ("v1", "users", "detail")
 
 
 class TestWebSocketRoutes:
