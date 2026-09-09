@@ -239,9 +239,27 @@ class TestPages:
 
         assert "cdn.jsdelivr.net" not in response.text
         assert 'src="/static/swagger/swagger-ui-bundle.js"' in response.text
+        assert "//swagger-ui-bundle.js" not in response.text
         # a path carrying no host is not a source expression a browser accepts, so this origin is named
         assert "script-src 'self' " in response.headers["content-security-policy"]
         assert "/static/swagger" not in response.headers["content-security-policy"]
+
+    def test_a_trailing_slash_on_the_base_url_changes_nothing(self) -> None:
+        api = APIExtension(
+            "/api",
+            docs=DocsOptions(
+                openapi_path="/openapi.json",
+                swagger_path="/docs",
+                swagger_base_url="https://cdn.example.com/ui/",
+            ),
+        )
+        app = Kupala("tests", routes=Routes(), extensions=[api])
+
+        with TestClient(app) as client:
+            response = client.get("/api/docs")
+
+        assert 'src="https://cdn.example.com/ui/swagger-ui-bundle.js"' in response.text
+        assert "script-src https://cdn.example.com/ui/ " in response.headers["content-security-policy"]
 
     def test_the_document_url_follows_the_root_path(self) -> None:
         api = APIExtension("/api", docs=ALL_DOCS)

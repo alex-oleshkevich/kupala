@@ -114,10 +114,12 @@ class APIExtension:
         # a viewer is a third party running script beside a button that sends real credentials, so the
         # policy names its one host and nothing else. Styles cannot use the nonce: viewers inject theirs
         nonce = secrets.token_urlsafe(16)
+        # normalised once: the templates append a rooted path to this, and a trailing slash would double
+        base_url = base_url.rstrip("/")
         # a source expression covers a directory only when its path ends in a slash, and a path carrying
         # no host is not a source expression at all, so a copy served from here is covered by 'self'
         absolute = base_url.startswith(("https://", "http://", "//"))
-        source = f"{base_url.rstrip('/')}/" if absolute else "'self'"
+        source = f"{base_url}/" if absolute else "'self'"
         policy = "; ".join(
             (
                 "default-src 'none'",

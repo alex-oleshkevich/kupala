@@ -67,8 +67,7 @@ class Kupala:
         self.model_binders.extend(builder.model_binders)
         self.templates.add_filters(builder.template_filters)
         self.templates.add_globals(builder.template_globals)
-        self.templates.add_loaders(builder.template_loaders)
-        self.templates.add_loader(jinja2.PackageLoader("kupala"))
+        self.templates.add_loaders([*builder.template_loaders, jinja2.PackageLoader("kupala")])
         self.templates.add_context_processors(builder.context_processors)
 
         self.error_handlers = {

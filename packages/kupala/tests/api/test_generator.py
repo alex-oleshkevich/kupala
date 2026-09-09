@@ -177,6 +177,13 @@ class TestBuildDocument:
         with pytest.raises(DuplicateOperationError, match=r"both describe GET /users/\{key\}"):
             build_document(routes, DOCUMENT)
 
+    def test_a_method_no_path_item_models_is_named(self) -> None:
+        routes = Routes()
+        routes.add("/x", view, methods=["REPORT"], openapi=openapi.Operation())
+
+        with pytest.raises(ValueError, match="describe no 'report' operation"):
+            build_document(routes, DOCUMENT)
+
     def test_two_operations_cannot_share_an_id(self) -> None:
         routes = Routes()
         routes.get("/users", operation_id="same")(view)
