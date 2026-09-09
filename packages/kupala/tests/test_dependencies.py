@@ -461,6 +461,85 @@ class TestInvoke:
             await invoke(compile_call_plan(fn), context)
 
 
+class TestPositionalOnlyParameters:
+    """A parameter before `/` is resolved by type like any other; only the handover differs."""
+
+    async def test_passes_a_positional_only_parameter_by_position(self) -> None:
+        async def fn(user: Injected[str], /) -> str:
+            return f"hello {user}"
+
+        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+
+        assert await invoke(compile_call_plan(fn), context) == "hello alex"
+
+    async def test_passes_a_positional_only_parameter_to_a_sync_callable(self) -> None:
+        def fn(user: Injected[str], /) -> str:
+            return f"hello {user}"
+
+        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+
+        assert await invoke(compile_call_plan(fn), context) == "hello alex"
+
+    async def test_keeps_signature_order_across_the_slash(self) -> None:
+        async def fn(
+            first: Injected[str],
+            second: Injected[int],
+            /,
+            third: Injected[bytes],
+            *,
+            fourth: Injected[float],
+        ) -> str:
+            return f"{first} {second} {third!r} {fourth}"
+
+        context = InvocationContext(
+            scope=InjectionScope(bindings={str: "a", int: 2, bytes: b"c", float: 0.5}),
+        )
+
+        assert await invoke(compile_call_plan(fn), context) == "a 2 b'c' 0.5"
+
+    def test_reports_no_positional_names_without_a_slash(self) -> None:
+        def fn(user: Injected[str]) -> str:
+            return user  # pragma: no cover
+
+        info = inspect_callable(fn)
+
+        assert info.positional_names == ()
+        assert info.bind({"user": "alex"}) == ((), {"user": "alex"})
+
+    def test_splits_resolved_arguments_at_the_slash(self) -> None:
+        def fn(user: Injected[str], /, page: Injected[int]) -> str:
+            return user  # pragma: no cover
+
+        info = inspect_callable(fn)
+
+        assert info.positional_names == ("user",)
+        assert info.bind({"user": "alex", "page": 2}) == (("alex",), {"page": 2})
+
+    async def test_opens_an_async_generator_factory_by_position(self) -> None:
+        async def make(user: Injected[str], /) -> typing.AsyncIterator[str]:
+            yield f"session for {user}"
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "session for alex"
+
+    async def test_opens_a_sync_generator_factory_by_position(self) -> None:
+        def make(user: Injected[str], /) -> typing.Iterator[str]:
+            yield f"session for {user}"
+
+        def fn(value: typing.Annotated[str, Factory(make)]) -> str:
+            return value
+
+        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+
+        async with context:
+            assert await invoke(compile_call_plan(fn), context) == "session for alex"
+
+
 class TestCallableInfoIsAsync:
     def test_records_async_callable(self) -> None:
         async def fn() -> None:
@@ -476,15 +555,20 @@ class TestCallableInfoIsAsync:
 
 
 class TestValidateParameter:
-    def test_rejects_positional_only_parameter(self) -> None:
+    def test_allows_positional_only_parameter(self) -> None:
         def fn(param: str, /) -> None:
             pass  # pragma: no cover
 
-        with pytest.raises(UnsupportedParameterError) as info:
+        assert compile_call_plan(fn).parameters[0].param.name == "param"
+
+    def test_rejects_unannotated_positional_only_parameter(self) -> None:
+        def fn(param, /) -> None:  # type: ignore[no-untyped-def]
+            pass  # pragma: no cover
+
+        with pytest.raises(UnannotatedParameterError) as info:
             compile_call_plan(fn)
 
-        assert "Cannot inject parameter 'param'" in str(info.value)
-        assert "test_rejects_positional_only_parameter.<locals>.fn()" in str(info.value)
+        assert "has no type annotation" in str(info.value)
 
     def test_rejects_variadic_positional_parameter(self) -> None:
         def fn(*args: str) -> None:
@@ -493,7 +577,9 @@ class TestValidateParameter:
         with pytest.raises(UnsupportedParameterError) as info:
             compile_call_plan(fn)
 
-        assert "*args can never be filled" in str(info.value)
+        assert "Cannot inject parameter 'args'" in str(info.value)
+        assert "test_rejects_variadic_positional_parameter.<locals>.fn()" in str(info.value)
+        assert "*args is never filled" in str(info.value)
 
     def test_rejects_variadic_keyword_parameter(self) -> None:
         def fn(**kwargs: str) -> None:
@@ -502,7 +588,7 @@ class TestValidateParameter:
         with pytest.raises(UnsupportedParameterError) as info:
             compile_call_plan(fn)
 
-        assert "**kwargs can never be filled" in str(info.value)
+        assert "**kwargs is never filled" in str(info.value)
 
     def test_rejects_unannotated_parameter(self) -> None:
         def fn(param) -> None:  # type: ignore[no-untyped-def]

@@ -1,6 +1,7 @@
 import annotationlib
 import contextlib
 import dataclasses
+import functools
 import inspect
 import logging
 import types
@@ -88,6 +89,19 @@ class InvocationContext:
     overrides: typing.Mapping[typing.Any, Binding] = dataclasses.field(default_factory=dict)
     # only set while the context is entered, so a dependency that needs cleanup can tell
     exit_stack: contextlib.AsyncExitStack | None = None
+
+    def child(self, bindings: typing.Mapping[Key, object]) -> typing.Self:
+        """Resolve `bindings` ahead of this context's own, sharing everything else with it.
+
+        Only the injection scope is new. The cache, the state, the overrides and the exit stack stay
+        the very same objects, so a middleware and the endpoint below it each see their own request
+        and continuation while a dependency they both declare is built once and released once.
+        """
+
+        return dataclasses.replace(
+            self,
+            scope=InjectionScope(bindings={**self.scope.bindings, **bindings}),
+        )
 
     async def resolve[T](self, type_: type[T], default: object = MISSING) -> T:
         value = self.scope.bindings.get(type_, default)
@@ -204,11 +218,12 @@ class Factory:
             if self.cache and self in ctx.cache:
                 return ctx.cache[self]
 
-            kwargs = await resolve_arguments(plan, ctx)
+            arguments = await resolve_arguments(plan, ctx)
             if open_dependency is None:
-                value = await run_callable(plan.callable, kwargs)
+                value = await run_callable(plan.callable, arguments)
             else:
-                value = await enter_dependency(ctx, open_dependency(**kwargs))
+                positional, keywords = plan.callable.bind(arguments)
+                value = await enter_dependency(ctx, open_dependency(*positional, **keywords))
 
             if self.cache:
                 ctx.cache[self] = value
@@ -216,9 +231,6 @@ class Factory:
             return value
 
         return resolve
-
-
-type Injected[T] = typing.Annotated[T, Inject()]
 
 
 def open_dependency_for(
@@ -232,8 +244,8 @@ def open_dependency_for(
     if inspection.is_generator_callable(factory):
         open_sync_dependency = contextlib.contextmanager(factory)
 
-        def open_in_threadpool(**kwargs: object) -> contextlib.AbstractAsyncContextManager[typing.Any]:
-            return run_context_in_threadpool(open_sync_dependency(**kwargs))
+        def open_in_threadpool(*args: object, **kwargs: object) -> contextlib.AbstractAsyncContextManager[typing.Any]:
+            return run_context_in_threadpool(open_sync_dependency(*args, **kwargs))
 
         return open_in_threadpool
 
@@ -292,6 +304,26 @@ class CallableInfo[**PS, R]:
     parameters: tuple[ParamInfo, ...]
     return_type: typing.Any
     is_async: bool
+
+    @functools.cached_property
+    def positional_names(self) -> tuple[str, ...]:
+        """Names of the parameters that accept a value only by position, in signature order."""
+
+        return tuple(param.name for param in self.parameters if param.kind is inspect.Parameter.POSITIONAL_ONLY)
+
+    def bind(self, arguments: typing.Mapping[str, object]) -> tuple[tuple[object, ...], dict[str, object]]:
+        """Split resolved arguments into the positional and keyword halves this callable accepts.
+
+        A parameter before `/` is resolved by type like any other; only the way its value is handed
+        over differs. Signatures without `/` are the common case and keep the mapping unchanged.
+        """
+
+        if not self.positional_names:
+            return (), dict(arguments)
+
+        positional = tuple(arguments[name] for name in self.positional_names)
+        keywords = {name: value for name, value in arguments.items() if name not in self.positional_names}
+        return positional, keywords
 
 
 def parse_parameter(param: inspect.Parameter) -> ParamInfo:
@@ -362,17 +394,13 @@ def validate_parameter(param: ParamInfo, owner: str) -> None:
 
     cannot_inject = f"Cannot inject parameter {param.name!r} of {owner}()."
     match param.kind:
-        case inspect.Parameter.POSITIONAL_ONLY:
-            raise UnsupportedParameterError(
-                f"{cannot_inject} Dependencies are passed by keyword, so use a regular or keyword-only parameter."
-            )
         case inspect.Parameter.VAR_POSITIONAL:
             raise UnsupportedParameterError(
-                f"{cannot_inject} The injector passes a fixed set of named arguments, so *args can never be filled."
+                f"{cannot_inject} The injector fills the parameters a signature declares, so *args is never filled."
             )
         case inspect.Parameter.VAR_KEYWORD:
             raise UnsupportedParameterError(
-                f"{cannot_inject} The injector passes a fixed set of named arguments, so **kwargs can never be filled."
+                f"{cannot_inject} The injector fills the parameters a signature declares, so **kwargs is never filled."
             )
 
     if param.type is MISSING and param.default is MISSING:
@@ -414,7 +442,7 @@ async def resolve_parameter(plan: ParameterPlan, context: InvocationContext) -> 
 
 
 async def resolve_arguments(plan: CallPlan[..., typing.Any], context: InvocationContext) -> dict[str, object]:
-    """Resolve every parameter of a plan into the keyword arguments its callable expects."""
+    """Resolve every parameter of a plan, keyed by name and ordered as the signature declares them."""
 
     try:
         # overrides are a testing tool, so requests that use none keep the shorter path
@@ -427,13 +455,14 @@ async def resolve_arguments(plan: CallPlan[..., typing.Any], context: Invocation
         raise
 
 
-async def run_callable(info: CallableInfo[..., typing.Any], kwargs: dict[str, object]) -> object:
+async def run_callable(info: CallableInfo[..., typing.Any], arguments: dict[str, object]) -> object:
     """Call a callable with resolved arguments, keeping synchronous work off the event loop."""
 
+    positional, keywords = info.bind(arguments)
     if info.is_async:
-        return await info.callable(**kwargs)
+        return await info.callable(*positional, **keywords)
 
-    return await run_in_threadpool(info.callable, **kwargs)
+    return await run_in_threadpool(info.callable, *positional, **keywords)
 
 
 @typing.overload
@@ -445,5 +474,8 @@ async def invoke[R](plan: CallPlan[..., R | typing.Awaitable[R]], context: Invoc
 
 
 async def invoke[R](plan: CallPlan[..., typing.Any], context: InvocationContext) -> R:
-    kwargs = await resolve_arguments(plan, context)
-    return typing.cast(R, await run_callable(plan.callable, kwargs))
+    arguments = await resolve_arguments(plan, context)
+    return typing.cast(R, await run_callable(plan.callable, arguments))
+
+
+type Injected[T] = typing.Annotated[T, Inject()]
