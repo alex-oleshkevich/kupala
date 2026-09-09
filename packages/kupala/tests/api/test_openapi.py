@@ -1,6 +1,7 @@
 import typing
 
 import pytest
+from openapi_spec_validator import OpenAPIV31SpecValidator
 
 from kupala.api import openapi
 
@@ -223,3 +224,271 @@ class TestPathItem:
 
         with pytest.raises(ValueError, match="no 'CONNECT' operation"):
             item.with_operation("CONNECT", openapi.Operation())
+
+
+class TestSpecValidity:
+    """Check the rendered JSON against the published OpenAPI 3.1 meta-schema, not against our own idea of it."""
+
+    def test_a_document_using_every_modelled_object_validates(self) -> None:
+        user_schema: openapi.Schema = {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "required": ["id"],
+        }
+        callback: openapi.Callback = {
+            "{$request.body#/url}": openapi.PathItem(
+                post=openapi.Operation(responses={"200": openapi.Response(description="ok")})
+            )
+        }
+        document = openapi.OpenAPI(
+            info=openapi.Info(
+                title="Demo",
+                version="1.0",
+                summary="Everything this module can describe",
+                description="d",
+                terms_of_service="/tos",
+                contact=openapi.Contact(name="Team", url="/team", email="team@example.com"),
+                license=openapi.License(name="MIT", identifier="MIT"),
+                extensions={"x-info": 1},
+            ),
+            json_schema_dialect="https://json-schema.org/draft/2020-12/schema",
+            servers=[
+                openapi.Server(
+                    url="https://{stage}.example.com",
+                    description="d",
+                    variables={"stage": openapi.ServerVariable(default="live", enum=["live", "test"], description="d")},
+                )
+            ],
+            security=[{"bearerAuth": []}],
+            tags=[
+                openapi.Tag(
+                    name="users",
+                    description="d",
+                    external_docs=openapi.ExternalDocumentation(url="/docs", description="d"),
+                )
+            ],
+            external_docs=openapi.ExternalDocumentation(url="/docs"),
+            paths={
+                "/users": openapi.PathItem(
+                    summary="s",
+                    description="d",
+                    servers=[openapi.Server(url="/v1")],
+                    parameters=[openapi.Reference(ref="#/components/parameters/Trace")],
+                    get=openapi.Operation(
+                        tags=["users"],
+                        summary="s",
+                        description="d",
+                        operation_id="listUsers",
+                        deprecated=False,
+                        external_docs=openapi.ExternalDocumentation(url="/docs"),
+                        parameters=[
+                            openapi.Parameter(
+                                name="page",
+                                in_=openapi.ParameterLocation.QUERY,
+                                required=False,
+                                # the meta-schema constrains `style` per location, so each one differs
+                                style=openapi.ParameterStyle.FORM,
+                                explode=True,
+                                allow_empty_value=False,
+                                allow_reserved=False,
+                                schema={"type": "integer"},
+                                examples={"first": openapi.Example(summary="s", value=1)},
+                            ),
+                            openapi.Parameter(
+                                name="session",
+                                in_=openapi.ParameterLocation.COOKIE,
+                                style=openapi.ParameterStyle.FORM,
+                                schema={"type": "string"},
+                            ),
+                        ],
+                        responses={
+                            "200": openapi.Response(
+                                description="ok",
+                                headers={
+                                    "x-total": openapi.Header(
+                                        description="d",
+                                        style=openapi.ParameterStyle.SIMPLE,
+                                        schema={"type": "integer"},
+                                    )
+                                },
+                                content={
+                                    "application/json": openapi.MediaType(
+                                        schema={"type": "array", "items": {"$ref": "#/components/schemas/User"}},
+                                        examples={"one": openapi.Example(summary="s", external_value="/one.json")},
+                                    )
+                                },
+                                # `Link.server` is absent on purpose: see the test below
+                                links={
+                                    "self": openapi.Link(
+                                        operation_id="getUser",
+                                        parameters={"id": "$response.body#/0/id"},
+                                        description="d",
+                                    )
+                                },
+                            ),
+                            "5XX": openapi.Reference(ref="#/components/responses/Error"),
+                            "default": openapi.Response(description="fallback"),
+                        },
+                        callbacks={"onData": callback},
+                        security=[{"apiKeyAuth": []}, {"oauth2": ["read"]}],
+                        servers=[openapi.Server(url="/v1")],
+                        extensions={"x-operation": True},
+                    ),
+                    post=openapi.Operation(
+                        request_body=openapi.RequestBody(
+                            description="d",
+                            required=True,
+                            content={
+                                "application/json": openapi.MediaType(schema=user_schema, example={"id": 1}),
+                                "multipart/form-data": openapi.MediaType(
+                                    schema={
+                                        "type": "object",
+                                        "properties": {"file": {"type": "string", "format": "binary"}},
+                                    },
+                                    encoding={
+                                        "file": openapi.Encoding(
+                                            content_type="image/png",
+                                            style=openapi.ParameterStyle.FORM,
+                                            explode=False,
+                                            allow_reserved=False,
+                                            headers={"x-rate": openapi.Header(schema={"type": "integer"})},
+                                        )
+                                    },
+                                ),
+                            },
+                        ),
+                        responses={"201": openapi.Response(description="created")},
+                    ),
+                ),
+                "/users/{id}": openapi.PathItem(
+                    # declared once on the item, so every operation below inherits it
+                    parameters=[
+                        openapi.Parameter(
+                            name="id",
+                            in_=openapi.ParameterLocation.PATH,
+                            required=True,
+                            style=openapi.ParameterStyle.SIMPLE,
+                            schema={"type": "integer"},
+                        )
+                    ],
+                    get=openapi.Operation(
+                        responses={
+                            "200": openapi.Response(
+                                description="ok",
+                                content={"application/json": openapi.MediaType(schema=user_schema)},
+                            )
+                        }
+                    ),
+                    delete=openapi.Operation(responses={"204": openapi.Response(description="gone")}),
+                ),
+                "/legacy": openapi.PathItem(ref="#/components/pathItems/Legacy"),
+            },
+            webhooks={
+                "userCreated": openapi.PathItem(
+                    post=openapi.Operation(responses={"200": openapi.Response(description="ok")})
+                )
+            },
+            components=openapi.Components(
+                schemas={"User": user_schema},
+                responses={"Error": openapi.Response(description="error")},
+                parameters={
+                    "Trace": openapi.Parameter(
+                        name="trace",
+                        in_=openapi.ParameterLocation.HEADER,
+                        style=openapi.ParameterStyle.SIMPLE,
+                        schema={"type": "string"},
+                    )
+                },
+                examples={"One": openapi.Example(value=1)},
+                request_bodies={
+                    "NewUser": openapi.RequestBody(content={"application/json": openapi.MediaType(schema=user_schema)})
+                },
+                headers={"XTotal": openapi.Header(schema={"type": "integer"})},
+                security_schemes={
+                    "bearerAuth": openapi.SecurityScheme(
+                        type=openapi.SecuritySchemeType.HTTP, scheme="bearer", bearer_format="JWT"
+                    ),
+                    "basicAuth": openapi.SecurityScheme(type=openapi.SecuritySchemeType.HTTP, scheme="basic"),
+                    "apiKeyAuth": openapi.SecurityScheme(
+                        type=openapi.SecuritySchemeType.API_KEY,
+                        name="X-Api-Key",
+                        in_=openapi.ParameterLocation.HEADER,
+                    ),
+                    "mtls": openapi.SecurityScheme(type=openapi.SecuritySchemeType.MUTUAL_TLS, description="d"),
+                    "oidc": openapi.SecurityScheme(
+                        type=openapi.SecuritySchemeType.OPEN_ID_CONNECT,
+                        open_id_connect_url="https://example.com/.well-known/openid-configuration",
+                    ),
+                    "oauth2": openapi.SecurityScheme(
+                        type=openapi.SecuritySchemeType.OAUTH2,
+                        flows=openapi.OAuthFlows(
+                            implicit=openapi.OAuthFlow(scopes={"read": "d"}, authorization_url="/authorize"),
+                            password=openapi.OAuthFlow(scopes={}, token_url="/token"),
+                            client_credentials=openapi.OAuthFlow(
+                                scopes={"read": "d"}, token_url="/token", refresh_url="/refresh"
+                            ),
+                            authorization_code=openapi.OAuthFlow(
+                                scopes={"read": "d"}, authorization_url="/authorize", token_url="/token"
+                            ),
+                        ),
+                    ),
+                },
+                links={"Self": openapi.Link(operation_ref="#/paths/~1users/get")},
+                callbacks={"OnData": callback},
+                path_items={
+                    "Legacy": openapi.PathItem(
+                        get=openapi.Operation(responses={"200": openapi.Response(description="ok")})
+                    )
+                },
+                extensions={"x-components": True},
+            ),
+            extensions={"x-root": "yes"},
+        )
+
+        errors = [
+            f"{'/'.join(str(part) for part in error.absolute_path)}: {error.message}"
+            for error in OpenAPIV31SpecValidator(openapi.to_dict(document)).iter_errors()
+        ]
+
+        assert errors == []
+
+    def test_link_carries_the_member_the_prose_specification_names(self) -> None:
+        """The 3.1 meta-schema disagrees with the 3.1 prose, and the prose wins.
+
+        Revision 2022-10-07 of the published schema spells the Link Object's server member `body`,
+        which the 3.2 schema corrects back to `server`. Validating a link that carries one would
+        therefore fail against a defect rather than against the specification.
+        """
+
+        link = openapi.Link(operation_id="getUser", server=openapi.Server(url="/v1"))
+
+        assert openapi.to_dict(link) == {"operationId": "getUser", "server": {"url": "/v1"}}
+
+    def test_the_meta_schema_rejects_a_document_this_module_accepts(self) -> None:
+        """Keep the validation above from passing vacuously, and record what this module leaves to the schema.
+
+        `style` is constrained per parameter location — `simple` belongs to a path or header, never to
+        a query string. The meta-schema reports it, so nothing here has to.
+        """
+
+        document = openapi.OpenAPI(
+            info=openapi.Info(title="Demo", version="1.0"),
+            paths={
+                "/x": openapi.PathItem(
+                    get=openapi.Operation(
+                        parameters=[
+                            openapi.Parameter(
+                                name="q",
+                                in_=openapi.ParameterLocation.QUERY,
+                                style=openapi.ParameterStyle.SIMPLE,
+                            )
+                        ],
+                        responses={"200": openapi.Response(description="ok")},
+                    )
+                )
+            },
+        )
+
+        errors = list(OpenAPIV31SpecValidator(openapi.to_dict(document)).iter_errors())
+
+        assert [error.absolute_path[-1] for error in errors] == [0, 0]
