@@ -18,6 +18,7 @@ from kupala.middleware import (
     Middleware,
     WebSocketCallNext,
 )
+from kupala.params import Query
 from kupala.requests import Request
 from kupala.responses import Response, response
 from kupala.routing import (
@@ -306,6 +307,26 @@ class TestRouteDefinitions:
         assert definition.name == "list_users"
         assert definition.methods == ("GET", "HEAD")
 
+    def test_inspects_its_endpoint_on_demand(self) -> None:
+        routes = Routes()
+
+        @routes.get("/search")
+        async def search(request: Request, q: Query[str], page: Query[int] = 1) -> Response:
+            return Response("")  # pragma: no cover
+
+        definition = routes.definitions[0]
+        assert isinstance(definition, RouteDefinition)
+
+        assert definition.call.is_async is True
+        assert definition.call.return_type is Response
+        assert [param.name for param in definition.call.parameters] == ["request", "q", "page"]
+        assert [type(binding).__name__ for param in definition.call.parameters for binding in param.metadata] == [
+            "QueryParam",
+            "QueryParam",
+        ]
+        # inspecting once is the point of caching it on the definition
+        assert definition.call is definition.call
+
     def test_nested_groups_compile_prefix_and_namespace(self, nested_routes: Routes) -> None:
         app = Kupala("tests", routes=nested_routes)
         compiled_routes = nested_routes.compile(tuple(app.middleware))
@@ -315,6 +336,98 @@ class TestRouteDefinitions:
         )
 
         assert profile_route.path == "/api/users/private/profile"
+
+
+class TestDescribe:
+    def test_resolves_the_path_and_name_of_every_enclosing_group(self) -> None:
+        routes = Routes(prefix="/api", namespace="api")
+        group = routes.group("/v1", namespace="v1")
+
+        @group.get("/users", name="index")
+        async def index(request: Request) -> Response:
+            return Response("[]")  # pragma: no cover
+
+        assert [(info.path, info.name) for info in routes.describe()] == [("/api/v1/users", "api.v1.index")]
+
+    def test_names_a_route_after_its_endpoint_when_it_has_none(self) -> None:
+        routes = Routes()
+
+        @routes.get("/users")
+        async def list_users(request: Request) -> Response:
+            return Response("[]")  # pragma: no cover
+
+        assert [info.name for info in routes.describe()] == ["list_users"]
+
+    def test_describes_a_route_kept_out_of_the_schema(self) -> None:
+        # `describe` is the route tree, not the document: what a route opts out of is the caller's filter
+        routes = Routes()
+
+        @routes.get("/private", include_in_schema=False)
+        async def private(request: Request) -> Response:
+            return Response("")  # pragma: no cover
+
+        assert [(info.path, info.definition.openapi) for info in routes.describe()] == [("/private", None)]
+
+    def test_omits_what_has_no_http_shape(self) -> None:
+        async def legacy(scope: Scope, receive: Receive, send: Send) -> None: ...  # pragma: no cover
+
+        routes = Routes()
+
+        @routes.get("/users")
+        async def list_users(request: Request) -> Response:
+            return Response("[]")  # pragma: no cover
+
+        @routes.websocket("/ws")
+        async def socket(websocket: WebSocket) -> None: ...  # pragma: no cover
+
+        routes.mount("/legacy", legacy)
+        routes.host("cdn.example.com", legacy)
+
+        assert [info.path for info in routes.describe()] == ["/users"]
+
+    def test_points_at_the_definition_it_resolved(self) -> None:
+        routes = Routes()
+
+        @routes.get_or_post("/search")
+        async def search(request: Request) -> Response:
+            return Response("")  # pragma: no cover
+
+        info = next(iter(routes.describe()))
+
+        assert info.definition is routes.definitions[0]
+        assert info.definition.methods == ("GET", "HEAD", "POST")
+
+    def test_one_definition_under_two_parents_resolves_twice(self) -> None:
+        # a group may be included in several places, which is why a resolved path cannot live on the
+        # definition: there is one of those and two right answers
+        shared = Routes()
+
+        @shared.get("/health")
+        async def health(request: Request) -> Response:
+            return Response("ok")  # pragma: no cover
+
+        root = Routes(
+            children=[
+                Routes(prefix="/a", namespace="a", children=[shared]),
+                Routes(prefix="/b", namespace="b", children=[shared]),
+            ]
+        )
+
+        described = list(root.describe())
+
+        assert [(info.path, info.name) for info in described] == [("/a/health", "a.health"), ("/b/health", "b.health")]
+        assert described[0].definition is described[1].definition
+
+    def test_needs_no_compiled_application(self) -> None:
+        # the manifest is import-time data, so a tool may read it before anything is built
+        routes = Routes(prefix="/api")
+
+        @routes.get("/users")
+        async def list_users(request: Request) -> Response:
+            return Response("[]")  # pragma: no cover
+
+        assert [info.path for info in routes.describe()] == ["/api/users"]
+        assert len(list(routes.describe())) == 1
 
 
 class TestSplitDocstring:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import inspect
 import typing
 
@@ -12,11 +13,13 @@ from kupala import inspection, openapi
 from kupala.binders import ModelBinder
 from kupala.dependencies import (
     INVOCATION_CONTEXT_KEY,
+    CallableInfo,
     CallPlan,
     CompileContext,
     InvocationContext,
     UnsupportedParameterError,
     compile_call_plan,
+    inspect_callable,
     invoke,
     resolve_arguments,
 )
@@ -69,6 +72,15 @@ class RouteDefinition:
     middleware: tuple[Middleware, ...]
     openapi: Operation | None = None
 
+    @functools.cached_property
+    def call(self) -> CallableInfo[..., typing.Any]:
+        """The endpoint's signature, for tools that describe what it accepts and returns.
+
+        Derived from the endpoint alone, so it needs no binders and no compiled application.
+        """
+
+        return inspect_callable(self.fn)
+
 
 @dataclasses.dataclass
 class WebSocketDefinition:
@@ -92,6 +104,20 @@ class HostDefinition:
     name: str | None
     app: ASGIApp
     asgi_middleware: tuple[ASGIMiddlewareWrapper, ...]
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RouteInfo:
+    """Where one route ended up in the tree, which is the part its definition cannot know.
+
+    A definition may sit under two parents at once, so a resolved `path` and `name` belong here rather
+    than on it. Everything a route carries regardless of position — its methods, its operation, its
+    endpoint's signature — stays on `definition`.
+    """
+
+    path: str
+    name: str
+    definition: RouteDefinition
 
 
 class RouteConflictError(ValueError):
@@ -322,6 +348,32 @@ class Routes:
             return fn
 
         return decorator
+
+    def describe(self) -> typing.Iterator[RouteInfo]:
+        """Yield every HTTP route this tree declares, with its path and name already resolved.
+
+        Nothing here compiles, binds or resolves, so a tool may call it before the application is built
+        and as often as it likes. Mounts and hosts are absent because they dispatch to another
+        application, which describes itself or does not; WebSocket routes have no shape in common with
+        an HTTP one, so they are absent too.
+        """
+
+        return self._describe("", "")
+
+    def _describe(self, parent_prefix: str, parent_namespace: str) -> typing.Iterator[RouteInfo]:
+        prefix = join_path(parent_prefix, self.prefix)
+        namespace = join_namespace(parent_namespace, self.namespace)
+
+        for definition in self.definitions:
+            if isinstance(definition, RouteDefinition):
+                yield RouteInfo(
+                    path=join_path(prefix, definition.path),
+                    name=join_namespace(namespace, definition.name or endpoint_name(definition.fn)),
+                    definition=definition,
+                )
+
+        for child in self._children:
+            yield from child._describe(prefix, namespace)
 
     def compile(
         self,
