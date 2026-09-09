@@ -13,6 +13,7 @@ from kupala.api.extension import (
     APIExtension,
     DocsOptions,
 )
+from kupala.api.generator import DuplicateOperationError
 from kupala.applications import Kupala
 from kupala.extensions import AppBuilder
 from kupala.middleware import CallNext
@@ -91,6 +92,31 @@ class TestDocument:
         api = APIExtension("/api", routes=demo_routes(), docs=ALL_DOCS)
 
         assert sorted(api.document().paths or {}) == ["/api/users", "/api/users/{id}"]
+
+    def test_a_route_it_cannot_describe_stops_the_application_starting(self) -> None:
+        # a document that cannot be built is a mistake in the application, not in the request that
+        # happened to ask for it first
+        async def view(request: Request) -> Response:
+            return Response("")  # pragma: no cover - the document never gets built
+
+        routes = Routes()
+        routes.get("/a", name="a", operation_id="same")(view)
+        routes.get("/b", name="b", operation_id="same")(view)
+        api = APIExtension("/api", routes=routes, docs=DocsOptions(openapi_path="/openapi.json"))
+        app = Kupala("tests", routes=Routes(), extensions=[api])
+
+        with pytest.raises(DuplicateOperationError, match="'same' describes both"), TestClient(app):
+            pass  # pragma: no cover - the lifespan raises before the block runs
+
+    def test_is_rendered_before_the_first_request(self) -> None:
+        api = APIExtension("/api", routes=demo_routes(), docs=DocsOptions(openapi_path="/openapi.json"))
+        app = Kupala("tests", routes=Routes(), extensions=[api])
+
+        with TestClient(app) as client:
+            rendered = api.serialize()
+            assert client.get("/api/openapi.json").content == rendered
+            # the bytes are handed out, never rebuilt
+            assert api.serialize() is rendered
 
     def test_is_generated_once(self) -> None:
         api = APIExtension("/api", routes=demo_routes())

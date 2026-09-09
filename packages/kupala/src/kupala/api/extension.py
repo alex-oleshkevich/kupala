@@ -1,6 +1,8 @@
 """A documented group of routes that installs itself into an application."""
 
+import contextlib
 import dataclasses
+import json
 import secrets
 import typing
 
@@ -13,6 +15,9 @@ from kupala.openapi import Info, OpenAPI, to_dict
 from kupala.requests import Request
 from kupala.responses import Response, response
 from kupala.routing import Routes, join_namespace
+
+if typing.TYPE_CHECKING:
+    from kupala.applications import Kupala
 
 __all__ = ["REDOC_BASE_URL", "SCALAR_BASE_URL", "SWAGGER_BASE_URL", "APIExtension", "DocsOptions"]
 
@@ -71,6 +76,7 @@ class APIExtension:
         # a compiled route name carries the namespace of the group that declared it
         self.spec_route_name = join_namespace(namespace, SPEC_ROUTE_NAME)
         self._document: OpenAPI | None = None
+        self._serialized: bytes | None = None
 
         ui_paths = (self.docs.swagger_path, self.docs.redoc_path, self.docs.scalar_path)
         if self.docs.openapi_path is None and any(path is not None for path in ui_paths):
@@ -88,6 +94,19 @@ class APIExtension:
 
     def install(self, builder: AppBuilder) -> None:
         builder.routes.include(self.routes)
+        builder.lifespans.append(self.describe)
+
+    @contextlib.asynccontextmanager
+    async def describe(self, app: Kupala) -> typing.AsyncGenerator[None]:
+        """Generate the document while the application starts.
+
+        Describing an application is not something a request should discover: a route the document
+        cannot express is a mistake in the application, and it belongs in the failure to boot rather
+        than in the first answer the documentation gives.
+        """
+
+        self.serialize()
+        yield None
 
     def document(self) -> OpenAPI:
         """Describe the registered routes, generating the document once."""
@@ -96,8 +115,20 @@ class APIExtension:
             self._document = build_document(self.routes, self.openapi)
         return self._document
 
+    def serialize(self) -> bytes:
+        """The document as the bytes it is served as, rendered once."""
+
+        if self._serialized is None:
+            self._serialized = json.dumps(to_dict(self.document())).encode()
+        return self._serialized
+
     async def openapi_view(self, request: Request) -> Response:
-        return response(request).json(to_dict(self.document()), headers={"x-content-type-options": "nosniff"})
+        # the bytes are already rendered, so nothing here walks the document again
+        return Response(
+            self.serialize(),
+            media_type="application/json",
+            headers={"x-content-type-options": "nosniff"},
+        )
 
     async def swagger_view(self, request: Request) -> Response:
         return self._page(request, "openapi/swagger.html.j2", self.docs.swagger_base_url)
