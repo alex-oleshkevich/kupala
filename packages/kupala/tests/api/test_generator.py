@@ -11,7 +11,6 @@ from kupala.api.generator import (
     convertor_schema,
     documented_methods,
     path_parameters,
-    walk,
 )
 from kupala.requests import Request
 from kupala.responses import Response
@@ -82,28 +81,27 @@ class TestDocumentedMethods:
         assert documented_methods(definition("POST", "POST")) == ("post",)
 
 
-class TestWalk:
-    def test_joins_the_prefix_and_namespace_of_every_enclosing_group(self) -> None:
+class TestBuildDocument:
+    def test_names_a_path_by_the_group_that_encloses_it(self) -> None:
         routes = Routes(prefix="/api", namespace="api")
         group = routes.group("/v1", namespace="v1")
         group.get("/users", name="index")(view)
 
-        assert [(path, name) for path, name, _ in walk(routes)] == [("/api/v1/users", "api.v1.index")]
+        paths = build_document(routes, DOCUMENT).paths or {}
 
-    def test_names_a_route_after_its_endpoint_when_it_has_no_name(self) -> None:
-        routes = Routes()
-        routes.get("/users")(view)
+        assert list(paths) == ["/api/v1/users"]
+        assert paths["/api/v1/users"].get is not None
+        assert paths["/api/v1/users"].get.operation_id == "api.v1.index"
 
-        assert [name for _, name, _ in walk(routes)] == ["view"]
-
-    def test_skips_a_route_kept_out_of_the_schema(self) -> None:
+    def test_omits_a_route_kept_out_of_the_schema(self) -> None:
+        # `describe` reports the whole tree, so this filter is the generator's own
         routes = Routes()
         routes.get("/public")(view)
         routes.get("/private", include_in_schema=False)(view)
 
-        assert [path for path, _, _ in walk(routes)] == ["/public"]
+        assert list(build_document(routes, DOCUMENT).paths or {}) == ["/public"]
 
-    def test_skips_what_it_cannot_describe(self) -> None:
+    def test_omits_what_it_cannot_describe(self) -> None:
         async def legacy(scope: Scope, receive: Receive, send: Send) -> None: ...  # pragma: no cover
 
         async def socket(websocket: WebSocket) -> None: ...  # pragma: no cover
@@ -112,11 +110,10 @@ class TestWalk:
         routes.get("/users")(view)
         routes.websocket("/ws")(socket)
         routes.mount("/legacy", legacy)
+        routes.host("cdn.example.com", legacy)
 
-        assert [path for path, _, _ in walk(routes)] == ["/users"]
+        assert list(build_document(routes, DOCUMENT).paths or {}) == ["/users"]
 
-
-class TestBuildDocument:
     def test_replaces_whatever_paths_the_document_carried(self) -> None:
         routes = Routes()
         routes.get("/users")(view)

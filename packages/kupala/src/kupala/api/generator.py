@@ -7,7 +7,7 @@ from starlette.convertors import Convertor
 from starlette.routing import compile_path
 
 from kupala import openapi
-from kupala.routing import RouteDefinition, Routes, endpoint_name, join_namespace, join_path
+from kupala.routing import RouteDefinition, Routes
 
 __all__ = ["DuplicateOperationError", "build_document", "path_parameters"]
 
@@ -66,45 +66,24 @@ def documented_methods(definition: RouteDefinition) -> tuple[str, ...]:
     return methods
 
 
-def walk(
-    group: Routes,
-    prefix: str = "",
-    namespace: str = "",
-) -> typing.Iterator[tuple[str, str, RouteDefinition]]:
-    """Yield every documented route as its resolved path, route name and definition.
-
-    This repeats the prefix and namespace joining `Routes.compile` does, because a compiled route
-    keeps neither its definition nor the group it came from. Mounts and hosts are skipped: they
-    dispatch to another application, which describes itself or does not.
-    """
-
-    prefix = join_path(prefix, group.prefix)
-    namespace = join_namespace(namespace, group.namespace)
-
-    for definition in group.definitions:
-        if isinstance(definition, RouteDefinition) and definition.openapi is not None:
-            name = join_namespace(namespace, definition.name or endpoint_name(definition.fn))
-            yield join_path(prefix, definition.path), name, definition
-
-    for child in group._children:
-        yield from walk(child, prefix, namespace)
-
-
 def build_document(routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI:
     """Describe `routes` in `document`, replacing whatever paths it carries."""
 
     paths: dict[str, openapi.PathItem] = {}
     operation_ids: dict[str, str] = {}
 
-    for path, name, definition in walk(routes):
-        assert definition.openapi is not None  # walk() yields only documented routes
-        template, parameters = path_parameters(path)
-        methods = documented_methods(definition)
+    for info in routes.describe():
+        operation = info.definition.openapi
+        if operation is None:
+            continue
+
+        template, parameters = path_parameters(info.path)
+        methods = documented_methods(info.definition)
 
         for method in methods:
             # one definition may answer several methods, and each needs an id of its own — including
             # when the author named it, or naming a `get_or_post` route would collide with itself
-            base = definition.openapi.operation_id or name
+            base = operation.operation_id or info.name
             operation_id = base if len(methods) == 1 else f"{base}_{method}"
             previous = operation_ids.get(operation_id)
             if previous is not None:
@@ -114,11 +93,11 @@ def build_document(routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI
                 )
             operation_ids[operation_id] = f"{method.upper()} {template}"
 
-            operation = dataclasses.replace(
-                definition.openapi,
+            described = dataclasses.replace(
+                operation,
                 operation_id=operation_id,
                 parameters=parameters or None,
-                responses=definition.openapi.responses or DEFAULT_RESPONSES,
+                responses=operation.responses or DEFAULT_RESPONSES,
             )
             item = paths.get(template, openapi.PathItem())
             if getattr(item, method, None) is not None:
@@ -126,6 +105,6 @@ def build_document(routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI
                     f"Two routes both describe {method.upper()} {template}, which a document cannot "
                     f"express. Give them distinct paths."
                 )
-            paths[template] = item.with_operation(method, operation)
+            paths[template] = item.with_operation(method, described)
 
     return dataclasses.replace(document, paths=paths)
