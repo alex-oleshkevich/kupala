@@ -11,7 +11,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocketDisconnect
 
 from kupala.applications import Kupala
-from kupala.dependencies import Injected, Value
+from kupala.dependencies import Factory, Injected, UnsupportedParameterError, Value
 from kupala.middleware import (
     CallNext,
     Middleware,
@@ -40,6 +40,14 @@ class HostEventMiddleware:
 
 def stub_endpoint(request: Request) -> Response:
     raise AssertionError("route-shape tests never invoke the endpoint")  # pragma: no cover
+
+
+class Connection:
+    """Stands in for a request-scoped resource that must be opened exactly once, such as a session."""
+
+
+class TaggedRequest(Request):
+    """A request a middleware substitutes for the one the route was matched with."""
 
 
 async def stub_websocket_endpoint(websocket: WebSocket) -> None:
@@ -419,6 +427,183 @@ class TestWebSocketRoutes:
 
         assert error.value.code == 4403
         assert events == ["blocked"]
+
+
+class TestMiddlewareDependencies:
+    """Middleware is invoked through the injector, so it declares what it needs like an endpoint."""
+
+    def test_injects_dependencies_into_http_middleware(self) -> None:
+        seen: list[str] = []
+
+        async def middleware(
+            request: Request, call_next: CallNext, /, greeting: typing.Annotated[str, Value("hello")]
+        ) -> Response:
+            seen.append(greeting)
+            return await call_next(request)
+
+        routes = Routes()
+
+        @routes.get("/", middleware=[middleware])
+        async def index() -> Response:
+            return Response("ok")
+
+        with TestClient(Kupala("tests", routes=routes)) as client:
+            assert client.get("/").text == "ok"
+
+        assert seen == ["hello"]
+
+    def test_middleware_and_endpoint_share_one_dependency(self) -> None:
+        opened: list[Connection] = []
+        seen: list[Connection] = []
+
+        def open_connection() -> Connection:
+            connection = Connection()
+            opened.append(connection)
+            return connection
+
+        type Session = typing.Annotated[Connection, Factory(open_connection)]
+
+        async def middleware(request: Request, call_next: CallNext, /, session: Session) -> Response:
+            seen.append(session)
+            return await call_next(request)
+
+        routes = Routes()
+
+        @routes.get("/", middleware=[middleware])
+        async def index(session: Session) -> Response:
+            seen.append(session)
+            return Response("ok")
+
+        with TestClient(Kupala("tests", routes=routes)) as client:
+            assert client.get("/").text == "ok"
+
+        # the reason middleware needs the injector: one transaction, not two
+        assert len(opened) == 1
+        assert seen[0] is seen[1]
+
+    def test_a_substituted_request_reaches_everything_below(self) -> None:
+        seen: list[type[Request]] = []
+
+        async def outer(request: Request, call_next: CallNext) -> Response:
+            seen.append(type(request))
+            return await call_next(TaggedRequest(request.scope, request.receive))
+
+        async def inner(request: Request, call_next: CallNext) -> Response:
+            seen.append(type(request))
+            return await call_next(request)
+
+        routes = Routes()
+
+        @routes.get("/", middleware=[outer, inner])
+        async def index(request: Request) -> Response:
+            seen.append(type(request))
+            return Response("ok")
+
+        with TestClient(Kupala("tests", routes=routes)) as client:
+            assert client.get("/").text == "ok"
+
+        assert seen == [Request, TaggedRequest, TaggedRequest]
+
+    def test_middleware_may_answer_without_continuing(self) -> None:
+        async def guard(
+            request: Request, call_next: CallNext, /, greeting: typing.Annotated[str, Value("denied")]
+        ) -> Response:
+            return Response(greeting, status_code=403)
+
+        routes = Routes()
+
+        @routes.get("/", middleware=[guard])
+        async def index() -> Response:
+            raise AssertionError("the endpoint must not run")  # pragma: no cover
+
+        with TestClient(Kupala("tests", routes=routes)) as client:
+            reply = client.get("/")
+
+        assert reply.status_code == 403
+        assert reply.text == "denied"
+
+    def test_injects_dependencies_into_websocket_middleware(self) -> None:
+        seen: list[str] = []
+
+        async def middleware(
+            websocket: WebSocket, call_next: WebSocketCallNext, /, greeting: typing.Annotated[str, Value("hello")]
+        ) -> None:
+            seen.append(greeting)
+            await call_next(websocket)
+
+        routes = Routes()
+
+        @routes.websocket("/socket", middleware=[middleware])
+        async def socket(websocket: WebSocket) -> None:
+            await websocket.accept()
+            await websocket.close()
+
+        with TestClient(Kupala("tests", routes=routes)) as client, client.websocket_connect("/socket"):
+            pass
+
+        assert seen == ["hello"]
+
+    def test_websocket_middleware_and_endpoint_share_one_dependency(self) -> None:
+        opened: list[Connection] = []
+
+        def open_connection() -> Connection:
+            connection = Connection()
+            opened.append(connection)
+            return connection
+
+        type Session = typing.Annotated[Connection, Factory(open_connection)]
+
+        async def middleware(websocket: WebSocket, call_next: WebSocketCallNext, /, session: Session) -> None:
+            await call_next(websocket)
+
+        routes = Routes()
+
+        @routes.websocket("/socket", middleware=[middleware])
+        async def socket(websocket: WebSocket, session: Session) -> None:
+            await websocket.accept()
+            await websocket.close()
+
+        with TestClient(Kupala("tests", routes=routes)) as client, client.websocket_connect("/socket"):
+            pass
+
+        assert len(opened) == 1
+
+
+class TestMiddlewareSignature:
+    """`Middleware` fixes the first two arguments, and a signature that cannot take them is rejected."""
+
+    def test_rejects_a_middleware_that_cannot_take_the_fixed_arguments(self) -> None:
+        async def middleware(request: Request) -> Response:
+            return Response("ok")  # pragma: no cover
+
+        routes = Routes()
+
+        @routes.get("/", middleware=[typing.cast(Middleware, middleware)])
+        async def index() -> Response:
+            return Response("ok")  # pragma: no cover
+
+        with pytest.raises(UnsupportedParameterError) as info:
+            Kupala("tests", routes=routes)
+
+        assert "must accept the request and the continuation" in str(info.value)
+
+    def test_rejects_a_positional_only_dependency(self) -> None:
+        async def middleware(
+            request: Request, call_next: CallNext, greeting: typing.Annotated[str, Value("hi")], /
+        ) -> Response:
+            return await call_next(request)  # pragma: no cover
+
+        routes = Routes()
+
+        @routes.get("/", middleware=[typing.cast(Middleware, middleware)])
+        async def index() -> Response:
+            return Response("ok")  # pragma: no cover
+
+        with pytest.raises(UnsupportedParameterError) as info:
+            Kupala("tests", routes=routes)
+
+        assert "'greeting'" in str(info.value)
+        assert "passes dependencies by keyword" in str(info.value)
 
 
 class TestMountedRoutes:

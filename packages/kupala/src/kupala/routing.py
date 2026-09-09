@@ -1,20 +1,24 @@
 from __future__ import annotations
 
 import dataclasses
-import functools
+import inspect
 import typing
 
 from starlette.middleware import Middleware as ASGIMiddlewareWrapper
 from starlette.routing import BaseRoute, Host, Mount, Route, WebSocketRoute
 from starlette.types import ASGIApp
 
+from kupala import inspection
 from kupala.binders import ModelBinder
 from kupala.dependencies import (
     INVOCATION_CONTEXT_KEY,
+    CallPlan,
     CompileContext,
     InvocationContext,
+    UnsupportedParameterError,
     compile_call_plan,
     invoke,
+    resolve_arguments,
 )
 from kupala.middleware import (
     CallNext,
@@ -25,6 +29,9 @@ from kupala.middleware import (
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.websockets import WebSocket
+
+# the request and the continuation, which every middleware takes before its dependencies
+MIDDLEWARE_ARGUMENTS = 2
 
 # endpoints receive their arguments from the dependency injector, so any signature is valid
 type SyncEndpoint = typing.Callable[..., Response]
@@ -324,6 +331,7 @@ class Routes:
                                 endpoint=chain_websocket_middleware(
                                     bind_websocket_dependencies(definition.fn, binders),
                                     [*websocket_middleware, *group_websocket_middleware, *definition.middleware],
+                                    binders,
                                 ),
                             )
                         )
@@ -341,6 +349,7 @@ class Routes:
                                 endpoint=chain_middleware(
                                     bind_http_dependencies(definition.fn, binders),
                                     [*http_middleware, *middleware, *definition.middleware],
+                                    binders,
                                 ),
                             )
                         )
@@ -398,50 +407,103 @@ def join_namespace(parent: str, child: str, separator: str = ".") -> str:
 def chain_middleware(
     endpoint: AsyncEndpoint,
     middleware: typing.Sequence[Middleware],
+    binders: tuple[ModelBinder, ...] = (),
 ) -> AsyncEndpoint:
-    async def call_next(request: Request) -> Response:
+    async def call_endpoint(request: Request) -> Response:
         return await endpoint(request)
 
-    async def middleware_wrapper(request: Request, call_next: CallNext, mw: Middleware) -> Response:
-        return await mw(request, call_next)
-
-    for m in reversed(middleware):
-        call_next = functools.partial(middleware_wrapper, call_next=call_next, mw=m)
+    call_next: CallNext = call_endpoint
+    for current in reversed(middleware):
+        call_next = bind_middleware(current, call_next, binders)
 
     return call_next
+
+
+def middleware_dependencies[**PS, R](plan: CallPlan[PS, R]) -> CallPlan[PS, R]:
+    """Drop the two arguments the framework passes itself, leaving what the injector must resolve.
+
+    The signature `Middleware` declares fixes the first two, so they need no binding and no lookup;
+    everything after them is an ordinary dependency.
+    """
+
+    owner = inspection.callable_name(plan.callable.callable)
+    if len(plan.parameters) < MIDDLEWARE_ARGUMENTS:
+        raise UnsupportedParameterError(
+            f"Middleware {owner}() must accept the request and the continuation before anything "
+            f"it depends on, as `async def {plan.callable.callable.__name__}(request, call_next, /, ...)`."
+        )
+
+    dependencies = plan.parameters[MIDDLEWARE_ARGUMENTS:]
+    positional = [entry.param.name for entry in dependencies if entry.param.kind is inspect.Parameter.POSITIONAL_ONLY]
+    if positional:
+        listed = ", ".join(repr(name) for name in positional)
+        raise UnsupportedParameterError(
+            f"Middleware {owner}() marks {listed} positional-only, but the injector passes "
+            f"dependencies by keyword. Move the `/` so only the request and the continuation precede it."
+        )
+
+    return dataclasses.replace(plan, parameters=dependencies)
+
+
+def bind_middleware(
+    middleware: Middleware,
+    call_next: CallNext,
+    binders: tuple[ModelBinder, ...],
+) -> CallNext:
+    """Compile one middleware, resolving everything it declares after the fixed two."""
+
+    plan = middleware_dependencies(compile_call_plan(middleware, CompileContext(binders=binders)))
+
+    async def wrapped(request: Request) -> Response:
+        # a child so a dependency that reads the request sees the one this link was handed - a
+        # middleware above may have passed a different one down - while the cache and the exit
+        # stack stay the invocation's own, and one session serves the whole chain
+        root: InvocationContext = request.scope[INVOCATION_CONTEXT_KEY]
+        arguments = await resolve_arguments(plan, root.child({Request: request}))
+        return await middleware(request, call_next, **arguments)
+
+    return wrapped
 
 
 def chain_websocket_middleware(
     endpoint: WebSocketEndpoint,
     middleware: typing.Sequence[WebSocketMiddleware],
+    binders: tuple[ModelBinder, ...] = (),
 ) -> WebSocketEndpoint:
     async def call_endpoint(ws: WebSocket) -> None:
         return await endpoint(ws)
 
     call_next: WebSocketCallNext = call_endpoint
     for current in reversed(middleware):
-        previous = call_next
-
-        async def wrapped(
-            ws: WebSocket,
-            *,
-            current: WebSocketMiddleware = current,
-            previous: WebSocketCallNext = previous,
-        ) -> None:
-            await current(ws, previous)
-
-        call_next = wrapped
+        call_next = bind_websocket_middleware(current, call_next, binders)
 
     return call_next
+
+
+def bind_websocket_middleware(
+    middleware: WebSocketMiddleware,
+    call_next: WebSocketCallNext,
+    binders: tuple[ModelBinder, ...],
+) -> WebSocketCallNext:
+    """Compile one WebSocket middleware, the way `bind_middleware` compiles an HTTP one."""
+
+    plan = middleware_dependencies(compile_call_plan(middleware, CompileContext(binders=binders)))
+
+    async def wrapped(ws: WebSocket) -> None:
+        root: InvocationContext = ws.scope[INVOCATION_CONTEXT_KEY]
+        arguments = await resolve_arguments(plan, root.child({WebSocket: ws}))
+        await middleware(ws, call_next, **arguments)
+
+    return wrapped
 
 
 def bind_http_dependencies(fn: AnyEndpoint, binders: tuple[ModelBinder, ...]) -> AsyncEndpoint:
     plan = compile_call_plan(fn, CompileContext(binders=binders))
 
     async def wrapped(request: Request) -> Response:
-        context: InvocationContext = request.scope[INVOCATION_CONTEXT_KEY]
-        context.scope.bind(Request, request)
-        return await invoke(plan, context)
+        # the request a middleware passed down, not the one the route was matched with
+        root: InvocationContext = request.scope[INVOCATION_CONTEXT_KEY]
+        return await invoke(plan, root.child({Request: request}))
 
     return wrapped
 
@@ -450,8 +512,7 @@ def bind_websocket_dependencies(fn: WebSocketEndpoint, binders: tuple[ModelBinde
     plan = compile_call_plan(fn, CompileContext(binders=binders))
 
     async def wrapped(ws: WebSocket) -> None:
-        context: InvocationContext = ws.scope[INVOCATION_CONTEXT_KEY]
-        context.scope.bind(WebSocket, ws)
-        await invoke(plan, context)
+        root: InvocationContext = ws.scope[INVOCATION_CONTEXT_KEY]
+        await invoke(plan, root.child({WebSocket: ws}))
 
     return wrapped
