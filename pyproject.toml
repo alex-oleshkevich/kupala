@@ -20,7 +20,7 @@ testing = [
 ]
 
 [tool.coverage.run]
-branch = false
+branch = true
 parallel = true
 source_pkgs = ["kupala"]
 source = ["packages/kupala/tests"]

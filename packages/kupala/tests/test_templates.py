@@ -146,10 +146,27 @@ class TestTemplateLoaders:
 
         assert templates.render("from_disk.html") == "on disk"
 
-    def test_loads_templates_from_a_package(self) -> None:
-        templates = Templates(packages=["kupala"])
+    def test_loads_templates_from_a_package(self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # a package only qualifies if it ships a templates/ directory, so build one that does
+        package = tmp_path / "packaged_templates"
+        (package / "templates").mkdir(parents=True)
+        (package / "__init__.py").write_text("")
+        (package / "templates" / "packaged.html").write_text("from a package")
+        monkeypatch.syspath_prepend(str(tmp_path))
 
-        assert any(isinstance(loader, jinja2.PackageLoader) for loader in templates.loader.loaders)
+        templates = Templates(packages=["packaged_templates"])
+
+        assert templates.render("packaged.html") == "from a package"
+
+    def test_a_directory_outranks_a_ready_made_loader(self, tmp_path: pathlib.Path) -> None:
+        # what the application configured itself must win, or it can never override an extension
+        (tmp_path / "page.html").write_text("APP")
+        templates = Templates(
+            directories=[str(tmp_path)],
+            loaders=[jinja2.DictLoader({"page.html": "EXTENSION"})],
+        )
+
+        assert templates.render("page.html") == "APP"
 
     def test_accepts_ready_made_loaders(self) -> None:
         templates = Templates(loaders=[jinja2.DictLoader({"given.html": "given"})])
@@ -212,6 +229,21 @@ class TestTemplateEscaping:
 
         assert b"<img" not in http_response.body
         assert http_response.body == b"&lt;img onerror=x&gt;"
+
+    def test_escapes_html_in_a_supplied_environment(self) -> None:
+        # an environment built elsewhere defaults to no escaping, and inheriting that silently
+        # would turn every value rendered through it into an injection point
+        environment = jinja2.Environment(loader=jinja2.DictLoader({"page.html": "{{ value }}"}))
+
+        templates = Templates(environment)
+
+        assert templates.env.autoescape is True
+        assert templates.render("page.html", {"value": "<script>"}) == "&lt;script&gt;"
+
+    def test_escaping_can_be_turned_off_deliberately(self) -> None:
+        templates = Templates(loaders=[jinja2.DictLoader({"page.html": "{{ value }}"})], autoescape=False)
+
+        assert templates.render("page.html", {"value": "<b>"}) == "<b>"
 
     def test_escapes_a_block(self) -> None:
         templates = Templates(loaders=[jinja2.DictLoader({"page.html": "{% block body %}{{ value }}{% endblock %}"})])

@@ -21,8 +21,10 @@ from kupala.error_handlers import (
     websocket_error_handler,
 )
 from kupala.errors import BaseHTTPError
+from kupala.extensions import AppBuilder, Extension
 from kupala.middleware import Middleware, WebSocketMiddleware
 from kupala.routing import Routes
+from kupala.templates import Templates
 from kupala.websockets import WebSocketError
 
 
@@ -40,6 +42,8 @@ class Kupala:
         lifespans: typing.Sequence[Lifespan[Kupala]] = (),
         error_handlers: typing.Mapping[type[Exception], ErrorHandler] | None = None,
         model_binders: typing.Sequence[ModelBinder] = DEFAULT_MODEL_BINDERS,
+        extensions: typing.Sequence[Extension] = (),
+        templates: Templates | None = None,
     ) -> None:
         self.name = package_name
         self._overrides: typing.Mapping[typing.Any, Binding] = {}
@@ -48,17 +52,33 @@ class Kupala:
         self.commands = commands.compile() if isinstance(commands, Commands) else list(commands)
         self.middleware = list(middleware)
         self.websocket_middleware = list(websocket_middleware)
-        self.model_binders = tuple(model_binders)
+        self.model_binders = list(model_binders)
         self.lifespans = list(lifespans)
+        self.templates = templates or Templates(auto_reload=debug)
+
+        builder = AppBuilder()
+        for extension in extensions:
+            extension.install(builder)
+
+        self.routes.include(builder.routes)
+        self.commands.extend(builder.commands.compile())
+        self.lifespans.extend(builder.lifespans)
+        self.model_binders.extend(builder.model_binders)
+        self.templates.add_filters(builder.template_filters)
+        self.templates.add_globals(builder.template_globals)
+        self.templates.add_loaders(builder.template_loaders)
+        self.templates.add_context_processors(builder.context_processors)
+
         self.error_handlers = {
             BaseHTTPError: http_error_handler,
             HTTPException: http_error_handler,
             WebSocketError: websocket_error_handler,
+            # extensions register before the application, which always has the last word
+            **builder.error_handlers,
             **(error_handlers or {}),
         }
         # ExceptionMiddleware resolves handlers by MRO, so a catch-all left in this map would match
         # every error and return before ServerErrorMiddleware can re-raise it for the server to log.
-        # Starlette splits it out the same way.
         self.server_error_handler = self.error_handlers.pop(Exception, server_error_handler)
 
         asgi_middleware = [
@@ -71,7 +91,7 @@ class Kupala:
             routes=routes.compile(
                 tuple(self.middleware),
                 tuple(self.websocket_middleware),
-                self.model_binders,
+                tuple(self.model_binders),
             ),
         )
         for cls, args, kwargs in reversed(asgi_middleware):
