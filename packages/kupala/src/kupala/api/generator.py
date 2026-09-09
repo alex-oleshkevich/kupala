@@ -121,9 +121,7 @@ def build_document(routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI
                 responses=definition.openapi.responses or DEFAULT_RESPONSES,
             )
             item = paths.get(template, openapi.PathItem())
-            # a documented path drops the convertor, so `/u/{id:int}` and `/u/{id}` route apart and
-            # document the same. Overwriting would lose one operation and describe the wrong endpoint
-            if getattr(item, method) is not None:
+            if getattr(item, method, None) is not None:
                 raise DuplicateOperationError(
                     f"Two routes both describe {method.upper()} {template}, which a document cannot "
                     f"express. Give them distinct paths."
