@@ -155,6 +155,28 @@ class TestBuildDocument:
         assert paths["/users"].get is not None
         assert paths["/users"].get.operation_id == "listUsers"
 
+    def test_an_author_given_id_is_split_across_the_methods_it_names(self) -> None:
+        # without the suffix the author's own id collides with itself, and the error would tell them to
+        # pass the `operation_id=` they already passed
+        routes = Routes()
+        routes.get_or_post("/search", operation_id="search")(view)
+
+        paths = build_document(routes, DOCUMENT).paths or {}
+        item = paths["/search"]
+
+        assert item.get is not None
+        assert item.post is not None
+        assert (item.get.operation_id, item.post.operation_id) == ("search_get", "search_post")
+
+    def test_two_routes_that_document_the_same_path_are_refused(self) -> None:
+        # the documented path drops the convertor, so these route apart but describe the same operation
+        routes = Routes()
+        routes.get("/users/{key:int}", name="by_id")(view)
+        routes.get("/users/{key}", name="by_slug")(view)
+
+        with pytest.raises(DuplicateOperationError, match=r"both describe GET /users/\{key\}"):
+            build_document(routes, DOCUMENT)
+
     def test_two_operations_cannot_share_an_id(self) -> None:
         routes = Routes()
         routes.get("/users", operation_id="same")(view)

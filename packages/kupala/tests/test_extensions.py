@@ -124,6 +124,16 @@ class TestInstallsExtensions:
 
         assert app.model_binders[-1] is binder
 
+    def test_an_extension_template_outranks_a_framework_one(self) -> None:
+        class Ext:
+            def install(self, builder: AppBuilder) -> None:
+                builder.template_loaders.append(jinja2.DictLoader({"openapi/swagger.html.j2": "extension"}))
+
+        templates = Templates()
+        Kupala("tests", routes=Routes(), templates=templates, extensions=[Ext()])
+
+        assert templates.render("openapi/swagger.html.j2") == "extension"
+
     def test_an_application_template_outranks_an_extension_one(self) -> None:
         class Ext:
             def install(self, builder: AppBuilder) -> None:

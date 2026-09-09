@@ -34,7 +34,8 @@ async def show_product(request: Request, catalog: ProductCatalog) -> Response:
     # nothing binds a path parameter to an argument yet, so the view reads it itself
     sku = request.path_params["sku"]
     if sku not in catalog.products:
-        raise NotFoundError(f"No product with sku {sku!r}.")
+        # the sku came from the url, and reflecting request data into a response is how it reaches a log
+        raise NotFoundError("No product with that sku.")
 
     return response(request).json({"sku": sku, "name": catalog.products[sku]})
 

@@ -102,8 +102,10 @@ def build_document(routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI
         methods = documented_methods(definition)
 
         for method in methods:
-            # one definition may answer several methods, and each needs an id of its own
-            operation_id = definition.openapi.operation_id or (name if len(methods) == 1 else f"{name}_{method}")
+            # one definition may answer several methods, and each needs an id of its own — including
+            # when the author named it, or naming a `get_or_post` route would collide with itself
+            base = definition.openapi.operation_id or name
+            operation_id = base if len(methods) == 1 else f"{base}_{method}"
             previous = operation_ids.get(operation_id)
             if previous is not None:
                 raise DuplicateOperationError(
@@ -118,6 +120,14 @@ def build_document(routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI
                 parameters=parameters or None,
                 responses=definition.openapi.responses or DEFAULT_RESPONSES,
             )
-            paths[template] = paths.get(template, openapi.PathItem()).with_operation(method, operation)
+            item = paths.get(template, openapi.PathItem())
+            # a documented path drops the convertor, so `/u/{id:int}` and `/u/{id}` route apart and
+            # document the same. Overwriting would lose one operation and describe the wrong endpoint
+            if getattr(item, method) is not None:
+                raise DuplicateOperationError(
+                    f"Two routes both describe {method.upper()} {template}, which a document cannot "
+                    f"express. Give them distinct paths."
+                )
+            paths[template] = item.with_operation(method, operation)
 
     return dataclasses.replace(document, paths=paths)
