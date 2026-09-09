@@ -47,12 +47,12 @@ directory = "var/coverage/html_report"
 
 [tool.mypy]
 files = ["packages/", "demo/demo"]
+mypy_path = ["packages/kupala/src"]
 python_version = "3.14"
 pretty = true
 strict = true
 show_error_context = true
 show_column_numbers = true
-show_error_codes = true
 implicit_reexport = true
 warn_no_return = false
 disallow_subclassing_any = false

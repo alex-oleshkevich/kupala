@@ -91,6 +91,29 @@ async def example_middleware(request: Request, call_next: CallNext) -> Response:
     return response
 
 
+# middleware is invoked through the injector, exactly like an endpoint: everything after `/` is
+# resolved by type. The catalog here is the very same object the endpoint below receives.
+async def catalog_header_middleware(
+    request: Request,
+    call_next: CallNext,
+    /,
+    catalog: ProductCatalog,
+    currency: Currency,
+) -> Response:
+    response = await call_next(request)
+    response.headers["x-catalog-size"] = str(len(catalog.products))
+    response.headers["x-currency"] = currency
+    return response
+
+
+# a middleware that answers by itself simply never calls the continuation it was handed
+async def maintenance_guard(request: Request, call_next: CallNext, /, currency: Currency) -> Response:
+    return response(request).json(
+        {"detail": "The catalog is briefly offline.", "currency": currency},
+        status_code=503,
+    )
+
+
 @routes.get("/")
 @routes.get("/overview", name="overview")
 async def index_view(request: Request) -> Response:
@@ -113,9 +136,14 @@ async def dependency_view(
     )
 
 
-@routes.get("/catalog")
+@routes.get("/catalog", middleware=[catalog_header_middleware])
 async def catalog_view(request: Request, catalog: ProductCatalog) -> Response:
     return response(request).json(catalog.products)
+
+
+@routes.get("/catalog/offline", middleware=[maintenance_guard])
+async def catalog_offline_view(request: Request) -> Response:
+    raise AssertionError("the guard answers before this runs")
 
 
 @routes.get("/search")
