@@ -116,14 +116,17 @@ class APIExtension:
         return self._document
 
     def serialize(self) -> bytes:
-        """The document as the bytes it is served as, rendered once."""
+        """The document as the bytes it is served as, rendered once.
+
+        Rendering can fail on what an author wrote — an extension key that is not prefixed `x-`, a
+        value JSON has no form for — which is why the lifespan renders rather than only describing.
+        """
 
         if self._serialized is None:
             self._serialized = json.dumps(to_dict(self.document())).encode()
         return self._serialized
 
     async def openapi_view(self, request: Request) -> Response:
-        # the bytes are already rendered, so nothing here walks the document again
         return Response(
             self.serialize(),
             media_type="application/json",
