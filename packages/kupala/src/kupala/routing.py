@@ -366,11 +366,8 @@ class Routes:
 
         for definition in self.definitions:
             if isinstance(definition, RouteDefinition):
-                yield RouteInfo(
-                    path=join_path(prefix, definition.path),
-                    name=join_namespace(namespace, definition.name or endpoint_name(definition.fn)),
-                    definition=definition,
-                )
+                path, name = resolve_route(definition, prefix, namespace)
+                yield RouteInfo(path=path, name=name, definition=definition)
 
         for child in self._children:
             yield from child._describe(prefix, namespace)
@@ -445,8 +442,7 @@ class Routes:
                         )
 
                     case WebSocketDefinition():
-                        route_name = join_namespace(namespace, definition.name or endpoint_name(definition.fn))
-                        route_path = join_path(prefix, definition.path)
+                        route_path, route_name = resolve_route(definition, prefix, namespace)
                         register_name(route_name, f"WebSocket route {route_path!r}")
                         compiled.append(
                             WebSocketRoute(
@@ -461,8 +457,7 @@ class Routes:
                         )
 
                     case RouteDefinition():
-                        route_name = join_namespace(namespace, definition.name or endpoint_name(definition.fn))
-                        route_path = join_path(prefix, definition.path)
+                        route_path, route_name = resolve_route(definition, prefix, namespace)
                         register_name(route_name, f"HTTP route {route_path!r}")
                         register_http_route(route_path, definition.methods, route_name)
                         compiled.append(
@@ -517,6 +512,23 @@ def join_path(parent: str, child: str) -> str:
     if child.endswith("/") and result != "/":
         return result.rstrip("/") + "/"
     return result
+
+
+def resolve_route(
+    definition: RouteDefinition | WebSocketDefinition,
+    prefix: str,
+    namespace: str,
+) -> tuple[str, str]:
+    """One route's path and name as they will be served, resolved against the group enclosing it.
+
+    Route paths and names are public behaviour, so this is the single place that decides them: both
+    `compile` and `describe` read it, and an unnamed route falls back to its endpoint either way.
+    """
+
+    return (
+        join_path(prefix, definition.path),
+        join_namespace(namespace, definition.name or endpoint_name(definition.fn)),
+    )
 
 
 def endpoint_name(fn: AnyEndpoint | WebSocketEndpoint) -> str:

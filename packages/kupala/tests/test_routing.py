@@ -418,6 +418,35 @@ class TestDescribe:
         assert [(info.path, info.name) for info in described] == [("/a/health", "a.health"), ("/b/health", "b.health")]
         assert described[0].definition is described[1].definition
 
+    def test_agrees_with_the_paths_and_names_compile_serves(self) -> None:
+        # both resolve through `resolve_route`, and a document that disagreed with the router would
+        # describe endpoints nobody can reach
+        root = Routes(prefix="/root", namespace="root")
+
+        @root.get("/first")
+        async def first(request: Request) -> Response:
+            return Response("")  # pragma: no cover
+
+        inner = root.group("/inner", namespace="inner")
+
+        @inner.get_or_post("/deep", name="deep")
+        async def deep(request: Request) -> Response:
+            return Response("")  # pragma: no cover
+
+        @inner.delete("/deep")
+        async def drop(request: Request) -> Response:
+            return Response("")  # pragma: no cover
+
+        described = sorted((info.path, info.name) for info in root.describe())
+        compiled = sorted((route.path, route.name) for route in root.compile(()) if isinstance(route, Route))
+
+        assert described == compiled
+        assert described == [
+            ("/root/first", "root.first"),
+            ("/root/inner/deep", "root.inner.deep"),
+            ("/root/inner/deep", "root.inner.drop"),
+        ]
+
     def test_needs_no_compiled_application(self) -> None:
         # the manifest is import-time data, so a tool may read it before anything is built
         routes = Routes(prefix="/api")
