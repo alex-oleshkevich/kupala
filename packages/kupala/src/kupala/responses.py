@@ -22,7 +22,6 @@ from starlette.responses import (
 from starlette.types import Send
 
 from kupala.requests import Request
-from kupala.templates import RendersToResponse
 
 __all__ = [
     "BackResponse",
@@ -46,6 +45,18 @@ type ServerSentEventStream = typing.Iterable[ServerSentEvent | str] | typing.Asy
 
 class HTMLLike(typing.Protocol):
     def __html__(self) -> str: ...
+
+
+class TemplateRenderer(typing.Protocol):
+    def render_to_response(
+        self,
+        request: Request,
+        template_name: str,
+        context: typing.Mapping[str, typing.Any] | None = None,
+        status_code: int = 200,
+        headers: typing.Mapping[str, str] | None = None,
+        media_type: str | None = None,
+    ) -> Response: ...
 
 
 class ResponseBuilder:
@@ -81,7 +92,7 @@ class ResponseBuilder:
         headers: typing.Mapping[str, str] | None = None,
         media_type: str = "text/html",
     ) -> Response:
-        renderer: RendersToResponse = self._request.state.template_renderer
+        renderer: TemplateRenderer = self._request.state.template_renderer
         response = renderer.render_to_response(
             self._request,
             template_name,

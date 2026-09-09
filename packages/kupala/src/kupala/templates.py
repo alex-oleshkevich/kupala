@@ -13,44 +13,40 @@ type JinjaExtensions = typing.Iterable[str]
 type ContextProcessor = typing.Callable[[Request], dict[str, typing.Any]]
 
 
-class RendersToString(typing.Protocol):
-    def render(
-        self,
-        template_name: str,
-        context: typing.Mapping[str, typing.Any] | None = None,
-    ) -> str: ...
-
-
-class RendersToResponse(typing.Protocol):
-    def render_to_response(
-        self,
-        request: Request,
-        template_name: str,
-        context: typing.Mapping[str, typing.Any] | None = None,
-        status_code: int = 200,
-        headers: typing.Mapping[str, str] | None = None,
-        media_type: str | None = None,
-    ) -> Response: ...
-
-
-class Templates(RendersToString, RendersToResponse, typing.Protocol): ...  # pragma: no branch
-
-
-class JinjaTemplates(templating.Jinja2Templates):
+class Templates:
     def __init__(
         self,
-        env: jinja2.Environment,
+        env: jinja2.Environment | None = None,
         *,
+        auto_reload: bool = False,
+        packages: typing.Sequence[str] = (),
+        directories: typing.Sequence[str] = (),
         filters: JinjaFilters | None = None,
         globals: JinjaGlobals | None = None,
         tests: JinjaTests | None = None,
         extensions: JinjaExtensions = (),
+        loaders: typing.Sequence[jinja2.BaseLoader] | None = None,
         context_processors: typing.Iterable[ContextProcessor] = (),
     ) -> None:
-        super().__init__(
-            env=env,
-            context_processors=list(context_processors),
-        )
+        # the list the choice loader reads on every lookup, so `add_loader` needs no rewiring
+        self._loaders: list[jinja2.BaseLoader] = list(loaders or ())
+        self._loaders.extend(jinja2.PackageLoader(package) for package in packages)
+        if directories:
+            self._loaders.append(jinja2.FileSystemLoader(directories))
+
+        if env is None:
+            self.loader = jinja2.ChoiceLoader(self._loaders)
+            # this engine renders HTML, so escaping is the default and opting out is deliberate
+            self.env = jinja2.Environment(loader=self.loader, autoescape=True, auto_reload=auto_reload)
+        else:
+            # keep whatever the caller already configured resolving first, so `packages`,
+            # `directories` and `add_loader` extend that environment instead of being ignored
+            if env.loader is not None:
+                self._loaders.insert(0, env.loader)
+            self.loader = jinja2.ChoiceLoader(self._loaders)
+            env.loader = self.loader
+            self.env = env
+
         if filters is not None:
             self.env.filters.update(filters)
         if globals is not None:
@@ -59,6 +55,19 @@ class JinjaTemplates(templating.Jinja2Templates):
             self.env.tests.update(tests)
         for extension in extensions:
             self.env.add_extension(extension)
+
+        self._responses = templating.Jinja2Templates(
+            env=self.env,
+            context_processors=list(context_processors),
+        )
+
+    def add_loader(self, loader: jinja2.BaseLoader) -> None:
+        """Append a loader, so an extension can contribute templates the application may override."""
+
+        self._loaders.append(loader)
+        # a template already rendered stays cached under the resolution it had, so drop the cache
+        if self.env.cache is not None:
+            self.env.cache.clear()
 
     def render(self, template_name: str, context: typing.Mapping[str, typing.Any] | None = None) -> str:
         template = self.env.get_template(template_name)
@@ -73,7 +82,7 @@ class JinjaTemplates(templating.Jinja2Templates):
         headers: typing.Mapping[str, str] | None = None,
         media_type: str | None = None,
     ) -> Response:
-        return self.TemplateResponse(
+        return self._responses.TemplateResponse(
             request,
             template_name,
             context=dict(context) if context else None,
