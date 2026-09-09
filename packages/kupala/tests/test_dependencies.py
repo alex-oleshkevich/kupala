@@ -36,6 +36,7 @@ from kupala.dependencies import (
 
 type _ExampleDep = typing.Annotated[str, Value("demovalue")]
 type _MaybeStr = str | None
+type _MaybeDep = _ExampleDep | None
 type _NestedDep = Injected[_ExampleDep]
 
 
@@ -98,6 +99,22 @@ class TestParseParameter:
         assert result.type is str
         assert result.annotation is _ExampleDep
         assert result.metadata == (Value("demovalue"),)
+
+    def test_finds_metadata_a_union_encloses(self) -> None:
+        # `Query[str] | None` is a union whose member carries the binding, so one unwrap cannot see it
+        param = inspect.Parameter("param", inspect.Parameter.KEYWORD_ONLY, annotation=_ExampleDep | None, default=None)
+        result = parse_parameter(param)
+
+        assert result.type is str
+        assert result.metadata == (Value("demovalue"),)
+
+    def test_finds_metadata_an_aliased_union_encloses(self) -> None:
+        param = inspect.Parameter("param", inspect.Parameter.KEYWORD_ONLY, annotation=_MaybeDep)
+        result = parse_parameter(param)
+
+        assert result.type is str
+        assert result.metadata == (Value("demovalue"),)
+        assert result.default is None
 
     def test_records_parameter_kind(self) -> None:
         param = inspect.Parameter("kwargs", inspect.Parameter.VAR_KEYWORD, annotation=str)

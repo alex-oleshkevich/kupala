@@ -126,6 +126,16 @@ class TestQueryParam:
         with client_for(endpoint) as client:
             assert client.get("/").text == "25"
 
+    def test_binds_when_the_optionality_is_written_outside_the_annotation(self) -> None:
+        # `Query[str] | None` and `Query[str | None]` say the same thing, and the binding is not
+        # something the reader can lose by choosing one spelling: the other silently ignored the client
+        async def endpoint(tag: Query[str] | None = None) -> Response:
+            return Response(f"{tag!r}")
+
+        with client_for(endpoint) as client:
+            assert client.get("/?tag=coffee").text == "'coffee'"
+            assert client.get("/").text == "None"
+
     def test_reports_a_missing_required_value(self) -> None:
         async def endpoint(page: Query[int]) -> Response:
             return Response("unreachable")  # pragma: no cover

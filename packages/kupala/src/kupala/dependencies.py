@@ -327,10 +327,19 @@ class CallableInfo[**PS, R]:
 
 
 def parse_parameter(param: inspect.Parameter) -> ParamInfo:
-    type_, metadata = inspection.unwrap_annotation(param.annotation)
     default = param.default if param.default is not inspect.Parameter.empty else MISSING
+    type_ = param.annotation
+    metadata: tuple[typing.Any, ...] = ()
 
-    if inspection.is_optional(type_):
+    # `Query[str] | None` carries its binding inside the union, where one unwrap cannot see it, so
+    # unwrap and strip in turn: a parameter means the same thing however its optionality is spelled
+    while True:
+        type_, extra = inspection.unwrap_annotation(type_)
+        # deeper layers come first, matching how `unwrap_annotation` orders one annotation's own metadata
+        metadata = (*extra, *metadata)
+        if not inspection.is_optional(type_):
+            break
+
         type_ = inspection.strip_none(type_)
         if default is MISSING:
             default = None
