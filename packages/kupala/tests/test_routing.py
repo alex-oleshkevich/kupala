@@ -10,7 +10,6 @@ from starlette.testclient import TestClient
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocketDisconnect
 
-from kupala import openapi
 from kupala.applications import Kupala
 from kupala.dependencies import Factory, Injected, UnsupportedParameterError, Value
 from kupala.middleware import (
@@ -27,6 +26,7 @@ from kupala.routing import (
     Routes,
     split_docstring,
 )
+from kupala.schema import openapi
 from kupala.websockets import WebSocket
 
 

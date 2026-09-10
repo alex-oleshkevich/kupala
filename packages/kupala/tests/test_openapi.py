@@ -3,7 +3,7 @@ import typing
 import pytest
 from openapi_spec_validator import OpenAPIV31SpecValidator
 
-from kupala import openapi
+from kupala.schema import openapi
 
 
 class TestCamelize:

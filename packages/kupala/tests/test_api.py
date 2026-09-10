@@ -6,21 +6,21 @@ import pytest
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from kupala.api.extension import (
+from kupala.api import (
     REDOC_BASE_URL,
     SCALAR_BASE_URL,
     SWAGGER_BASE_URL,
     APIExtension,
     DocsOptions,
 )
-from kupala.api.generator import DuplicateOperationError
 from kupala.applications import Kupala
 from kupala.extensions import AppBuilder
 from kupala.middleware import CallNext
-from kupala.openapi import Info, OpenAPI
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
+from kupala.schema.builder import DuplicateOperationError
+from kupala.schema.openapi import Info, OpenAPI
 from kupala.templates import Templates
 
 ALL_DOCS = DocsOptions(

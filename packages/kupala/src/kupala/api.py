@@ -1,20 +1,17 @@
-"""A documented group of routes that installs itself into an application."""
-
 import contextlib
 import dataclasses
 import json
 import secrets
 import typing
 
-from kupala.api.generator import SchemaCreator, SchemaNamer, default_schema_namer
-from kupala.api.security import SecurityScheme
 from kupala.binders import DEFAULT_MODEL_BINDERS, ModelBinder
 from kupala.extensions import AppBuilder
 from kupala.middleware import Middleware
-from kupala.openapi import Info, OpenAPI, to_dict
 from kupala.requests import Request
 from kupala.responses import Response, response
 from kupala.routing import Routes, join_namespace
+from kupala.schema.builder import OpenAPIBuilder, SchemaNamer, default_schema_namer
+from kupala.schema.openapi import Info, OpenAPI, to_dict
 
 if typing.TYPE_CHECKING:
     from kupala.applications import Kupala
@@ -58,13 +55,11 @@ class APIExtension:
         routes: Routes | None = None,
         openapi: OpenAPI | None = None,
         tags: typing.Sequence[str] = (),
-        security: typing.Sequence[SecurityScheme[typing.Any]] = (),
         middleware: typing.Sequence[Middleware] = (),
         schema_namer: SchemaNamer = default_schema_namer,
     ) -> None:
         self.docs = docs or DocsOptions()
         self.openapi = openapi or OpenAPI(info=DEFAULT_INFO)
-        self.security = security
         self.schema_namer = schema_namer
         self.routes = Routes(
             prefix=prefix,
@@ -115,7 +110,7 @@ class APIExtension:
 
         if self._document is None:
             binders = self._binders if self._binders is not None else DEFAULT_MODEL_BINDERS
-            self._document = SchemaCreator(binders, namer=self.schema_namer).create(self.routes, self.openapi)
+            self._document = OpenAPIBuilder(binders, namer=self.schema_namer).build(self.routes, self.openapi)
         return self._document
 
     def serialize(self) -> bytes:

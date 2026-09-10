@@ -10,7 +10,7 @@ import uuid
 from starlette.datastructures import FormData, QueryParams
 from starlette.requests import HTTPConnection
 
-from kupala import inspection, openapi
+from kupala import inspection
 from kupala.binders import ModelBinder
 from kupala.dependencies import (
     CompileContext,
@@ -22,6 +22,7 @@ from kupala.dependencies import (
 )
 from kupala.errors import ValidationError
 from kupala.requests import Request
+from kupala.schema import openapi
 
 type Converter = typing.Callable[[str], typing.Any]
 

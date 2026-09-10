@@ -5,8 +5,12 @@ import pytest
 from starlette.convertors import Convertor
 from starlette.types import Receive, Scope, Send
 
-from kupala import openapi
-from kupala.api.generator import (
+from kupala.params import Body, Form, Query, QueryParam
+from kupala.requests import Request
+from kupala.responses import Response
+from kupala.routing import RouteDefinition, Routes
+from kupala.schema import openapi
+from kupala.schema.builder import (
     DuplicateOperationError,
     build_document,
     convertor_schema,
@@ -14,10 +18,6 @@ from kupala.api.generator import (
     documented_methods,
     path_parameters,
 )
-from kupala.params import Body, Form, Query, QueryParam
-from kupala.requests import Request
-from kupala.responses import Response
-from kupala.routing import RouteDefinition, Routes
 from kupala.websockets import WebSocket
 
 DOCUMENT = openapi.OpenAPI(info=openapi.Info(title="Test", version="1"))
@@ -350,6 +350,21 @@ class TestContributions:
         assert isinstance(body, openapi.RequestBody)
         assert "application/x-www-form-urlencoded" in body.content
 
+    def test_form_fields_and_a_form_model_share_one_request_body(self) -> None:
+        async def update(request: Request, kek: Form[str], body: Form[User]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.put("/users")(update)
+        described = (build_document(routes, DOCUMENT).paths or {})["/users"].put
+        assert described is not None
+        schema = described.request_body
+        assert isinstance(schema, openapi.RequestBody)
+        form = schema.content["application/x-www-form-urlencoded"].schema
+        assert form is not None
+        assert set(form["properties"]) == {"kek", "name"}
+        assert form["required"] == ["kek", "name"]
+
     def test_the_same_model_on_two_routes_is_one_component(self) -> None:
         async def create(request: Request, user: Body[User]) -> Response:
             return Response()  # pragma: no cover
@@ -378,7 +393,7 @@ class TestContributions:
         routes.post("/local")(create)
         routes.post("/shared")(other)
         schemas = (build_document(routes, DOCUMENT).components or openapi.Components()).schemas or {}
-        assert set(schemas) == {"User", "test_generator.User"}
+        assert set(schemas) == {"User", "test_schema_builder.User"}
 
     def test_body_and_form_on_one_endpoint_are_refused(self) -> None:
         async def mixed(request: Request, user: Body[User], filters: Form[Filters]) -> Response:
@@ -420,4 +435,4 @@ class TestDefaultSchemaNamer:
         assert default_schema_namer(User, set()) == "User"
 
     def test_qualifies_when_the_short_name_is_taken(self) -> None:
-        assert default_schema_namer(User, {"User"}) == "test_generator.User"
+        assert default_schema_namer(User, {"User"}) == "test_schema_builder.User"

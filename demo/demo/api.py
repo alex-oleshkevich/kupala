@@ -3,13 +3,13 @@
 from pydantic import BaseModel
 
 from demo.dependencies import ProductCatalog
-from kupala.api.extension import APIExtension, DocsOptions
+from kupala.api import APIExtension, DocsOptions
 from kupala.errors import NotFoundError
-from kupala.openapi import Info, OpenAPI
 from kupala.params import Body, Form, Query
 from kupala.requests import Request
 from kupala.responses import Response, response
 from kupala.routing import Routes
+from kupala.schema.openapi import Info, OpenAPI
 
 routes = Routes(tags=["products"])
 

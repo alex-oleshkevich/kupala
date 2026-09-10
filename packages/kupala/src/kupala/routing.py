@@ -9,7 +9,7 @@ from starlette.middleware import Middleware as ASGIMiddlewareWrapper
 from starlette.routing import BaseRoute, Host, Mount, Route, WebSocketRoute
 from starlette.types import ASGIApp
 
-from kupala import inspection, openapi
+from kupala import inspection
 from kupala.binders import ModelBinder
 from kupala.dependencies import (
     INVOCATION_CONTEXT_KEY,
@@ -29,9 +29,10 @@ from kupala.middleware import (
     WebSocketCallNext,
     WebSocketMiddleware,
 )
-from kupala.openapi import Operation
 from kupala.requests import Request
 from kupala.responses import Response
+from kupala.schema import openapi
+from kupala.schema.openapi import Operation
 from kupala.websockets import WebSocket
 
 # the request and the continuation, which every middleware takes before its dependencies

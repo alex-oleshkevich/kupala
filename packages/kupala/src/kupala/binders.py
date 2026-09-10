@@ -2,8 +2,9 @@ import collections.abc
 import types
 import typing
 
-from kupala import inspection, openapi
+from kupala import inspection
 from kupala.errors import ValidationError
+from kupala.schema import openapi
 
 # a string is itself a Sequence, and treating one as multi-valued would explode it into characters
 SCALAR_SEQUENCES = (str, bytes, bytearray)

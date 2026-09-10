@@ -9,14 +9,15 @@ import uuid
 from starlette.convertors import Convertor
 from starlette.routing import compile_path
 
-from kupala import inspection, openapi
+from kupala import inspection
 from kupala.binders import DEFAULT_MODEL_BINDERS, ModelBinder
 from kupala.dependencies import ParamInfo, find_binding
 from kupala.routing import RouteDefinition, Routes
+from kupala.schema import openapi
 
 __all__ = [
     "DuplicateOperationError",
-    "SchemaCreator",
+    "OpenAPIBuilder",
     "SchemaNamer",
     "build_document",
     "default_schema_namer",
@@ -151,11 +152,18 @@ def _split_library_schema(schema: openapi.Schema) -> tuple[openapi.Schema, dict[
     return root, defs
 
 
-@dataclasses.dataclass
-class ComponentRegistry:
-    namer: SchemaNamer = default_schema_namer
-    schemas: dict[str, openapi.Schema] = dataclasses.field(default_factory=dict)
-    types: dict[type, str] = dataclasses.field(default_factory=dict)
+class OpenAPIBuilder:
+    """The context `to_openapi` uses: binders, unique names, scalar fallbacks."""
+
+    def __init__(
+        self,
+        binders: tuple[ModelBinder, ...] = DEFAULT_MODEL_BINDERS,
+        namer: SchemaNamer = default_schema_namer,
+    ) -> None:
+        self.binders = binders
+        self.namer = namer
+        self.schemas: dict[str, openapi.Schema] = {}
+        self.types: dict[type, str] = {}
 
     def name_for(self, type_: type) -> str:
         if type_ in self.types:
@@ -187,14 +195,6 @@ class ComponentRegistry:
             self.schemas[stored] = typing.cast(openapi.Schema, _rewrite_refs(def_schema, mapping))
         return {"$ref": f"#/components/schemas/{name}"}
 
-
-class SchemaBuilder:
-    """The context `to_openapi` uses: binders, unique names, scalar fallbacks."""
-
-    def __init__(self, binders: tuple[ModelBinder, ...], registry: ComponentRegistry) -> None:
-        self.binders = binders
-        self.registry = registry
-
     def binder_for(self, type_: typing.Any) -> ModelBinder | None:
         return next((binder for binder in self.binders if binder.supports(type_)), None)
 
@@ -206,7 +206,7 @@ class SchemaBuilder:
         if binder is not None:
             if not isinstance(type_, type):
                 raise ValueError(f"Cannot describe {inspection.type_name(type_)} as a JSON Schema.")
-            return self.registry.register(type_, binder.schema(type_))
+            return self.register(type_, binder.schema(type_))
 
         scalar = SCALAR_SCHEMAS.get(type_)
         if scalar is not None:
@@ -221,61 +221,24 @@ class SchemaBuilder:
     def properties_of(self, type_: typing.Any) -> tuple[typing.Mapping[str, openapi.Schema], frozenset[str]]:
         schema = self.schema_for(type_)
         if "$ref" in schema and isinstance(type_, type):
-            stored = self.registry.schemas[self.registry.types[type_]]
+            stored = self.schemas[self.types[type_]]
         else:
             stored = schema
         properties = typing.cast(typing.Mapping[str, openapi.Schema], stored.get("properties") or {})
         required = frozenset(typing.cast(typing.Sequence[str], stored.get("required") or ()))
         return properties, required
 
+    def resolve(self, schema: openapi.Schema) -> openapi.Schema:
+        ref = schema.get("$ref")
+        if isinstance(ref, str):
+            return self.schemas.get(ref.rsplit("/", 1)[-1], schema)
+        return schema
 
-@typing.runtime_checkable
-class OpenAPIContributor(typing.Protocol):
-    def to_openapi(self, param_info: ParamInfo, context: openapi.SchemaContext) -> openapi.Contribution: ...
-
-
-def merge_request_body(
-    existing: openapi.RequestBody | None,
-    incoming: openapi.RequestBody,
-    owner: str,
-) -> openapi.RequestBody:
-    if existing is None:
-        return incoming
-    existing_form = existing.content.get(FORM_MEDIA_TYPE) if existing.content else None
-    incoming_form = incoming.content.get(FORM_MEDIA_TYPE) if incoming.content else None
-    if existing_form is not None and incoming_form is not None:
-        left = dict(existing_form.schema or {})
-        right = dict(incoming_form.schema or {})
-        properties = {**(left.get("properties") or {}), **(right.get("properties") or {})}
-        required = list(dict.fromkeys([*(left.get("required") or ()), *(right.get("required") or ())]))
-        schema: openapi.Schema = {"type": "object", "properties": properties, "required": required}
-        return openapi.RequestBody(
-            content={FORM_MEDIA_TYPE: openapi.MediaType(schema=schema)},
-            required=existing.required or incoming.required,
-        )
-    raise DuplicateOperationError(f"{owner}() declares two request bodies.")
-
-
-class SchemaCreator:
-    def __init__(
-        self,
-        binders: tuple[ModelBinder, ...] = DEFAULT_MODEL_BINDERS,
-        namer: SchemaNamer = default_schema_namer,
-    ) -> None:
-        self.binders = binders
-        self.namer = namer
-        self.registry = ComponentRegistry(namer=namer)
-
-    def create(self, routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI:
+    def build(self, routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI:
         """Describe `routes` in `document`, replacing whatever paths it carries."""
 
         paths: dict[str, openapi.PathItem] = {}
         operation_ids: dict[str, str] = {}
-        from_document = document.components.security_schemes if document.components is not None else None
-        security_schemes: dict[str, openapi.SecurityScheme] = {
-            name: scheme for name, scheme in (from_document or {}).items() if isinstance(scheme, openapi.SecurityScheme)
-        }
-        context = SchemaBuilder(self.binders, self.registry)
 
         for info in routes.describe():
             operation = info.definition.openapi
@@ -291,22 +254,16 @@ class SchemaCreator:
             contributed: list[openapi.Parameter] = []
             request_body: openapi.RequestBody | openapi.Reference | None = operation.request_body
             generated_body: openapi.RequestBody | None = None
-            security = list(operation.security or ())
 
             for param_info in call.parameters:
                 binding = find_binding(param_info, owner)
                 if not isinstance(binding, OpenAPIContributor):
                     continue
-                piece = binding.to_openapi(param_info, context)
+                piece = binding.to_openapi(param_info, self)
                 contributed.extend(piece.parameters)
                 if piece.request_body is not None and operation.request_body is None:
-                    generated_body = merge_request_body(generated_body, piece.request_body, owner)
+                    generated_body = merge_request_body(generated_body, piece.request_body, owner, self)
                     request_body = generated_body
-                security.extend(piece.security)
-                clash = security_schemes.keys() & piece.security_schemes.keys()
-                if clash:
-                    raise DuplicateOperationError(f"Duplicate security scheme {next(iter(clash))!r}.")
-                security_schemes.update(piece.security_schemes)
 
             parameters = merge_parameters((*declared, *contributed), operation.parameters)
 
@@ -327,7 +284,6 @@ class SchemaCreator:
                     parameters=parameters,
                     request_body=request_body,
                     responses=responses,
-                    security=security or None,
                 )
                 item = paths.get(template, openapi.PathItem())
                 if getattr(item, method, None) is not None:
@@ -338,14 +294,42 @@ class SchemaCreator:
                 paths[template] = item.with_operation(method, described)
 
         components = document.components or openapi.Components()
-        components = dataclasses.replace(
-            components,
-            schemas=self.registry.schemas or components.schemas,
-            security_schemes=security_schemes or components.security_schemes,
-        )
+        if self.schemas:
+            components = dataclasses.replace(
+                components,
+                schemas={**(components.schemas or {}), **self.schemas},
+            )
         if components.schemas or components.security_schemes or components.parameters or components.responses:
             return dataclasses.replace(document, paths=paths, components=components)
         return dataclasses.replace(document, paths=paths)
+
+
+@typing.runtime_checkable
+class OpenAPIContributor(typing.Protocol):
+    def to_openapi(self, param_info: ParamInfo, context: openapi.SchemaContext) -> openapi.Contribution: ...
+
+
+def merge_request_body(
+    existing: openapi.RequestBody | None,
+    incoming: openapi.RequestBody,
+    owner: str,
+    builder: OpenAPIBuilder,
+) -> openapi.RequestBody:
+    if existing is None:
+        return incoming
+    existing_form = existing.content.get(FORM_MEDIA_TYPE) if existing.content else None
+    incoming_form = incoming.content.get(FORM_MEDIA_TYPE) if incoming.content else None
+    if existing_form is not None and incoming_form is not None:
+        left = dict(builder.resolve(existing_form.schema or {}))
+        right = dict(builder.resolve(incoming_form.schema or {}))
+        properties = {**(left.get("properties") or {}), **(right.get("properties") or {})}
+        required = list(dict.fromkeys([*(left.get("required") or ()), *(right.get("required") or ())]))
+        schema: openapi.Schema = {"type": "object", "properties": properties, "required": required}
+        return openapi.RequestBody(
+            content={FORM_MEDIA_TYPE: openapi.MediaType(schema=schema)},
+            required=existing.required or incoming.required,
+        )
+    raise DuplicateOperationError(f"{owner}() declares two request bodies.")
 
 
 def build_document(
@@ -354,4 +338,4 @@ def build_document(
     binders: tuple[ModelBinder, ...] = DEFAULT_MODEL_BINDERS,
     namer: SchemaNamer = default_schema_namer,
 ) -> openapi.OpenAPI:
-    return SchemaCreator(binders, namer=namer).create(routes, document)
+    return OpenAPIBuilder(binders, namer=namer).build(routes, document)

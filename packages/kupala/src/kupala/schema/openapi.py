@@ -1,20 +1,3 @@
-"""The OpenAPI 3.1 document model.
-
-Every object the specification defines has a dataclass here, and `to_dict` renders any of them into
-the JSON structure a tool consumes. Objects are frozen, so a document can be built once and shared
-between the route walk that produces it, the endpoint that serves it, and the CLI that exports it.
-
-The one object deliberately not modelled is the Schema Object. OpenAPI 3.1 schemas are plain JSON
-Schema 2020-12 documents, which no fixed set of fields can describe, and which pydantic and msgspec
-both already emit as mappings. `Discriminator` and `XML` are absent for the same reason: in 3.1 they
-are schema keywords, so they live inside those mappings rather than beside them.
-
-Validation is deliberately partial. It covers the mistakes tooling accepts and then quietly ignores —
-an incomplete security scheme, an OAuth2 flow with no URL, a 3.1-only document claiming 3.0 — and
-leaves the ambiguous ones alone, because an error a reader can see in the output does not need a
-second report here.
-"""
-
 import collections.abc
 import dataclasses
 import enum
@@ -365,8 +348,6 @@ class Contribution:
 
     parameters: tuple[Parameter, ...] = ()
     request_body: RequestBody | None = None
-    security: tuple[SecurityRequirement, ...] = ()
-    security_schemes: typing.Mapping[str, SecurityScheme] = dataclasses.field(default_factory=dict)
 
 
 class SchemaContext(typing.Protocol):
