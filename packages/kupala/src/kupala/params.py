@@ -214,12 +214,30 @@ class QueryParam(KeyedBinding):
         connection = await ctx.resolve(HTTPConnection)
         return connection.query_params
 
-    def to_openapi(self, param_info: ParamInfo) -> openapi.Contribution:
+    def to_openapi(self, param_info: ParamInfo, context: openapi.SchemaContext) -> openapi.Contribution:
+        name = self.name or param_info.name
+        if context.is_model(param_info.type):
+            properties, required = context.properties_of(param_info.type)
+            if param_info.optional:
+                required = frozenset()
+            return openapi.Contribution(
+                parameters=tuple(
+                    openapi.Parameter(
+                        name=field,
+                        in_=openapi.ParameterLocation.QUERY,
+                        required=field in required,
+                        schema=schema,
+                    )
+                    for field, schema in properties.items()
+                )
+            )
         return openapi.Contribution(
             parameters=(
                 openapi.Parameter(
-                    name=param_info.name,
+                    name=name,
                     in_=openapi.ParameterLocation.QUERY,
+                    required=not param_info.optional,
+                    schema=context.schema_for(param_info.type),
                 ),
             ),
         )
@@ -235,6 +253,24 @@ class FormParam(KeyedBinding):
         request = await ctx.resolve(Request)
         # a form holds spooled upload files, so its lifetime has to end with the invocation
         return typing.cast(FormData, await enter_dependency(ctx, request.form()))
+
+    def to_openapi(self, param_info: ParamInfo, context: openapi.SchemaContext) -> openapi.Contribution:
+        name = self.name or param_info.name
+        if context.is_model(param_info.type):
+            schema = context.schema_for(param_info.type)
+        else:
+            field = context.schema_for(param_info.type)
+            schema = {
+                "type": "object",
+                "properties": {name: field},
+                "required": [name] if not param_info.optional else [],
+            }
+        return openapi.Contribution(
+            request_body=openapi.RequestBody(
+                content={"application/x-www-form-urlencoded": openapi.MediaType(schema=schema)},
+                required=not param_info.optional,
+            )
+        )
 
 
 class JSONBody(RequestBinding):
@@ -258,6 +294,14 @@ class JSONBody(RequestBinding):
             f"Body is annotated {inspection.type_name(param.type)}, which no model binder claims. "
             f"A request body is a document, so annotate it with a model and read single values "
             f"from the query string, the path, a header, or a cookie."
+        )
+
+    def to_openapi(self, param_info: ParamInfo, context: openapi.SchemaContext) -> openapi.Contribution:
+        return openapi.Contribution(
+            request_body=openapi.RequestBody(
+                content={"application/json": openapi.MediaType(schema=context.schema_for(param_info.type))},
+                required=not param_info.optional,
+            )
         )
 
 

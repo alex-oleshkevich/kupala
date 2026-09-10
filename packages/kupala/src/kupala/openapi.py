@@ -47,6 +47,7 @@ __all__ = [
     "Response",
     "Responses",
     "Schema",
+    "SchemaContext",
     "SecurityRequirement",
     "SecurityScheme",
     "SecuritySchemeType",
@@ -366,6 +367,14 @@ class Contribution:
     request_body: RequestBody | None = None
     security: tuple[SecurityRequirement, ...] = ()
     security_schemes: typing.Mapping[str, SecurityScheme] = dataclasses.field(default_factory=dict)
+
+
+class SchemaContext(typing.Protocol):
+    """How a binding turns a Python type into JSON Schema while the document is being built."""
+
+    def is_model(self, type_: typing.Any) -> bool: ...
+    def schema_for(self, type_: typing.Any) -> Schema: ...
+    def properties_of(self, type_: typing.Any) -> tuple[typing.Mapping[str, Schema], frozenset[str]]: ...
 
 
 # the operation slots a path item has, which is also what `with_operation` accepts

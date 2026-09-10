@@ -1,5 +1,6 @@
 import typing
 
+import pydantic
 import pytest
 from starlette.convertors import Convertor
 from starlette.types import Receive, Scope, Send
@@ -9,9 +10,11 @@ from kupala.api.generator import (
     DuplicateOperationError,
     build_document,
     convertor_schema,
+    default_schema_namer,
     documented_methods,
     path_parameters,
 )
+from kupala.params import Body, Form, Query, QueryParam
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import RouteDefinition, Routes
@@ -259,3 +262,162 @@ class TestBuildDocument:
         assert item.get is not None
         assert item.delete is not None
         assert typing.cast(openapi.Parameter, (item.get.parameters or ())[0]).name == "id"
+
+
+class Filters(pydantic.BaseModel):
+    page: int = 1
+    tags: list[str] = []
+
+
+class User(pydantic.BaseModel):
+    name: str
+
+
+class TestContributions:
+    def test_a_query_parameter_is_taken_from_the_signature(self) -> None:
+        async def search(request: Request, q: Query[str]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/search")(search)
+        described = (build_document(routes, DOCUMENT).paths or {})["/search"].get
+        assert described is not None
+        parameter = typing.cast(openapi.Parameter, (described.parameters or ())[0])
+        assert (parameter.name, parameter.in_, parameter.required, parameter.schema) == (
+            "q",
+            openapi.ParameterLocation.QUERY,
+            True,
+            {"type": "string"},
+        )
+
+    def test_an_optional_query_parameter_is_not_required(self) -> None:
+        async def search(request: Request, q: Query[str] = "") -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/search")(search)
+        described = (build_document(routes, DOCUMENT).paths or {})["/search"].get
+        assert described is not None
+        parameter = typing.cast(openapi.Parameter, (described.parameters or ())[0])
+        assert parameter.required is False
+
+    def test_a_query_parameter_may_rename_the_key(self) -> None:
+        async def search(request: Request, source: typing.Annotated[str, QueryParam("utm-source")]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/search")(search)
+        described = (build_document(routes, DOCUMENT).paths or {})["/search"].get
+        assert described is not None
+        parameter = typing.cast(openapi.Parameter, (described.parameters or ())[0])
+        assert parameter.name == "utm-source"
+
+    def test_a_query_model_explodes_into_parameters(self) -> None:
+        async def search(request: Request, filters: Query[Filters]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/search")(search)
+        described = (build_document(routes, DOCUMENT).paths or {})["/search"].get
+        assert described is not None
+        names = [typing.cast(openapi.Parameter, parameter).name for parameter in described.parameters or ()]
+        assert names == ["page", "tags"]
+
+    def test_a_json_body_is_a_request_body(self) -> None:
+        async def create(request: Request, user: Body[User]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.post("/users")(create)
+        document = build_document(routes, DOCUMENT)
+        described = (document.paths or {})["/users"].post
+        assert described is not None
+        body = described.request_body
+        assert isinstance(body, openapi.RequestBody)
+        assert "$ref" in (body.content["application/json"].schema or {})
+        assert document.components is not None
+        assert "User" in (document.components.schemas or {})
+
+    def test_a_form_model_is_a_request_body(self) -> None:
+        async def submit(request: Request, filters: Form[Filters]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.post("/search")(submit)
+        described = (build_document(routes, DOCUMENT).paths or {})["/search"].post
+        assert described is not None
+        body = described.request_body
+        assert isinstance(body, openapi.RequestBody)
+        assert "application/x-www-form-urlencoded" in body.content
+
+    def test_the_same_model_on_two_routes_is_one_component(self) -> None:
+        async def create(request: Request, user: Body[User]) -> Response:
+            return Response()  # pragma: no cover
+
+        async def replace(request: Request, user: Body[User]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.post("/users")(create)
+        routes.put("/users")(replace)
+        schemas = (build_document(routes, DOCUMENT).components or openapi.Components()).schemas or {}
+        assert list(schemas) == ["User"]
+
+    def test_two_models_with_the_same_name_are_qualified(self) -> None:
+        class Admin:
+            class User(pydantic.BaseModel):
+                name: str
+
+        async def create(request: Request, user: Body[Admin.User]) -> Response:
+            return Response()  # pragma: no cover
+
+        async def other(request: Request, user: Body[User]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.post("/local")(create)
+        routes.post("/shared")(other)
+        schemas = (build_document(routes, DOCUMENT).components or openapi.Components()).schemas or {}
+        assert set(schemas) == {"User", "test_generator.User"}
+
+    def test_body_and_form_on_one_endpoint_are_refused(self) -> None:
+        async def mixed(request: Request, user: Body[User], filters: Form[Filters]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.post("/mixed")(mixed)
+        with pytest.raises(DuplicateOperationError, match="two request bodies"):
+            build_document(routes, DOCUMENT)
+
+    def test_a_custom_namer_names_the_component(self) -> None:
+        async def create(request: Request, user: Body[User]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.post("/users")(create)
+        schemas = (
+            build_document(routes, DOCUMENT, namer=lambda type_, taken: f"X{type_.__name__}").components
+            or openapi.Components()
+        ).schemas or {}
+        assert list(schemas) == ["XUser"]
+
+    def test_a_namer_that_repeats_a_name_is_refused(self) -> None:
+        async def create(request: Request, user: Body[User]) -> Response:
+            return Response()  # pragma: no cover
+
+        async def submit(request: Request, filters: Body[Filters]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.post("/users")(create)
+        routes.post("/filters")(submit)
+        with pytest.raises(ValueError, match="already used"):
+            build_document(routes, DOCUMENT, namer=lambda type_, taken: "Same")
+
+
+class TestDefaultSchemaNamer:
+    def test_prefers_the_class_name(self) -> None:
+        assert default_schema_namer(User, set()) == "User"
+
+    def test_qualifies_when_the_short_name_is_taken(self) -> None:
+        assert default_schema_namer(User, {"User"}) == "test_generator.User"

@@ -6,8 +6,9 @@ import json
 import secrets
 import typing
 
-from kupala.api.generator import SchemaCreator
+from kupala.api.generator import SchemaCreator, SchemaNamer, default_schema_namer
 from kupala.api.security import SecurityScheme
+from kupala.binders import DEFAULT_MODEL_BINDERS, ModelBinder
 from kupala.extensions import AppBuilder
 from kupala.middleware import Middleware
 from kupala.openapi import Info, OpenAPI, to_dict
@@ -59,10 +60,12 @@ class APIExtension:
         tags: typing.Sequence[str] = (),
         security: typing.Sequence[SecurityScheme[typing.Any]] = (),
         middleware: typing.Sequence[Middleware] = (),
+        schema_namer: SchemaNamer = default_schema_namer,
     ) -> None:
         self.docs = docs or DocsOptions()
         self.openapi = openapi or OpenAPI(info=DEFAULT_INFO)
         self.security = security
+        self.schema_namer = schema_namer
         self.routes = Routes(
             prefix=prefix,
             namespace=namespace,
@@ -74,6 +77,7 @@ class APIExtension:
         self.spec_route_name = join_namespace(namespace, SPEC_ROUTE_NAME)
         self._document: OpenAPI | None = None
         self._serialized: bytes | None = None
+        self._binders: tuple[ModelBinder, ...] | None = None
 
         ui_paths = (self.docs.swagger_path, self.docs.redoc_path, self.docs.scalar_path)
         if self.docs.openapi_path is None and any(path is not None for path in ui_paths):
@@ -102,6 +106,7 @@ class APIExtension:
         than in the first answer the documentation gives.
         """
 
+        self._binders = tuple(app.model_binders)
         self.serialize()
         yield None
 
@@ -109,8 +114,8 @@ class APIExtension:
         """Describe the registered routes, generating the document once."""
 
         if self._document is None:
-            creator = SchemaCreator()
-            self._document = creator.create(self.routes, self.openapi)
+            binders = self._binders if self._binders is not None else DEFAULT_MODEL_BINDERS
+            self._document = SchemaCreator(binders, namer=self.schema_namer).create(self.routes, self.openapi)
         return self._document
 
     def serialize(self) -> bytes:

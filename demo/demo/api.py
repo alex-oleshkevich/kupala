@@ -1,10 +1,12 @@
 """A documented API served beside the HTML views, with all three viewers turned on."""
 
+from pydantic import BaseModel
+
 from demo.dependencies import ProductCatalog
 from kupala.api.extension import APIExtension, DocsOptions
 from kupala.errors import NotFoundError
 from kupala.openapi import Info, OpenAPI
-from kupala.params import Query
+from kupala.params import Body, Form, Query
 from kupala.requests import Request
 from kupala.responses import Response, response
 from kupala.routing import Routes
@@ -47,10 +49,30 @@ async def delete_product(request: Request, catalog: ProductCatalog) -> Response:
 
 
 @routes.get("/products/search")
-async def search_product(request: Request, q: Query[str]) -> Response:
+async def search_product(request: Request, q: Query[str] | None = None) -> Response:
     """Search a product.
 
     Find a good product."""
+    return response(request).empty()
+
+
+class CreateProductInput(BaseModel):
+    name: str
+    sku: str
+
+
+@routes.post("/products", name="products.create", summary="Create a product")
+async def create_product(request: Request, body: Body[CreateProductInput]) -> Response:
+    return response(request).empty()
+
+
+class UpdateProductInput(BaseModel):
+    name: str
+    sku: str
+
+
+@routes.put("/products", name="products.update", summary="Update a product")
+async def update_product(request: Request, kek: Form[str], body: Form[CreateProductInput]) -> Response:
     return response(request).empty()
 
 

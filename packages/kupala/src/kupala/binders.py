@@ -2,7 +2,7 @@ import collections.abc
 import types
 import typing
 
-from kupala import inspection
+from kupala import inspection, openapi
 from kupala.errors import ValidationError
 
 # a string is itself a Sequence, and treating one as multi-valued would explode it into characters
@@ -31,7 +31,7 @@ class ModelBinder(typing.Protocol):
         """
         ...
 
-    def schema(self, type_: typing.Any) -> typing.Mapping[str, typing.Any]:
+    def schema(self, type_: typing.Any) -> openapi.Schema:
         """JSON Schema for `type_`, as the library emits it, including any nested `$defs`."""
         ...
 
@@ -94,8 +94,8 @@ class PydanticBinder:
 
         return build
 
-    def schema(self, type_: typing.Any) -> typing.Mapping[str, typing.Any]:
-        schema: typing.Mapping[str, typing.Any] = type_.model_json_schema()
+    def schema(self, type_: typing.Any) -> openapi.Schema:
+        schema: openapi.Schema = type_.model_json_schema()
         return schema
 
 
@@ -129,7 +129,7 @@ class MsgspecBinder:
 
         return build
 
-    def schema(self, type_: typing.Any) -> typing.Mapping[str, typing.Any]:
+    def schema(self, type_: typing.Any) -> openapi.Schema:
         import msgspec
 
         return msgspec.json.schema(type_)
