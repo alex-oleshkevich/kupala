@@ -124,30 +124,13 @@ Files `tests`. Test file names must mirror `kupala/` file structure. For example
 - `uv build --all-packages --no-sources`
 - `git diff --check`
 
-<!-- gortex:communities:start -->
-## Community Skills
+<!-- CODEGRAPH_START -->
+## CodeGraph
 
-| Area | Description | Explore |
-|------|-------------|---------|
-| 2 Dirs Routes | 106 symbols | `analyze(operation:"communities", id:"community-80")` |
-| Tests 2 Dirs Kupala Responses Response | 95 symbols | `analyze(operation:"communities", id:"community-71")` |
-| 1 Dirs Apply Cookies | 76 symbols | `analyze(operation:"communities", id:"community-8")` |
-| Tests 3 Dirs | 69 symbols | `analyze(operation:"communities", id:"community-9")` |
-| 2 Dirs Jinjatemplates | 53 symbols | `analyze(operation:"communities", id:"community-81")` |
-| 2 Dirs Kupala Responses Serversentevent | 40 symbols | `analyze(operation:"communities", id:"community-72")` |
-| 1 Dirs Visit | 38 symbols | `analyze(operation:"communities", id:"community-10")` |
-| 2 Dirs Init External Call Dep Kupala Dependencies | 32 symbols | `analyze(operation:"communities", id:"community-56")` |
-| 1 Dirs Safe Back Url | 29 symbols | `analyze(operation:"communities", id:"community-6")` |
-| Kupala 1 Dirs Basehttperror | 28 symbols | `analyze(operation:"communities", id:"community-64")` |
-| 2 Dirs Test Sends Keepalives On A Fixe | 27 symbols | `analyze(operation:"communities", id:"community-73")` |
-| Tests Test Client | 21 symbols | `analyze(operation:"communities", id:"community-76")` |
-| Kupala 1 Dirs Host | 15 symbols | `analyze(operation:"communities", id:"community-77")` |
-| Kupala 1 Dirs Chain Middleware | 14 symbols | `analyze(operation:"communities", id:"community-51")` |
-| Kupala Invoke | 12 symbols | `analyze(operation:"communities", id:"community-11")` |
-| 2 Dirs Kupala Dependencies Inspect Cal | 12 symbols | `analyze(operation:"communities", id:"community-57")` |
-| Tests 2 Dirs Kupala Responses Response | 12 symbols | `analyze(operation:"communities", id:"community-4")` |
-| Kupala 1 Dirs Scope | 12 symbols | `analyze(operation:"communities", id:"community-82")` |
-| 2 Dirs Init Templates | 10 symbols | `analyze(operation:"communities", id:"community-12")` |
-| 1 Dirs Invoke Endpoint | 9 symbols | `analyze(operation:"communities", id:"community-52")` |
+In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
 
-<!-- gortex:communities:end -->
+- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops grep can't follow. Name a file or symbol in the query to read its current line-numbered source. If it's listed but deferred, load it by name via tool search.
+- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
+
+If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+<!-- CODEGRAPH_END -->
