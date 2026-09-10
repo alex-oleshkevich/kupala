@@ -6,6 +6,7 @@ from starlette.types import Lifespan
 
 from kupala.binders import ModelBinder
 from kupala.commands import Commands
+from kupala.dependencies import Key, Resolver
 from kupala.error_handlers import ErrorHandler
 from kupala.routing import Routes
 from kupala.templates import ContextProcessor, JinjaFilters, JinjaGlobals
@@ -32,6 +33,7 @@ class AppBuilder:
     model_binders: list[ModelBinder] = dataclasses.field(default_factory=list)
     context_processors: list[ContextProcessor] = dataclasses.field(default_factory=list)
     error_handlers: dict[type[Exception], ErrorHandler] = dataclasses.field(default_factory=dict)
+    bindings: dict[Key, Resolver] = dataclasses.field(default_factory=dict)
 
 
 class Extension(typing.Protocol):

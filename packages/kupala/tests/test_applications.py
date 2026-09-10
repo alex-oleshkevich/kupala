@@ -7,7 +7,7 @@ from starlette.exceptions import HTTPException
 from starlette.testclient import TestClient
 
 from kupala.applications import Kupala
-from kupala.dependencies import INVOCATION_CONTEXT_KEY, Factory, FromState, InvocationContext, Value
+from kupala.dependencies import INVOCATION_CONTEXT_KEY, Factory, FromState, InvocationContext, Value, constant
 from kupala.middleware import CallNext, WebSocketCallNext
 from kupala.requests import Request
 from kupala.responses import Response, StreamingResponse, response
@@ -195,7 +195,7 @@ class TestOverrideDependencies:
         self, overridable_app: Kupala, overridable_client: TestClient
     ) -> None:
         # the router binds the real Request on every request, and the override still takes precedence
-        class StubRequest: ...
+        StubRequest = type("StubRequest", (), {})
 
         with overridable_app.override_dependencies({Request: Value(StubRequest())}):
             assert overridable_client.get("/who").text == "StubRequest"
@@ -480,3 +480,22 @@ class TestLifespanEntryPoint:
 
         assert context.state.catalog == "loaded"
         assert await context.resolve(Kupala) is app
+
+    async def test_keeps_application_bindings_isolated(self) -> None:
+        first = Kupala("first", routes=Routes(), bindings={str: constant("first")})
+        second = Kupala("second", routes=Routes(), bindings={str: constant("second")})
+
+        assert await first.invocation_context({}).resolve(str) == "first"
+        assert await second.invocation_context({}).resolve(str) == "second"
+
+    def test_request_binding_outranks_an_application_binding(self) -> None:
+        routes = Routes()
+
+        @routes.get("/")
+        async def index(request: Request) -> Response:
+            return Response(type(request).__name__)
+
+        app = Kupala("tests", routes=routes, bindings={Request: constant(object())})
+
+        with TestClient(app) as client:
+            assert client.get("/").text == "Request"

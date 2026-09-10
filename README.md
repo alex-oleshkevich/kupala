@@ -40,3 +40,26 @@ poetry add kupala
 ## Quick start
 
 See example application in `examples/` directory of this repository.
+
+## Application dependencies
+
+Application bindings map types to asynchronous resolvers. A resolver receives the current invocation context,
+so it can read lifespan state or resolve another dependency without constructing shared request-scoped values.
+
+```python
+from kupala import Kupala, Routes
+from kupala.dependencies import InvocationContext
+
+
+class Mailer: ...
+
+
+async def resolve_mailer(context: InvocationContext) -> object:
+    return Mailer()
+
+
+app = Kupala("example", routes=Routes(), bindings={Mailer: resolve_mailer})
+```
+
+Extensions contribute the same resolver mapping through `AppBuilder.bindings`. Use `constant(value)` when an
+already-constructed value should be returned unchanged.

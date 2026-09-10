@@ -14,6 +14,7 @@ from kupala import inspection
 from kupala.binders import ModelBinder
 
 type Key = type[typing.Any]
+type Resolver = typing.Callable[[InvocationContext], typing.Awaitable[object]]
 
 INVOCATION_CONTEXT_KEY = "kupala.invocation_context"
 
@@ -27,7 +28,7 @@ class DependencyError(Exception):
 
 
 class InvalidDependencyError(DependencyError):
-    """A callable cannot be injected at all. Raised while compiling the call plan."""
+    """A dependency definition cannot be injected."""
 
 
 class UnsupportedParameterError(InvalidDependencyError):
@@ -43,7 +44,7 @@ class AmbiguousBindingError(InvalidDependencyError):
 
 
 class CircularDependencyError(InvalidDependencyError):
-    """A factory depends on itself, directly or through other factories."""
+    """A dependency depends on itself, directly or through other dependencies."""
 
 
 class UnresolvedStateError(DependencyError):
@@ -74,10 +75,10 @@ class UnresolvedDependencyError(DependencyError):
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class InjectionScope:
-    bindings: dict[Key, object]
+    bindings: dict[Key, Resolver]
 
-    def bind(self, type_: Key, value: object) -> None:
-        self.bindings[type_] = value
+    def bind(self, type_: Key, resolver: Resolver) -> None:
+        self.bindings[type_] = resolver
 
 
 @dataclasses.dataclass(slots=True)
@@ -85,12 +86,13 @@ class InvocationContext:
     scope: InjectionScope
     state: State = dataclasses.field(default_factory=State)
     cache: dict[Binding, object] = dataclasses.field(default_factory=dict)
+    resolving: list[Key] = dataclasses.field(default_factory=list)
     # replacements keyed by the annotation as written, checked before any binding runs
     overrides: typing.Mapping[typing.Any, Binding] = dataclasses.field(default_factory=dict)
     # only set while the context is entered, so a dependency that needs cleanup can tell
     exit_stack: contextlib.AsyncExitStack | None = None
 
-    def child(self, bindings: typing.Mapping[Key, object]) -> typing.Self:
+    def child(self, bindings: typing.Mapping[Key, Resolver]) -> typing.Self:
         """Resolve `bindings` ahead of this context's own, sharing everything else with it.
 
         Only the injection scope is new. The cache, the state, the overrides and the exit stack stay
@@ -104,11 +106,24 @@ class InvocationContext:
         )
 
     async def resolve[T](self, type_: type[T], default: object = MISSING) -> T:
-        value = self.scope.bindings.get(type_, default)
-        if value is MISSING:
-            raise UnresolvedDependencyError(type_)
+        try:
+            resolver = self.scope.bindings[type_]
+        except KeyError:
+            if default is MISSING:
+                raise UnresolvedDependencyError(type_) from None
+            return typing.cast(T, default)
 
-        return typing.cast(T, value)
+        if type_ in self.resolving:
+            start = self.resolving.index(type_)
+            cycle = (*self.resolving[start:], type_)
+            path = " -> ".join(inspection.type_name(key) for key in cycle)
+            raise CircularDependencyError(f"Circular dependency detected: {path}.")
+
+        self.resolving.append(type_)
+        try:
+            return typing.cast(T, await resolver(self))
+        finally:
+            self.resolving.pop()
 
     async def __aenter__(self) -> typing.Self:
         self.exit_stack = contextlib.AsyncExitStack()
@@ -131,7 +146,13 @@ class InvocationContext:
             logger.exception("Failed to release a dependency.")
 
 
-type Resolver = typing.Callable[[InvocationContext], typing.Awaitable[object]]
+def constant[T](value: T) -> Resolver:
+    """Build a resolver that returns one already-constructed value."""
+
+    async def resolve(_context: InvocationContext) -> object:
+        return value
+
+    return resolve
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -170,10 +191,7 @@ class Value:
     value: typing.Any
 
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
-        async def resolve(ctx: InvocationContext) -> object:
-            return self.value
-
-        return resolve
+        return constant(self.value)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

@@ -11,7 +11,7 @@ import pytest
 from kupala import cli
 from kupala import commands as commands_module
 from kupala.applications import Kupala
-from kupala.dependencies import FromState, Value
+from kupala.dependencies import FromState, Value, constant
 from kupala.routing import Routes
 
 type Currency = typing.Annotated[str, Value("EUR")]
@@ -479,6 +479,26 @@ class TestCommands:
 
 
 class TestCommandInvocation:
+    def test_reads_an_application_binding(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        installed(monkeypatch)
+        commands = commands_module.Commands()
+
+        @commands.command("greet")
+        def greet(greeting: str) -> None:
+            click.echo(greeting)
+
+        app = Kupala(
+            __name__,
+            routes=Routes(),
+            commands=commands,
+            bindings={str: constant("hello")},
+        )
+
+        assert app.cli(["greet"]) == 0
+        assert capsys.readouterr().out == "hello\n"
+
     def test_fills_click_parameters_and_dependencies_together(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:

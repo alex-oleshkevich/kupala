@@ -14,7 +14,15 @@ from starlette.types import Lifespan, Receive, Scope, Send
 
 from kupala.binders import DEFAULT_MODEL_BINDERS, ModelBinder
 from kupala.commands import Commands
-from kupala.dependencies import INVOCATION_CONTEXT_KEY, Binding, InjectionScope, InvocationContext
+from kupala.dependencies import (
+    INVOCATION_CONTEXT_KEY,
+    Binding,
+    InjectionScope,
+    InvocationContext,
+    Key,
+    Resolver,
+    constant,
+)
 from kupala.error_handlers import (
     ErrorHandler,
     http_error_handler,
@@ -43,6 +51,7 @@ class Kupala:
         lifespans: typing.Sequence[Lifespan[Kupala]] = (),
         error_handlers: typing.Mapping[type[Exception], ErrorHandler] | None = None,
         model_binders: typing.Sequence[ModelBinder] = DEFAULT_MODEL_BINDERS,
+        bindings: typing.Mapping[Key, Resolver] | None = None,
         extensions: typing.Sequence[Extension] = (),
         templates: Templates | None = None,
     ) -> None:
@@ -57,9 +66,12 @@ class Kupala:
         self.lifespans = list(lifespans)
         self.templates = templates or Templates(auto_reload=debug)
 
-        builder = AppBuilder()
+        application_bindings = {**(bindings or {}), Kupala: constant(self)}
+        builder = AppBuilder(bindings=dict(application_bindings))
         for extension in extensions:
             extension.install(builder)
+
+        self.bindings = {**builder.bindings, **application_bindings}
 
         self.routes.include(builder.routes)
         self.commands.extend(builder.commands.compile())
@@ -140,7 +152,7 @@ class Kupala:
             self._overrides = previous
 
     def injection_scope(self) -> InjectionScope:
-        return InjectionScope(bindings={Kupala: self})
+        return InjectionScope(bindings=self.bindings.copy())
 
     def invocation_context(self, state: dict[str, typing.Any]) -> InvocationContext:
         """Build the context one invocation resolves its dependencies from, over the given state."""
@@ -161,7 +173,7 @@ class Kupala:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         context = self.invocation_context(scope.setdefault("state", {}))
         if scope["type"] in ("http", "websocket"):
-            context.scope.bind(HTTPConnection, HTTPConnection(scope, receive))
+            context.scope.bind(HTTPConnection, constant(HTTPConnection(scope, receive)))
 
         scope["app"] = self
         scope[INVOCATION_CONTEXT_KEY] = context

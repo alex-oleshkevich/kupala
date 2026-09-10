@@ -8,6 +8,7 @@ from starlette.testclient import TestClient
 from kupala.applications import Kupala
 from kupala.binders import ModelBinder
 from kupala.commands import Commands
+from kupala.dependencies import InvocationContext, constant
 from kupala.error_handlers import server_error_handler
 from kupala.extensions import AppBuilder, Extension
 from kupala.requests import Request
@@ -34,6 +35,7 @@ class TestAppBuilder:
         assert builder.model_binders == []
         assert builder.context_processors == []
         assert builder.error_handlers == {}
+        assert builder.bindings == {}
 
     def test_two_extensions_accumulate(self) -> None:
         first_binder = typing.cast(ModelBinder, object())
@@ -58,6 +60,39 @@ class TestAppBuilder:
 
 
 class TestInstallsExtensions:
+    def test_contributes_a_dependency_resolver(self) -> None:
+        calls: list[InvocationContext] = []
+
+        async def resolve_greeting(context: InvocationContext) -> object:
+            calls.append(context)
+            return "extension"
+
+        routes = Routes()
+
+        @routes.get("/")
+        async def view(greeting: str) -> Response:
+            return Response(greeting)
+
+        class Ext:
+            def install(self, builder: AppBuilder) -> None:
+                builder.bindings[str] = resolve_greeting
+
+        app = Kupala("tests", routes=routes, extensions=[Ext()])
+
+        assert calls == []
+        with TestClient(app) as client:
+            assert client.get("/").text == "extension"
+        assert len(calls) == 1
+
+    async def test_application_binding_overrides_an_extension(self) -> None:
+        class Ext:
+            def install(self, builder: AppBuilder) -> None:
+                builder.bindings[str] = constant("extension")
+
+        app = Kupala("tests", routes=Routes(), bindings={str: constant("application")}, extensions=[Ext()])
+
+        assert await app.invocation_context({}).resolve(str) == "application"
+
     def test_contributes_routes(self) -> None:
         class Ext:
             def install(self, builder: AppBuilder) -> None:

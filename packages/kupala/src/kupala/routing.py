@@ -19,6 +19,7 @@ from kupala.dependencies import (
     InvocationContext,
     UnsupportedParameterError,
     compile_call_plan,
+    constant,
     inspect_callable,
     invoke,
     resolve_arguments,
@@ -598,7 +599,7 @@ def bind_middleware(
         # middleware above may have passed a different one down - while the cache and the exit
         # stack stay the invocation's own, and one session serves the whole chain
         root: InvocationContext = request.scope[INVOCATION_CONTEXT_KEY]
-        arguments = await resolve_arguments(plan, root.child({Request: request}))
+        arguments = await resolve_arguments(plan, root.child({Request: constant(request)}))
         return await middleware(request, call_next, **arguments)
 
     return wrapped
@@ -630,7 +631,7 @@ def bind_websocket_middleware(
 
     async def wrapped(ws: WebSocket) -> None:
         root: InvocationContext = ws.scope[INVOCATION_CONTEXT_KEY]
-        arguments = await resolve_arguments(plan, root.child({WebSocket: ws}))
+        arguments = await resolve_arguments(plan, root.child({WebSocket: constant(ws)}))
         await middleware(ws, call_next, **arguments)
 
     return wrapped
@@ -642,7 +643,7 @@ def bind_http_dependencies(fn: AnyEndpoint, binders: tuple[ModelBinder, ...]) ->
     async def wrapped(request: Request) -> Response:
         # the request a middleware passed down, not the one the route was matched with
         root: InvocationContext = request.scope[INVOCATION_CONTEXT_KEY]
-        return await invoke(plan, root.child({Request: request}))
+        return await invoke(plan, root.child({Request: constant(request)}))
 
     return wrapped
 
@@ -652,6 +653,6 @@ def bind_websocket_dependencies(fn: WebSocketEndpoint, binders: tuple[ModelBinde
 
     async def wrapped(ws: WebSocket) -> None:
         root: InvocationContext = ws.scope[INVOCATION_CONTEXT_KEY]
-        await invoke(plan, root.child({WebSocket: ws}))
+        await invoke(plan, root.child({WebSocket: constant(ws)}))
 
     return wrapped

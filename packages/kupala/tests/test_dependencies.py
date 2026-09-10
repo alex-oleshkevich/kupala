@@ -27,6 +27,7 @@ from kupala.dependencies import (
     UnsupportedParameterError,
     Value,
     compile_call_plan,
+    constant,
     find_binding,
     inspect_callable,
     invoke,
@@ -238,16 +239,17 @@ class TestInspectCallable:
 
 
 class TestInjectionScope:
-    def test_binds_value_by_type(self) -> None:
+    def test_binds_resolver_by_type(self) -> None:
         scope = InjectionScope(bindings={})
-        scope.bind(str, "demovalue")
+        resolver = constant("demovalue")
+        scope.bind(str, resolver)
 
-        assert scope.bindings == {str: "demovalue"}
+        assert scope.bindings == {str: resolver}
 
 
 class TestInvocationContext:
     async def test_resolves_bound_type(self) -> None:
-        context = InvocationContext(scope=InjectionScope(bindings={str: "demovalue"}))
+        context = InvocationContext(scope=InjectionScope(bindings={str: constant("demovalue")}))
 
         assert await context.resolve(str) == "demovalue"
 
@@ -257,7 +259,7 @@ class TestInvocationContext:
         assert await context.resolve(str, "fallback") == "fallback"
 
     async def test_prefers_binding_over_default(self) -> None:
-        context = InvocationContext(scope=InjectionScope(bindings={str: "demovalue"}))
+        context = InvocationContext(scope=InjectionScope(bindings={str: constant("demovalue")}))
 
         assert await context.resolve(str, "fallback") == "demovalue"
 
@@ -416,7 +418,7 @@ class TestInvoke:
         async def fn(user: Injected[str]) -> str:
             return f"hello {user}"
 
-        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+        context = InvocationContext(scope=InjectionScope(bindings={str: constant("alex")}))
 
         assert await invoke(compile_call_plan(fn), context) == "hello alex"
 
@@ -424,7 +426,7 @@ class TestInvoke:
         def fn(user: Injected[str]) -> str:
             return f"hello {user}"
 
-        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+        context = InvocationContext(scope=InjectionScope(bindings={str: constant("alex")}))
 
         assert await invoke(compile_call_plan(fn), context) == "hello alex"
 
@@ -485,7 +487,7 @@ class TestPositionalOnlyParameters:
         async def fn(user: Injected[str], /) -> str:
             return f"hello {user}"
 
-        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+        context = InvocationContext(scope=InjectionScope(bindings={str: constant("alex")}))
 
         assert await invoke(compile_call_plan(fn), context) == "hello alex"
 
@@ -493,7 +495,7 @@ class TestPositionalOnlyParameters:
         def fn(user: Injected[str], /) -> str:
             return f"hello {user}"
 
-        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+        context = InvocationContext(scope=InjectionScope(bindings={str: constant("alex")}))
 
         assert await invoke(compile_call_plan(fn), context) == "hello alex"
 
@@ -509,7 +511,14 @@ class TestPositionalOnlyParameters:
             return f"{first} {second} {third!r} {fourth}"
 
         context = InvocationContext(
-            scope=InjectionScope(bindings={str: "a", int: 2, bytes: b"c", float: 0.5}),
+            scope=InjectionScope(
+                bindings={
+                    str: constant("a"),
+                    int: constant(2),
+                    bytes: constant(b"c"),
+                    float: constant(0.5),
+                }
+            ),
         )
 
         assert await invoke(compile_call_plan(fn), context) == "a 2 b'c' 0.5"
@@ -539,7 +548,7 @@ class TestPositionalOnlyParameters:
         def fn(value: typing.Annotated[str, Factory(make)]) -> str:
             return value
 
-        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+        context = InvocationContext(scope=InjectionScope(bindings={str: constant("alex")}))
 
         async with context:
             assert await invoke(compile_call_plan(fn), context) == "session for alex"
@@ -551,7 +560,7 @@ class TestPositionalOnlyParameters:
         def fn(value: typing.Annotated[str, Factory(make)]) -> str:
             return value
 
-        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+        context = InvocationContext(scope=InjectionScope(bindings={str: constant("alex")}))
 
         async with context:
             assert await invoke(compile_call_plan(fn), context) == "session for alex"
@@ -713,7 +722,7 @@ class TestResolveArguments:
         def fn(user: Injected[str], greeting: typing.Annotated[str, Value("hello")]) -> str:
             return f"{greeting} {user}"  # pragma: no cover
 
-        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+        context = InvocationContext(scope=InjectionScope(bindings={str: constant("alex")}))
 
         assert await resolve_arguments(compile_call_plan(fn), context) == {"user": "alex", "greeting": "hello"}
 
@@ -1029,7 +1038,7 @@ class TestFactory:
         def fn(value: typing.Annotated[str, Factory(make)]) -> str:
             return value
 
-        context = InvocationContext(scope=InjectionScope(bindings={str: "alex"}))
+        context = InvocationContext(scope=InjectionScope(bindings={str: constant("alex")}))
 
         async with context:
             assert await invoke(compile_call_plan(fn), context) == "hello alex"
@@ -1141,6 +1150,22 @@ class TestFactory:
 
 
 class TestCircularDependency:
+    async def test_rejects_a_cycle_between_registered_resolvers(self) -> None:
+        async def resolve_text(context: InvocationContext) -> object:
+            return await context.resolve(bytes)
+
+        async def resolve_bytes(context: InvocationContext) -> object:
+            return await context.resolve(str)
+
+        context = InvocationContext(
+            scope=InjectionScope(bindings={str: resolve_text, bytes: resolve_bytes}),
+        )
+
+        with pytest.raises(CircularDependencyError, match="str -> bytes -> str"):
+            await context.resolve(str)
+
+        assert context.resolving == []
+
     def test_rejects_a_factory_that_depends_on_itself(self) -> None:
         def make(inner: typing.Annotated[str, Factory(make)]) -> str:
             return inner  # pragma: no cover
@@ -1283,12 +1308,12 @@ class TestFromState:
         assert await invoke(compile_call_plan(fn), context) == "SESSION"
 
     async def test_the_selector_receives_the_context(self) -> None:
-        def fn(bound: typing.Annotated[str, FromState(lambda ctx, state: ctx.scope.bindings[str])]) -> str:
+        def fn(bound: typing.Annotated[InvocationContext, FromState(lambda ctx, state: ctx)]) -> InvocationContext:
             return bound
 
-        context = InvocationContext(scope=InjectionScope(bindings={str: "from-scope"}), state=State({}))
+        context = InvocationContext(scope=InjectionScope(bindings={}), state=State({}))
 
-        assert await invoke(compile_call_plan(fn), context) == "from-scope"
+        assert await invoke(compile_call_plan(fn), context) is context
 
     async def test_reports_what_the_state_does_not_have(self) -> None:
         def fn(db: typing.Annotated[str, FromState(lambda ctx, state: state.db)]) -> str:
