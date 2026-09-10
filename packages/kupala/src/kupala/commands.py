@@ -53,6 +53,12 @@ class CommandDefinition:
 class Commands:
     """A declarative registry of commands, mirroring how `Routes` collects endpoints."""
 
+    option = staticmethod(click.option)
+    argument = staticmethod(click.argument)
+    group = staticmethod(click.group)
+    confirmation_option = staticmethod(click.confirmation_option)
+    password_option = staticmethod(click.password_option)
+
     def __init__(self) -> None:
         self.definitions: list[CommandDefinition] = []
 

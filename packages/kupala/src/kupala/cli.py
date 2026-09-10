@@ -101,10 +101,10 @@ def resolve_application(app: Kupala | None = None) -> Kupala | None:
 type Plugin = typing.Callable[[click.Group], None]
 
 
-def load_plugins(cli: click.Group) -> None:
+def load_plugins(cli: click.Group, group: str = PLUGIN_GROUP) -> None:
     """Let installed packages register their commands on the command line."""
 
-    for entry_point in importlib.metadata.entry_points(group=PLUGIN_GROUP):
+    for entry_point in importlib.metadata.entry_points(group=group):
         try:
             plugin = entry_point.load()
         except Exception as exc:  # noqa: BLE001 - a third-party module may raise anything on import
@@ -148,7 +148,7 @@ def build_cli(app: Kupala | None) -> click.Group:
         # `current_application` is the other half of this contract, and a test pins the two together
         ctx.obj = CliContext(app=app)
 
-    load_plugins(cli)
+    load_plugins(cli, PLUGIN_GROUP)
     if app is not None:
         # registered last so an application's own command wins a name a plugin already took
         for command in app.commands:

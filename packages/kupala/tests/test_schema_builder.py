@@ -1,3 +1,6 @@
+import collections.abc
+import enum
+import types
 import typing
 
 import pydantic
@@ -7,17 +10,23 @@ from starlette.types import Receive, Scope, Send
 
 from kupala.params import Body, Form, Query, QueryParam
 from kupala.requests import Request
-from kupala.responses import Response
+from kupala.responses import JSONResponse, Response
 from kupala.routing import RouteDefinition, Routes
 from kupala.schema import openapi
 from kupala.schema.builder import (
     DuplicateOperationError,
+    OpenAPIBuilder,
+    UnsupportedSchemaError,
+    _rewrite_refs,
+    _split_library_schema,
     build_document,
     convertor_schema,
     default_schema_namer,
     documented_methods,
+    merge_responses,
     path_parameters,
 )
+from kupala.schema.responses import parse_response
 from kupala.websockets import WebSocket
 
 DOCUMENT = openapi.OpenAPI(info=openapi.Info(title="Test", version="1"))
@@ -273,6 +282,10 @@ class User(pydantic.BaseModel):
     name: str
 
 
+class UserHeaders(typing.TypedDict, total=False):
+    XRequestId: str
+
+
 class TestContributions:
     def test_a_query_parameter_is_taken_from_the_signature(self) -> None:
         async def search(request: Request, q: Query[str]) -> Response:
@@ -337,6 +350,127 @@ class TestContributions:
         assert "$ref" in (body.content["application/json"].schema or {})
         assert document.components is not None
         assert "User" in (document.components.schemas or {})
+
+    def test_a_typed_json_response_contributes_body_status_and_headers(self) -> None:
+        async def show(request: Request) -> JSONResponse[User, typing.Literal[201], UserHeaders]:
+            return JSONResponse({})  # pragma: no cover
+
+        routes = Routes()
+        routes.post("/users")(show)
+        document = build_document(routes, DOCUMENT)
+        operation = (document.paths or {})["/users"].post
+        assert operation is not None
+        response = typing.cast(openapi.Response, (operation.responses or {})["201"])
+
+        assert response.content == {"application/json": openapi.MediaType(schema={"$ref": "#/components/schemas/User"})}
+        assert response.headers == {
+            "XRequestId": openapi.Header(schema={"type": "string"}, required=False),
+        }
+
+    def test_a_typed_json_response_can_describe_a_list(self) -> None:
+        async def list_users(
+            request: Request,
+        ) -> JSONResponse[list[User], typing.Literal[200], typing.Mapping[str, str]]:
+            return JSONResponse([])  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/users")(list_users)
+        document = build_document(routes, DOCUMENT)
+        operation = (document.paths or {})["/users"].get
+        assert operation is not None
+        response = typing.cast(openapi.Response, (operation.responses or {})["200"])
+
+        assert response.content == {
+            "application/json": openapi.MediaType(
+                schema={"type": "array", "items": {"$ref": "#/components/schemas/User"}}
+            )
+        }
+
+    @pytest.mark.parametrize(
+        ("annotation", "expected"),
+        [
+            (list[User], {"type": "array", "items": {"$ref": "#/components/schemas/User"}}),
+            (typing.Sequence[User], {"type": "array", "items": {"$ref": "#/components/schemas/User"}}),
+            (typing.Iterable[User], {"type": "array", "items": {"$ref": "#/components/schemas/User"}}),
+            (collections.abc.Sequence[User], {"type": "array", "items": {"$ref": "#/components/schemas/User"}}),
+            (collections.abc.Iterable[User], {"type": "array", "items": {"$ref": "#/components/schemas/User"}}),
+            (
+                set[User],
+                {"type": "array", "items": {"$ref": "#/components/schemas/User"}, "uniqueItems": True},
+            ),
+            (
+                collections.abc.Set[User],
+                {"type": "array", "items": {"$ref": "#/components/schemas/User"}, "uniqueItems": True},
+            ),
+            (
+                frozenset[User],
+                {"type": "array", "items": {"$ref": "#/components/schemas/User"}, "uniqueItems": True},
+            ),
+            (
+                dict[str, User],
+                {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/User"}},
+            ),
+            (
+                typing.Mapping[str, User],
+                {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/User"}},
+            ),
+        ],
+    )
+    def test_schema_for_json_collections(self, annotation: typing.Any, expected: openapi.Schema) -> None:
+        assert OpenAPIBuilder().schema_for(annotation) == expected
+
+    @pytest.mark.parametrize(
+        "annotation",
+        [
+            list,
+            set,
+            typing.Sequence,
+            typing.Iterable,
+            list[typing.Any],
+            set[typing.Any],
+            frozenset[typing.Any],
+            dict[int, User],
+            tuple[User, ...],
+        ],
+    )
+    def test_schema_for_rejects_unsupported_json_collections(self, annotation: typing.Any) -> None:
+        with pytest.raises(UnsupportedSchemaError):
+            OpenAPIBuilder().schema_for(annotation)
+
+    def test_authored_response_fields_override_generated_fields(self) -> None:
+        async def show(request: Request) -> JSONResponse[User, typing.Literal[200], UserHeaders]:
+            return JSONResponse({})  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/users", responses={"200": openapi.Response(description="Users.")})(show)
+        operation = (build_document(routes, DOCUMENT).paths or {})["/users"].get
+        assert operation is not None
+        response = typing.cast(openapi.Response, (operation.responses or {})["200"])
+
+        assert response.description == "Users."
+        assert response.content == {"application/json": openapi.MediaType(schema={"$ref": "#/components/schemas/User"})}
+
+    def test_a_non_literal_response_status_is_rejected(self) -> None:
+        async def show(request: Request) -> JSONResponse[User, int, typing.Mapping[str, str]]:
+            return JSONResponse({})  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/users")(show)
+        with pytest.raises(ValueError, match="Literal"):
+            build_document(routes, DOCUMENT)
+
+    def test_a_response_annotation_is_rejected_when_it_has_too_few_types(self) -> None:
+        annotation = types.GenericAlias(JSONResponse, (User, typing.Literal[200]))
+        with pytest.raises(ValueError, match="body, status, and headers"):
+            parse_response(annotation)
+
+    def test_a_response_annotation_is_rejected_when_status_is_not_an_http_code(self) -> None:
+        annotation = JSONResponse[User, typing.Literal[99], typing.Mapping[str, str]]
+        with pytest.raises(ValueError, match="HTTP status codes"):
+            parse_response(annotation)
+
+    def test_schema_for_unwraps_annotated_models(self) -> None:
+        assert OpenAPIBuilder().schema_for(typing.Annotated[User, "metadata"]) == {"$ref": "#/components/schemas/User"}
 
     def test_a_form_model_is_a_request_body(self) -> None:
         async def submit(request: Request, filters: Form[Filters]) -> Response:
@@ -436,3 +570,87 @@ class TestDefaultSchemaNamer:
 
     def test_qualifies_when_the_short_name_is_taken(self) -> None:
         assert default_schema_namer(User, {"User"}) == "test_schema_builder.User"
+
+    def test_rejects_when_all_names_are_taken(self) -> None:
+        module_name = User.__module__
+        taken = {
+            User.__name__,
+            f"{module_name.rsplit('.', 1)[-1]}.{User.__name__}",
+            f"{module_name}.{User.__qualname__}",
+        }
+        with pytest.raises(ValueError, match="unique schema name"):
+            default_schema_namer(User, taken)
+
+
+def test_rewrites_nested_schema_references() -> None:
+    assert _rewrite_refs(
+        {"nested": [{"$ref": "#/components/schemas/Old"}]},
+        {"Old": "New"},
+    ) == {"nested": [{"$ref": "#/components/schemas/New"}]}
+    assert _rewrite_refs({"$ref": "#/components/schemas/Old"}, {"Old": "New"}) == {"$ref": "#/components/schemas/New"}
+    assert _rewrite_refs({"$ref": "#/components/schemas/Other"}, {"Old": "New"}) == {
+        "$ref": "#/components/schemas/Other"
+    }
+
+
+def test_splits_a_root_definition_from_library_schema() -> None:
+    root, definitions = _split_library_schema({"$ref": "#/$defs/User", "$defs": {"User": {"type": "object"}}})
+    assert root == {"type": "object"}
+    assert definitions == {}
+    assert _split_library_schema({"$ref": "#/$defs/User", "$defs": {"Other": {"type": "object"}}}) == (
+        {"$ref": "#/$defs/User"},
+        {"Other": {"type": "object"}},
+    )
+
+
+def test_reuses_a_registered_schema_name() -> None:
+    builder = OpenAPIBuilder()
+    assert builder.name_for(User) == "User"
+    assert builder.name_for(User) == "User"
+
+
+def test_registers_and_skips_colliding_nested_definitions() -> None:
+    class First:
+        pass
+
+    class Second:
+        pass
+
+    schema = {"type": "object", "$defs": {"Nested": {"type": "object"}}}
+    builder = OpenAPIBuilder()
+    builder.register(First, schema)
+    builder.schemas["Second.Nested"] = {"type": "string"}
+    builder.register(Second, schema)
+    assert builder.schemas["Nested"] == {"type": "object"}
+    assert builder.schemas["Second.Nested"] == {"type": "string"}
+
+
+def test_rejects_a_model_binder_for_a_non_type() -> None:
+    class Binder:
+        def supports(self, type_: typing.Any) -> bool:
+            return True
+
+        def schema(self, type_: typing.Any) -> openapi.Schema:
+            raise NotImplementedError
+
+    builder = OpenAPIBuilder((typing.cast(typing.Any, Binder()),))
+    with pytest.raises(UnsupportedSchemaError):
+        builder.schema_for(list[User])
+
+
+@pytest.mark.parametrize(
+    ("annotation", "expected"),
+    [(enum.Enum("StringEnum", {"one": "one"}), "string"), (enum.Enum("IntegerEnum", {"one": 1}), "integer")],
+)
+def test_schema_for_enums(annotation: type[enum.Enum], expected: str) -> None:
+    assert OpenAPIBuilder().schema_for(annotation) == {"type": expected, "enum": [next(iter(annotation)).value]}
+
+
+def test_properties_of_a_non_model_schema() -> None:
+    assert OpenAPIBuilder().properties_of(dict[str, int]) == ({}, frozenset())
+
+
+def test_merge_responses_keeps_non_response_authored_values() -> None:
+    reference = openapi.Reference(ref="#/components/responses/Other")
+    merged = merge_responses({"200": openapi.Response(description="Generated")}, {"200": reference})
+    assert merged == {"200": reference}

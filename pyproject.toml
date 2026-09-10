@@ -22,8 +22,8 @@ testing = [
 [tool.coverage.run]
 branch = true
 parallel = true
-source_pkgs = ["kupala"]
-source = ["packages/kupala/tests"]
+source_pkgs = ["kupala", "kupala_gen"]
+source = ["packages/kupala/tests", "packages/kupala-gen/tests"]
 omit = [".venv/*", ".git/*", "*/__main__.py"]
 
 [tool.coverage.report]
@@ -52,7 +52,7 @@ extras = ["starlette"]
 
 [tool.mypy]
 files = ["packages/", "demo/demo"]
-mypy_path = ["packages/kupala/src"]
+mypy_path = ["packages/kupala/src", "packages/kupala-gen/src"]
 python_version = "3.14"
 pretty = true
 strict = true
@@ -76,7 +76,7 @@ norecursedirs = [
   "docs",
   ".venv",
 ]
-testpaths = ["packages/kupala/tests"]
+testpaths = ["packages/kupala/tests", "packages/kupala-gen/tests"]
 anyio_mode = "auto"
 
 [tool.ruff]
@@ -91,7 +91,7 @@ fixable = ["ALL"]
 
 [tool.ruff.lint.isort]
 # workspace members live under packages/*/src, which ruff cannot infer as source roots
-known-first-party = ["kupala", "demo"]
+known-first-party = ["kupala", "demo", "kupala_gen"]
 
 [tool.uv.workspace]
 members = ["packages/*", "demo"]

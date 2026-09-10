@@ -29,7 +29,7 @@ async def list_products(
     request: Request,
     catalog: ProductCatalog,
     q: Query[str | None] = None,
-) -> JSONResponse[list[Product], typing.Literal[200], typing.Mapping[str, str]]:
+) -> JSONResponse[list[Product]]:
     """List the catalog.
 
     Pass `q` to match on either sku or name. The whole catalog comes back when it is absent.

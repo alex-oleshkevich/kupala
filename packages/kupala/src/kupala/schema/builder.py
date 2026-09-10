@@ -14,11 +14,13 @@ from kupala.binders import DEFAULT_MODEL_BINDERS, ModelBinder
 from kupala.dependencies import ParamInfo, find_binding
 from kupala.routing import RouteDefinition, Routes
 from kupala.schema import openapi
+from kupala.schema.responses import response_schemas
 
 __all__ = [
     "DuplicateOperationError",
     "OpenAPIBuilder",
     "SchemaNamer",
+    "UnsupportedSchemaError",
     "build_document",
     "default_schema_namer",
     "path_parameters",
@@ -51,9 +53,6 @@ DEFAULT_RESPONSES: typing.Final[openapi.Responses] = {
 }
 
 FORM_MEDIA_TYPE: typing.Final = "application/x-www-form-urlencoded"
-JSON_MEDIA_TYPE: typing.Final = "application/json"
-
-# names already assigned in a document; the namer must not return one that is taken
 type SchemaNamer = typing.Callable[[type, collections.abc.Set[str]], str]
 
 
@@ -77,6 +76,10 @@ def default_schema_namer(type_: type, taken: collections.abc.Set[str]) -> str:
 
 class DuplicateOperationError(ValueError):
     """Raised when two documented routes would share one operation id."""
+
+
+class UnsupportedSchemaError(ValueError):
+    """Raised when an annotation cannot be represented as JSON Schema."""
 
 
 def convertor_schema(convertor: Convertor[typing.Any]) -> openapi.Schema:
@@ -199,13 +202,15 @@ class OpenAPIBuilder:
         return next((binder for binder in self.binders if binder.supports(type_)), None)
 
     def is_model(self, type_: typing.Any) -> bool:
+        type_, _ = inspection.unwrap_annotation(type_)
         return self.binder_for(type_) is not None
 
     def schema_for(self, type_: typing.Any) -> openapi.Schema:
+        type_, _ = inspection.unwrap_annotation(type_)
         binder = self.binder_for(type_)
         if binder is not None:
             if not isinstance(type_, type):
-                raise ValueError(f"Cannot describe {inspection.type_name(type_)} as a JSON Schema.")
+                raise UnsupportedSchemaError(f"Cannot describe {inspection.type_name(type_)} as a JSON Schema.")
             return self.register(type_, binder.schema(type_))
 
         scalar = SCALAR_SCHEMAS.get(type_)
@@ -216,9 +221,34 @@ class OpenAPIBuilder:
             json_type = "string" if all(isinstance(value, str) for value in values) else "integer"
             return {"type": json_type, "enum": values}
 
-        raise ValueError(f"Cannot describe {inspection.type_name(type_)} as a JSON Schema.")
+        origin = typing.get_origin(type_)
+        args = typing.get_args(type_)
+        if origin in (
+            list,
+            set,
+            frozenset,
+            collections.abc.Iterable,
+            collections.abc.Sequence,
+            collections.abc.Set,
+        ):
+            if len(args) != 1:
+                raise UnsupportedSchemaError(
+                    f"Cannot describe {inspection.type_name(type_)} as a JSON array; annotate its item type."
+                )
+            if origin in (set, frozenset, collections.abc.Set):
+                return {"type": "array", "items": self.schema_for(args[0]), "uniqueItems": True}
+            return {"type": "array", "items": self.schema_for(args[0])}
+        if origin in (dict, collections.abc.Mapping, collections.abc.MutableMapping):
+            if len(args) != 2 or args[0] is not str:
+                raise UnsupportedSchemaError(
+                    f"Cannot describe {inspection.type_name(type_)} as a JSON object; use str keys and a value type."
+                )
+            return {"type": "object", "additionalProperties": self.schema_for(args[1])}
+
+        raise UnsupportedSchemaError(f"Cannot describe {inspection.type_name(type_)} as a JSON Schema.")
 
     def properties_of(self, type_: typing.Any) -> tuple[typing.Mapping[str, openapi.Schema], frozenset[str]]:
+        type_, _ = inspection.unwrap_annotation(type_)
         schema = self.schema_for(type_)
         if "$ref" in schema and isinstance(type_, type):
             stored = self.schemas[self.types[type_]]
@@ -246,10 +276,10 @@ class OpenAPIBuilder:
                 continue
 
             template, declared = path_parameters(info.path)
-            responses = operation.responses or DEFAULT_RESPONSES
             methods = documented_methods(info.definition)
 
             call = info.definition.call
+            responses = merge_responses(response_schemas(call.return_type, self), operation.responses)
             owner = inspection.callable_name(call.callable)
             contributed: list[openapi.Parameter] = []
             request_body: openapi.RequestBody | openapi.Reference | None = operation.request_body
@@ -330,6 +360,32 @@ def merge_request_body(
             required=existing.required or incoming.required,
         )
     raise DuplicateOperationError(f"{owner}() declares two request bodies.")
+
+
+def merge_responses(
+    generated: openapi.Responses | None,
+    authored: openapi.Responses | None,
+) -> openapi.Responses:
+    if generated is None:
+        return dict(authored or DEFAULT_RESPONSES)
+    if authored is None:
+        return generated
+
+    merged = dict(generated)
+    for status, response in authored.items():
+        existing = merged.get(status)
+        if isinstance(existing, openapi.Response) and isinstance(response, openapi.Response):
+            merged[status] = dataclasses.replace(
+                existing,
+                description=response.description,
+                headers=response.headers if response.headers is not None else existing.headers,
+                content=response.content if response.content is not None else existing.content,
+                links=response.links if response.links is not None else existing.links,
+                extensions=response.extensions if response.extensions is not None else existing.extensions,
+            )
+        else:
+            merged[status] = response
+    return merged
 
 
 def build_document(

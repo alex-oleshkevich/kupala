@@ -361,8 +361,8 @@ class SSEResponse(StreamingResponse):
 
 class JSONResponse[
     BodyT: typing.Any,
-    StatusT: int,
-    HeadersT,
+    StatusT: int = typing.Literal[200],
+    HeadersT = dict[str, str],
 ](BaseJSONResponse): ...  # pragma: no branch
 
 
