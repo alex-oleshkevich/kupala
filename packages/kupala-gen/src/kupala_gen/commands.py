@@ -13,16 +13,16 @@ def gen() -> None:
     load_plugins(add, APP_GROUP)
 
 
-@cli.command("new")
+@gen.command("new")
 def new() -> None:
     """Create a new project."""
 
 
-@cli.command("new-module")
+@gen.command("new-module")
 def new_module() -> None:
     """Add a module to the current project."""
 
 
-@commands.group("add")
+@gen.group("add")
 def add() -> None:
     """Add a feature to the current project."""
