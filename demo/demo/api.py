@@ -46,6 +46,14 @@ async def delete_product(request: Request, catalog: ProductCatalog) -> Response:
     return response(request).empty()
 
 
+@routes.get("/products/search")
+async def search_product(request: Request, q: Query[str]) -> Response:
+    """Search a product.
+
+    Find a good product."""
+    return response(request).empty()
+
+
 api = APIExtension(
     "/api/v1",
     namespace="api",

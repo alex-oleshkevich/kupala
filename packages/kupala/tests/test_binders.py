@@ -124,6 +124,19 @@ class TestPydanticBinder:
 
         assert "hunter2" not in str(info.value.errors)
 
+    def test_describes_the_model(self) -> None:
+        schema = PydanticBinder().schema(Filters)
+
+        assert schema["type"] == "object"
+        assert schema["properties"]["page"]["type"] == "integer"
+        assert schema["properties"]["tags"]["type"] == "array"
+
+    def test_describes_a_field_under_its_alias(self) -> None:
+        schema = PydanticBinder().schema(AliasedFilters)
+
+        assert "tag" in schema["properties"]
+        assert "terms" not in schema["properties"]
+
 
 class TestMsgspecBinder:
     def test_claims_a_struct(self) -> None:
@@ -169,6 +182,21 @@ class TestMsgspecBinder:
             build({"page": "many"})
 
         assert set(info.value.errors) == {""}
+
+    def test_describes_the_struct(self) -> None:
+        schema = MsgspecBinder().schema(StructFilters)
+
+        described = schema["$defs"]["StructFilters"]
+        assert described["type"] == "object"
+        assert described["properties"]["page"]["type"] == "integer"
+        assert described["properties"]["tags"]["type"] == "array"
+
+    def test_describes_a_field_under_its_encoded_name(self) -> None:
+        schema = MsgspecBinder().schema(RenamedFilters)
+
+        described = schema["$defs"]["RenamedFilters"]
+        assert "tag" in described["properties"]
+        assert "terms" not in described["properties"]
 
 
 def test_default_binders_cover_both_libraries() -> None:

@@ -16,7 +16,7 @@ type ModelFactory = typing.Callable[[typing.Any], typing.Any]
 
 
 class ModelBinder(typing.Protocol):
-    """Turn the values a request carries into a validated object."""
+    """Turn the values a request carries into a validated object, and describe that object."""
 
     def supports(self, type_: typing.Any) -> bool:
         """Whether this binder can validate `type_`."""
@@ -29,6 +29,10 @@ class ModelBinder(typing.Protocol):
         fixed for the life of the route, so introspecting the model belongs here, never on the
         request path.
         """
+        ...
+
+    def schema(self, type_: typing.Any) -> typing.Mapping[str, typing.Any]:
+        """JSON Schema for `type_`, as the library emits it, including any nested `$defs`."""
         ...
 
 
@@ -90,6 +94,10 @@ class PydanticBinder:
 
         return build
 
+    def schema(self, type_: typing.Any) -> typing.Mapping[str, typing.Any]:
+        schema: typing.Mapping[str, typing.Any] = type_.model_json_schema()
+        return schema
+
 
 class MsgspecBinder:
     """Validate msgspec structs. msgspec reports no field location, so its errors land under one key."""
@@ -120,6 +128,11 @@ class MsgspecBinder:
                 raise ValidationError(errors={"": str(exc)}) from exc
 
         return build
+
+    def schema(self, type_: typing.Any) -> typing.Mapping[str, typing.Any]:
+        import msgspec
+
+        return msgspec.json.schema(type_)
 
 
 DEFAULT_MODEL_BINDERS: tuple[ModelBinder, ...] = (PydanticBinder(), MsgspecBinder())

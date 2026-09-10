@@ -24,6 +24,7 @@ __all__ = [
     "Callback",
     "Components",
     "Contact",
+    "Contribution",
     "Encoding",
     "Example",
     "Extensions",
@@ -355,6 +356,16 @@ class Operation:
     security: typing.Sequence[SecurityRequirement] | None = None
     servers: typing.Sequence[Server] | None = None
     extensions: Extensions | None = None
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class Contribution:
+    """What one binding adds to an operation. Not a spec object; the generator merges these."""
+
+    parameters: tuple[Parameter, ...] = ()
+    request_body: RequestBody | None = None
+    security: tuple[SecurityRequirement, ...] = ()
+    security_schemes: typing.Mapping[str, SecurityScheme] = dataclasses.field(default_factory=dict)
 
 
 # the operation slots a path item has, which is also what `with_operation` accepts

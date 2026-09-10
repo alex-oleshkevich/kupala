@@ -7,6 +7,7 @@ from starlette.convertors import Convertor
 from starlette.routing import compile_path
 
 from kupala import openapi
+from kupala.dependencies import ParamInfo, find_binding
 from kupala.routing import RouteDefinition, Routes
 
 __all__ = ["DuplicateOperationError", "build_document", "path_parameters"]
@@ -79,48 +80,76 @@ def documented_methods(definition: RouteDefinition) -> tuple[str, ...]:
     return methods
 
 
+@dataclasses.dataclass
+class ComponentRegistry:
+    components: dict[str, openapi.Components] = dataclasses.field(default_factory=dict)
+
+
+@typing.runtime_checkable
+class OpenAPIContributor(typing.Protocol):
+    def to_openapi(self, param_info: ParamInfo) -> openapi.Contribution: ...
+
+
+class SchemaCreator:
+    def __init__(self) -> None:
+        self.components = ComponentRegistry()
+
+    def create(self, routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI:
+        """Describe `routes` in `document`, replacing whatever paths it carries."""
+
+        paths: dict[str, openapi.PathItem] = {}
+        operation_ids: dict[str, str] = {}
+
+        for info in routes.describe():
+            operation = info.definition.openapi
+            if operation is None:
+                continue
+
+            # a route's inputs and responses are the same whichever of its methods is being described
+            template, declared = path_parameters(info.path)
+            parameters = merge_parameters(declared, operation.parameters)
+            responses = operation.responses or DEFAULT_RESPONSES
+            methods = documented_methods(info.definition)
+
+            # collect schema from depenendecies
+            call = info.definition.call
+            return_type = call.return_type
+            print(return_type)
+            for param_info in call.parameters:
+                binding = find_binding(param_info, call.callable.__name__)
+                if isinstance(binding, OpenAPIContributor):
+                    contibution = binding.to_openapi(param_info)
+                    print(contibution)
+
+            for method in methods:
+                # one definition may answer several methods, and each needs an id of its own — including
+                # when the author named it, or naming a `get_or_post` route would collide with itself
+                base = operation.operation_id or info.name
+                operation_id = base if len(methods) == 1 else f"{base}_{method}"
+                previous = operation_ids.get(operation_id)
+                if previous is not None:
+                    raise DuplicateOperationError(
+                        f"Operation id {operation_id!r} describes both {previous} and {method.upper()} {template}. "
+                        f"Give one of them `operation_id=`."
+                    )
+                operation_ids[operation_id] = f"{method.upper()} {template}"
+
+                described = dataclasses.replace(
+                    operation,
+                    operation_id=operation_id,
+                    parameters=parameters,
+                    responses=responses,
+                )
+                item = paths.get(template, openapi.PathItem())
+                if getattr(item, method, None) is not None:
+                    raise DuplicateOperationError(
+                        f"Two routes both describe {method.upper()} {template}, which a document cannot "
+                        f"express. Give them distinct paths."
+                    )
+                paths[template] = item.with_operation(method, described)
+
+        return dataclasses.replace(document, paths=paths)
+
+
 def build_document(routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI:
-    """Describe `routes` in `document`, replacing whatever paths it carries."""
-
-    paths: dict[str, openapi.PathItem] = {}
-    operation_ids: dict[str, str] = {}
-
-    for info in routes.describe():
-        operation = info.definition.openapi
-        if operation is None:
-            continue
-
-        # a route's inputs and responses are the same whichever of its methods is being described
-        template, declared = path_parameters(info.path)
-        parameters = merge_parameters(declared, operation.parameters)
-        responses = operation.responses or DEFAULT_RESPONSES
-        methods = documented_methods(info.definition)
-
-        for method in methods:
-            # one definition may answer several methods, and each needs an id of its own — including
-            # when the author named it, or naming a `get_or_post` route would collide with itself
-            base = operation.operation_id or info.name
-            operation_id = base if len(methods) == 1 else f"{base}_{method}"
-            previous = operation_ids.get(operation_id)
-            if previous is not None:
-                raise DuplicateOperationError(
-                    f"Operation id {operation_id!r} describes both {previous} and {method.upper()} {template}. "
-                    f"Give one of them `operation_id=`."
-                )
-            operation_ids[operation_id] = f"{method.upper()} {template}"
-
-            described = dataclasses.replace(
-                operation,
-                operation_id=operation_id,
-                parameters=parameters,
-                responses=responses,
-            )
-            item = paths.get(template, openapi.PathItem())
-            if getattr(item, method, None) is not None:
-                raise DuplicateOperationError(
-                    f"Two routes both describe {method.upper()} {template}, which a document cannot "
-                    f"express. Give them distinct paths."
-                )
-            paths[template] = item.with_operation(method, described)
-
-    return dataclasses.replace(document, paths=paths)
+    return SchemaCreator().create(routes, document)

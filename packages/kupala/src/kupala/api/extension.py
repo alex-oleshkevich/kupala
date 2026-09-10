@@ -6,8 +6,7 @@ import json
 import secrets
 import typing
 
-from kupala.api.generator import build_document
-from kupala.api.schema_generators import SchemaGenerator
+from kupala.api.generator import SchemaCreator
 from kupala.api.security import SecurityScheme
 from kupala.extensions import AppBuilder
 from kupala.middleware import Middleware
@@ -58,14 +57,12 @@ class APIExtension:
         routes: Routes | None = None,
         openapi: OpenAPI | None = None,
         tags: typing.Sequence[str] = (),
-        schema_generators: typing.Sequence[SchemaGenerator] = (),
         security: typing.Sequence[SecurityScheme[typing.Any]] = (),
         middleware: typing.Sequence[Middleware] = (),
     ) -> None:
         self.docs = docs or DocsOptions()
         self.openapi = openapi or OpenAPI(info=DEFAULT_INFO)
         self.security = security
-        self.schema_generators = schema_generators
         self.routes = Routes(
             prefix=prefix,
             namespace=namespace,
@@ -112,7 +109,8 @@ class APIExtension:
         """Describe the registered routes, generating the document once."""
 
         if self._document is None:
-            self._document = build_document(self.routes, self.openapi)
+            creator = SchemaCreator()
+            self._document = creator.create(self.routes, self.openapi)
         return self._document
 
     def serialize(self) -> bytes:

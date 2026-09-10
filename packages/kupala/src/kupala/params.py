@@ -10,7 +10,7 @@ import uuid
 from starlette.datastructures import FormData, QueryParams
 from starlette.requests import HTTPConnection
 
-from kupala import inspection
+from kupala import inspection, openapi
 from kupala.binders import ModelBinder
 from kupala.dependencies import (
     CompileContext,
@@ -213,6 +213,16 @@ class QueryParam(KeyedBinding):
         # the base connection rather than the request, so query binding also works in a WebSocket handler
         connection = await ctx.resolve(HTTPConnection)
         return connection.query_params
+
+    def to_openapi(self, param_info: ParamInfo) -> openapi.Contribution:
+        return openapi.Contribution(
+            parameters=(
+                openapi.Parameter(
+                    name=param_info.name,
+                    in_=openapi.ParameterLocation.QUERY,
+                ),
+            ),
+        )
 
 
 class FormParam(KeyedBinding):
