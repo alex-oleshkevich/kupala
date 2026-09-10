@@ -62,6 +62,22 @@ class Commands:
 
     def __init__(self) -> None:
         self.definitions: list[CommandDefinition] = []
+        self.groups: list[click.Group] = []
+
+    def group(self, name: str | None = None, **attrs: typing.Any) -> typing.Callable[[CommandFunction], click.Group]:
+        """Build a group of commands, collecting it so `compile` hands it to the command line.
+
+        The group object is what is collected, not a definition: a nested command attaches to the
+        group itself, which only exists once its callback has been decorated.
+        """
+
+        def decorator(fn: CommandFunction) -> click.Group:
+            build: typing.Callable[[CommandFunction], click.Group] = click.group(name, **attrs)
+            built = build(fn)
+            self.groups.append(built)
+            return built
+
+        return decorator
 
     def command(self, name: str | None = None, *, with_lifespan: bool = True, **attrs: typing.Any) -> CommandDecorator:
         """Register a command."""
@@ -83,7 +99,7 @@ class Commands:
         self.definitions.append(definition)
 
     def compile(self) -> list[click.Command]:
-        return [build_command(definition) for definition in self.definitions]
+        return [*self.groups, *(build_command(definition) for definition in self.definitions)]
 
 
 def build_command(definition: CommandDefinition) -> click.Command:
