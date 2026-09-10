@@ -111,7 +111,7 @@ class ResponseBuilder:
         headers: typing.Mapping[str, str] | None = None,
         media_type: str | None = None,
     ) -> Response:
-        response = JSONResponse(content, status_code=status_code, headers=headers, media_type=media_type)
+        response: Response = JSONResponse(content, status_code=status_code, headers=headers, media_type=media_type)
         return self._apply_cookies(response)
 
     def empty(self, *, headers: typing.Mapping[str, str] | None = None) -> Response:
@@ -359,7 +359,11 @@ class SSEResponse(StreamingResponse):
         await send({"type": "http.response.body", "body": b"", "more_body": False})
 
 
-class JSONResponse(BaseJSONResponse): ...  # pragma: no branch
+class JSONResponse[
+    BodyT: typing.Any,
+    StatusT: int,
+    HeadersT,
+](BaseJSONResponse): ...  # pragma: no branch
 
 
 class BackResponse(RedirectResponse):

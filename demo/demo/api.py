@@ -1,4 +1,4 @@
-"""A documented API served beside the HTML views, with all three viewers turned on."""
+import typing
 
 from pydantic import BaseModel
 
@@ -7,11 +7,21 @@ from kupala.api import APIExtension, DocsOptions
 from kupala.errors import NotFoundError
 from kupala.params import Body, Form, Query
 from kupala.requests import Request
-from kupala.responses import Response, response
+from kupala.responses import JSONResponse, Response, response
 from kupala.routing import Routes
 from kupala.schema.openapi import Info, OpenAPI
 
 routes = Routes(tags=["products"])
+
+
+class Product(BaseModel):
+    sku: str
+    name: str
+
+
+class ProductHeaders(typing.TypedDict, total=False):
+    Location: str
+    XRequestId: str
 
 
 @routes.get("/products", name="products.index")
@@ -19,18 +29,25 @@ async def list_products(
     request: Request,
     catalog: ProductCatalog,
     q: Query[str | None] = None,
-) -> Response:
+) -> JSONResponse[list[Product], typing.Literal[200], typing.Mapping[str, str]]:
     """List the catalog.
 
     Pass `q` to match on either sku or name. The whole catalog comes back when it is absent.
     """
 
-    matches = {sku: name for sku, name in catalog.products.items() if q is None or q.lower() in f"{sku} {name}".lower()}
-    return response(request).json(matches)
+    matches = [
+        Product(sku=sku, name=name)
+        for sku, name in catalog.products.items()
+        if q is None or q.lower() in f"{sku} {name}".lower()
+    ]
+    return JSONResponse([product.model_dump(mode="json") for product in matches])
 
 
 @routes.get("/products/{sku}", name="products.show")
-async def show_product(request: Request, catalog: ProductCatalog) -> Response:
+async def show_product(
+    request: Request,
+    catalog: ProductCatalog,
+) -> JSONResponse[Product, typing.Literal[200], ProductHeaders]:
     """Fetch one product by its sku."""
 
     # nothing binds a path parameter to an argument yet, so the view reads it itself
@@ -39,7 +56,8 @@ async def show_product(request: Request, catalog: ProductCatalog) -> Response:
         # the sku came from the url, and reflecting request data into a response is how it reaches a log
         raise NotFoundError("No product with that sku.")
 
-    return response(request).json({"sku": sku, "name": catalog.products[sku]})
+    product = Product(sku=sku, name=catalog.products[sku])
+    return JSONResponse(product.model_dump(mode="json"), headers={"XRequestId": sku})
 
 
 @routes.delete("/products/{sku}", name="products.destroy", summary="Withdraw a product", deprecated=True)
@@ -62,8 +80,15 @@ class CreateProductInput(BaseModel):
 
 
 @routes.post("/products", name="products.create", summary="Create a product")
-async def create_product(request: Request, body: Body[CreateProductInput]) -> Response:
-    return response(request).empty()
+async def create_product(
+    request: Request,
+    body: Body[CreateProductInput],
+) -> JSONResponse[CreateProductInput, typing.Literal[201], ProductHeaders]:
+    return JSONResponse[CreateProductInput, typing.Literal[201], ProductHeaders](
+        body.model_dump(mode="json"),
+        status_code=201,
+        headers={"Location": f"/products/{body.sku}"},
+    )
 
 
 class UpdateProductInput(BaseModel):
@@ -72,8 +97,15 @@ class UpdateProductInput(BaseModel):
 
 
 @routes.put("/products", name="products.update", summary="Update a product")
-async def update_product(request: Request, kek: Form[str], body: Form[CreateProductInput]) -> Response:
-    return response(request).empty()
+async def update_product(
+    request: Request,
+    kek: Form[str],
+    body: Form[CreateProductInput],
+) -> JSONResponse[CreateProductInput, typing.Literal[200], ProductHeaders]:
+    return JSONResponse[CreateProductInput, typing.Literal[200], ProductHeaders](
+        body.model_dump(mode="json"),
+        headers={"XRequestId": body.sku},
+    )
 
 
 api = APIExtension(
