@@ -459,10 +459,9 @@ class TestContributions:
         with pytest.raises(ValueError, match="Literal"):
             build_document(routes, DOCUMENT)
 
-    def test_a_response_annotation_is_rejected_when_it_has_too_few_types(self) -> None:
+    def test_a_response_annotation_with_the_wrong_number_of_types_is_ignored(self) -> None:
         annotation = types.GenericAlias(JSONResponse, (User, typing.Literal[200]))
-        with pytest.raises(ValueError, match="body, status, and headers"):
-            parse_response(annotation)
+        assert parse_response(annotation) is None
 
     def test_a_response_annotation_is_rejected_when_status_is_not_an_http_code(self) -> None:
         annotation = JSONResponse[User, typing.Literal[99], typing.Mapping[str, str]]

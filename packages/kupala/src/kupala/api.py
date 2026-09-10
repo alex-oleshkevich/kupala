@@ -43,6 +43,20 @@ class DocsOptions:
     scalar_base_url: str = SCALAR_BASE_URL
 
 
+def standard_docs(
+    openapi_path: str = "/openapi.json",
+    path: str = "/docs",
+    ui: typing.Literal["swagger", "redoc", "scalar"] = "scalar",
+) -> DocsOptions:
+    """Return a `DocsOptions` instance with the specified UI and paths."""
+    return DocsOptions(
+        openapi_path=openapi_path,
+        swagger_path=path if ui == "swagger" else None,
+        redoc_path=path if ui == "redoc" else None,
+        scalar_path=path if ui == "scalar" else None,
+    )
+
+
 class APIExtension:
     """A group of documented routes, contributed to an application through `Extension.install`."""
 

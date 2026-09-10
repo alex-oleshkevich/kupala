@@ -34,7 +34,7 @@ class Kupala:
         self,
         package_name: str,
         *,
-        routes: Routes | None = None,
+        routes: Routes | typing.Sequence[Routes] = (),
         debug: bool = False,
         middleware: typing.Sequence[Middleware] = (),
         websocket_middleware: typing.Sequence[WebSocketMiddleware] = (),
@@ -48,7 +48,7 @@ class Kupala:
     ) -> None:
         self.name = package_name
         self._overrides: typing.Mapping[typing.Any, Binding] = {}
-        self.routes = routes if routes is not None else Routes()
+        self.routes = routes if isinstance(routes, Routes) else Routes(children=routes)
         self.debug = debug
         self.commands = commands.compile() if isinstance(commands, Commands) else list(commands)
         self.middleware = list(middleware)
