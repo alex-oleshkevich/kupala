@@ -131,7 +131,7 @@ class Bearer[T = typing.Never]:
             values.append(f'error="{error}"')
         return f"Bearer {', '.join(values)}"
 
-    def _dependency_call(self) -> CallableInfo[..., typing.Any] | None:
+    def dependency_info(self) -> CallableInfo[..., typing.Any] | None:
         if self.authenticate is None:
             return None
         info = inspect_callable(self.authenticate)

@@ -11,7 +11,7 @@ from starlette.routing import compile_path
 
 from kupala import inspection
 from kupala.binders import DEFAULT_MODEL_BINDERS, ModelBinder
-from kupala.dependencies import Binding, CallableInfo, ParamInfo, find_binding
+from kupala.dependencies import Binding, DependencyProvider, ParamInfo, find_binding
 from kupala.routing import RouteDefinition, Routes
 from kupala.schema import openapi
 from kupala.schema.responses import response_schemas
@@ -187,25 +187,20 @@ def merge_operation_security(
     return tuple(merge_security_requirements(alternative, required) or {} for alternative in alternatives)
 
 
-@typing.runtime_checkable
-class _NestedDependencies(typing.Protocol):
-    def _dependency_call(self) -> CallableInfo[..., typing.Any] | None: ...
-
-
 def walk_dependency_bindings(
     parameters: tuple[ParamInfo, ...],
     owner: str,
-    traversed: list[Binding],
+    traversed: list[DependencyProvider],
 ) -> typing.Iterator[tuple[ParamInfo, Binding]]:
     """Yield bindings while traversing each nested dependency once."""
 
     for param in parameters:
         binding = find_binding(param, owner)
         yield param, binding
-        if not isinstance(binding, _NestedDependencies) or binding in traversed:
+        if not isinstance(binding, DependencyProvider) or binding in traversed:
             continue
 
-        dependency = binding._dependency_call()
+        dependency = binding.dependency_info()
         if dependency is None:
             continue
         traversed.append(binding)

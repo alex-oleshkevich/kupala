@@ -108,7 +108,9 @@ Files `tests`. Test file names must mirror `kupala/` file structure. For example
 - HTTP errors use one documented response contract with content negotiation for HTML and JSON.
 - Unhandled exceptions return a generic production response and are logged through the configured logger.
 - Session, cookie, upload, form, template, proxy, and host-handling changes require security focused tests.
+- Treat headers, proxy metadata, host values, cookies, forms, uploads, and template-facing values as untrusted input. Validate and bound them at the owning boundary, preserve framework escaping, and test rejection and normalization behavior.
 - Never add a dependency or integration that expands the attack surface without documenting its trust and configuration model.
+- Before adding a dependency, check the standard library and existing workspace dependencies. If neither fits, verify the current release, explain what code it replaces and its trust model, and get the user's approval before adding it.
 
 ## Engineering Discipline
 
@@ -125,6 +127,7 @@ Files `tests`. Test file names must mirror `kupala/` file structure. For example
 - Use Beads (`bd`) for durable task tracking and project memory. Do not create parallel markdown TODO lists or ad hoc memory files.
 - Run `bd prime` when starting tracked work or when Beads context may be stale.
 - Use `bd ready` to find available work, `bd show <id>` to inspect it, `bd update <id> --claim` to claim it, `bd close <id>` when it is complete, and `bd remember` for persistent project knowledge.
+- Keep repository-wide working invariants in `AGENTS.md`, package behavior in the owning package's README, and dated measurements, incidents, and task-specific findings in Beads. Remove or replace stale instructions instead of layering exceptions onto them.
 - At handoff, report changed files, validation, issue status, and remaining work. Do not commit, push, or synchronize Beads remotes unless explicitly requested.
 
 ## Change workflow
@@ -134,6 +137,7 @@ Files `tests`. Test file names must mirror `kupala/` file structure. For example
 - For non-trivial work, state a brief plan with verifiable success criteria before editing.
 - Make the smallest contract-preserving change. Reproduce bugs with a failing regression test, and run relevant tests before and after refactors.
 - Run focused tests, then the full suite, type checks, linting, coverage, and package-build checks.
+- Before handoff, run `just verify`. If a required check is missing or wrong, fix the recipe instead of bypassing it with raw commands; fix relevant findings and rerun it until clean.
 - Update README or API documentation when public behavior changes.
 - Leave unrelated user changes untouched and do not commit, push, publish, or deploy unless explicitly requested.
 
@@ -146,9 +150,7 @@ Files `tests`. Test file names must mirror `kupala/` file structure. For example
 - `just test-pkg $package $optional_test_pattern` — run one package's tests.
 - `just testc $optional_test_pattern` — run tests with 100% coverage enforcement.
 - `just check` — run the full `prek` check suite.
-- `uv run mypy`
-- `uv build --all-packages --no-sources`
-- `git diff --check`
+- `just verify` — run the full local CI-equivalent suite: checks, typing, 100% coverage, package builds, and diff validation.
 
 <!-- CODEGRAPH_START -->
 

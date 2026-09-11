@@ -173,6 +173,13 @@ class Binding(typing.Protocol):
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver: ...
 
 
+@typing.runtime_checkable
+class DependencyProvider(Binding, typing.Protocol):
+    """A binding that exposes nested dependency metadata."""
+
+    def dependency_info(self) -> CallableInfo[..., typing.Any] | None: ...
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class Inject:
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
@@ -220,7 +227,7 @@ class Factory:
     factory: typing.Callable[..., typing.Any]
     cache: bool = True
 
-    def _dependency_call(self) -> CallableInfo[..., typing.Any]:
+    def dependency_info(self) -> CallableInfo[..., typing.Any]:
         return inspect_callable(self.factory)
 
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:

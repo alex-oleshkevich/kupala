@@ -57,6 +57,13 @@ flags, and planner returning `ChangePlan`, so both paths use identical validatio
 Failures expose structured operation statuses, retain unusable backups for recovery, and do not print
 secret answers or arbitrary planner exceptions.
 
+Template sources use `BundledTemplate`, `GitTemplate`, or `FileTemplate`. Resolve them inside the
+`resolve_template()` context, inspect their supported Copier questions with `inspect_template()`, and
+render complete answers with `render_template()`. Resolution snapshots the source before inspection;
+Git accepts only HTTPS and uses Dulwich, while `file://` directories require explicit trust. Rendering
+uses Copier with prompting and unsafe features disabled and returns a `ChangePlan` without touching the
+target project. ZIP sources are not supported.
+
 ## CLI registration contract
 
 A `kupala.commands` entry point targets a callback that accepts `kupala.commands.Commands`. Kupala

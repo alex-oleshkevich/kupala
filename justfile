@@ -14,6 +14,12 @@ testc *args:
 check:
     prek run --all-files
 
+verify: check
+    uv run mypy
+    uv run pytest --cov --cov-report=term-missing --cov-fail-under=100
+    uv build --all-packages --no-sources
+    git diff --check
+
 [working-directory("demo")]
 cli *args:
     uv run -- kupala {{ args }}
