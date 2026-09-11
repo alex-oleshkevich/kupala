@@ -3,13 +3,12 @@ import importlib
 import importlib.metadata
 import logging
 import os
-import re
 import typing
 
 import click
 
 from kupala.applications import Kupala
-from kupala.commands import UsageError
+from kupala.commands import Commands, UsageError
 
 APP_ENV_VAR = "KUPALA_APP"
 APP_GROUP = "kupala.app"
@@ -118,14 +117,15 @@ def load_plugins(cli: click.Group, group: str = PLUGIN_GROUP) -> None:
             )
             continue
 
-        registration = click.Group()
+        registration = Commands()
         try:
             plugin(registration)
+            commands = registration.compile()
         except Exception:  # noqa: BLE001 - a third-party plugin may raise anything
             logger.warning("Ignoring CLI plugin %r: registration failed.", entry_point.name)
             continue
 
-        for command in registration.commands.values():
+        for command in commands:
             cli.add_command(command)
 
 
@@ -137,26 +137,72 @@ class CliContext:
     command line learns about an invocation can be added here without touching a single signature.
     """
 
-    app: Kupala | None
+    application: Kupala | None
+
+
+class _LazyGroup(click.Group):
+    def __init__(
+        self,
+        *args: typing.Any,
+        context: CliContext,
+        **kwargs: typing.Any,
+    ) -> None:
+        self._context = context
+        self._application_loaded = False
+        self._application_error: Exception | None = None
+        super().__init__(*args, **kwargs)
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        command = super().get_command(ctx, cmd_name)
+        if isinstance(command, click.Group):
+            return command
+        self._load_application_commands()
+        return super().get_command(ctx, cmd_name)
+
+    def list_commands(self, ctx: click.Context) -> list[str]:
+        if not ctx.resilient_parsing:
+            try:
+                self._load_application_commands()
+            except Exception:  # noqa: BLE001, S110 - root help still lists installed commands
+                pass
+        return super().list_commands(ctx)
+
+    def _load_application_commands(self) -> None:
+        if self._application_error is not None:
+            raise self._application_error
+        if self._application_loaded:
+            return
+
+        try:
+            self._context.application = resolve_application(self._context.application)
+            if self._context.application is not None:
+                for command in self._context.application.commands:
+                    name = typing.cast(str, command.name)
+                    if not isinstance(self.commands.get(name), click.Group):
+                        self.add_command(command)
+        except Exception as error:
+            self._application_error = error
+            raise
+        self._application_loaded = True
 
 
 def build_cli(app: Kupala | None) -> click.Group:
-    """Build the command line for one invocation, with every command already registered."""
+    """Build the command line for one invocation."""
 
-    @click.group(context_settings={"help_option_names": ["-h", "--help"]})
+    context = CliContext(application=app)
+
+    @click.group(
+        cls=_LazyGroup,
+        context=context,
+        context_settings={"help_option_names": ["-h", "--help"]},
+    )
     @click.version_option(package_name="kupala")
     @click.pass_context
     def cli(ctx: click.Context) -> None:
         """Kupala command line interface."""
-        # `current_application` is the other half of this contract, and a test pins the two together
-        ctx.obj = CliContext(app=app)
+        ctx.obj = context
 
     load_plugins(cli, PLUGIN_GROUP)
-    if app is not None:
-        # registered last so an application's own command wins a name a plugin already took
-        for command in app.commands:
-            cli.add_command(command)
-
     return cli
 
 
@@ -164,7 +210,7 @@ def main(args: typing.Sequence[str] | None = None, *, app: Kupala | None = None)
     """Run the CLI and return its exit code."""
 
     try:
-        cli = build_cli(resolve_application(app))
+        cli = build_cli(app)
         result = cli.main(args=args, standalone_mode=False)
     except click.ClickException as exc:
         exc.show()

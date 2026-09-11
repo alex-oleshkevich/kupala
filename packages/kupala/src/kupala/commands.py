@@ -27,21 +27,6 @@ class UsageError(click.UsageError):
         return "\n".join((self.message, *self.__notes__))
 
 
-def current_application() -> Kupala:
-    """The application the current command runs against."""
-
-    # a command mounted on a group Kupala did not build reaches this with no context object at all,
-    # which is the same "no application" story rather than an AttributeError from the attribute below
-    context: CliContext | None = click.get_current_context().find_root().obj
-    if context is None or context.app is None:
-        raise UsageError(
-            "This command needs an application and none was loaded.",
-            "Set KUPALA_APP to 'module:attribute', or run the command through Kupala.cli().",
-        )
-
-    return context.app
-
-
 @dataclasses.dataclass(frozen=True, slots=True)
 class CommandDefinition:
     name: str | None
@@ -133,8 +118,16 @@ def build_command(definition: CommandDefinition) -> click.Command:
         parameters=tuple(parameter for parameter in plan.parameters if parameter.param.name not in owned),
     )
 
-    def callback(**kwargs: typing.Any) -> None:
-        execute(current_application(), injected, kwargs, with_lifespan=definition.with_lifespan)
+    @click.pass_context
+    def callback(ctx: click.Context, /, **kwargs: typing.Any) -> None:
+        context = typing.cast("CliContext | None", ctx.find_root().obj)
+        app = context.application if context is not None else None
+        if app is None:
+            raise UsageError(
+                "This command needs an application and none was loaded.",
+                "Set KUPALA_APP to 'module:attribute', or run the command through Kupala.cli().",
+            )
+        execute(app, injected, kwargs, with_lifespan=definition.with_lifespan)
 
     command.callback = callback
     return command

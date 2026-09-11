@@ -7,6 +7,7 @@ import typing
 
 import click
 import pytest
+from click.testing import CliRunner
 
 from kupala import cli
 from kupala import commands as commands_module
@@ -235,8 +236,8 @@ class TestResolveApplication:
 
 class TestLoadPlugins:
     def test_lets_a_plugin_register_its_commands(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        def register(group: click.Group) -> None:
-            group.add_command(click.Command(name="plugged", callback=lambda: None))
+        def register(commands: commands_module.Commands) -> None:
+            commands.group("plugged")(lambda: None)
 
         installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: register)])
         group = click.Group()
@@ -258,7 +259,9 @@ class TestLoadPlugins:
             cli.load_plugins(group)
 
         assert group.commands == {}
-        assert "which failed to load: broken plugin" in caplog.text
+        assert "bad" in caplog.text
+        assert "import failed" in caplog.text
+        assert "broken plugin" not in caplog.text
 
     def test_skips_a_plugin_that_is_a_command(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
@@ -273,7 +276,7 @@ class TestLoadPlugins:
             cli.load_plugins(group)
 
         assert group.commands == {}
-        assert "expected a callable taking the root group, got Command" in caplog.text
+        assert "got Command" in caplog.text
 
     def test_skips_a_plugin_that_is_not_callable(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
@@ -285,12 +288,12 @@ class TestLoadPlugins:
             cli.load_plugins(group)
 
         assert group.commands == {}
-        assert "expected a callable taking the root group, got str" in caplog.text
+        assert "got str" in caplog.text
 
     def test_skips_a_plugin_that_raises_while_registering(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        def register(group: click.Group) -> None:
+        def register(commands: commands_module.Commands) -> None:
             raise RuntimeError("bad registration")
 
         installed(monkeypatch, plugins=[PluginEntryPoint("bad", lambda: register)])
@@ -300,35 +303,69 @@ class TestLoadPlugins:
             cli.load_plugins(group)
 
         assert group.commands == {}
-        assert "which failed while registering: bad registration" in caplog.text
+        assert "registration failed" in caplog.text
+        assert "bad registration" not in caplog.text
 
 
 class TestBuildCli:
-    def test_registers_plugin_and_application_commands(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        def register(group: click.Group) -> None:
-            group.add_command(click.Command(name="plugged", callback=lambda: None))
+    def test_plugin_commands_use_dependency_injection(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        def register(commands: commands_module.Commands) -> None:
+            @commands.command("plugged")
+            def plugged(greeting: Greeting) -> None:
+                click.echo(greeting)
 
         installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: register)])
-        app = make_app(commands=[click.Command(name="owned", callback=lambda: None)])
 
-        assert sorted(cli.build_cli(app).commands) == ["owned", "plugged"]
+        assert cli.main(["plugged"], app=make_app(greeting="injected")) == 0
+        assert capsys.readouterr().out == "injected\n"
 
     def test_registers_plugin_commands_without_an_application(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        def register(group: click.Group) -> None:
-            group.add_command(click.Command(name="plugged", callback=lambda: None))
+        def register(commands: commands_module.Commands) -> None:
+            commands.group("plugged")(lambda: None)
 
         installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: register)])
 
         assert sorted(cli.build_cli(None).commands) == ["plugged"]
 
-    def test_an_application_command_wins_a_name_a_plugin_took(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """An application is closer to the developer than anything they merely installed."""
-
-        plugin_command = click.Command(name="shared", callback=lambda: None)
+    def test_a_plugin_group_keeps_its_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         owned = click.Command(name="shared", callback=lambda: None)
-        installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: lambda group: group.add_command(plugin_command))])
 
-        assert cli.build_cli(make_app(commands=[owned])).commands == {"shared": owned}
+        def shared() -> None: ...
+
+        def register(commands: commands_module.Commands) -> None:
+            commands.group("shared")(shared)
+
+        installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: register)])
+        group = cli.build_cli(make_app(commands=[owned]))
+        context = click.Context(group)
+
+        assert "shared" in group.list_commands(context)
+        command = group.get_command(context, "shared")
+        assert command is not None
+        assert command.callback is shared
+
+    def test_an_application_command_replaces_a_plugin_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        owned = click.Command(name="shared", callback=lambda: None)
+
+        def register(commands: commands_module.Commands) -> None:
+            @commands.command("shared")
+            def shared() -> None: ...
+
+        installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: register)])
+        group = cli.build_cli(make_app(commands=[owned]))
+
+        assert group.get_command(click.Context(group), "shared") is owned
+
+    def test_caches_the_resolved_application(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        installed(monkeypatch)
+        app = make_app(commands=[click.Command(name="owned")])
+        group = cli.build_cli(app)
+        context = click.Context(group)
+
+        assert group.get_command(context, "owned") is not None
+        assert group.get_command(context, "unknown") is None
 
     def test_carries_the_application_on_a_context_object(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Commands read the invocation off a dataclass, so it can grow without changing signatures."""
@@ -341,7 +378,9 @@ class TestBuildCli:
         group.add_command(click.Command(name="peek", callback=lambda: seen.append(click.get_current_context().obj)))
         group.main(args=["peek"], standalone_mode=False)
 
-        assert seen == [cli.CliContext(app=app)]
+        assert len(seen) == 1
+        assert isinstance(seen[0], cli.CliContext)
+        assert seen[0].application is app
 
     def test_builds_a_fresh_group_for_every_invocation(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A group outliving one invocation would carry the previous application's commands into the next."""
@@ -349,7 +388,7 @@ class TestBuildCli:
         installed(monkeypatch)
         first = cli.build_cli(make_app(commands=[click.Command(name="owned", callback=lambda: None)]))
 
-        assert "owned" in first.commands
+        assert "owned" in first.list_commands(click.Context(first))
         assert cli.build_cli(None).commands == {}
 
 
@@ -369,42 +408,18 @@ class TestUsageError:
         assert error.format_message() == "It went wrong.\nhint: Try the other thing.\nsee: https://example.test"
 
 
-class TestCurrentApplication:
-    def test_reads_the_application_off_the_root_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """`build_cli` puts the application on the root context object; this pins the two together."""
+class TestCommandContext:
+    def test_reports_a_command_run_outside_kupala(self) -> None:
+        commands = commands_module.Commands()
 
-        installed(monkeypatch)
-        app = make_app()
-        seen: list[Kupala] = []
+        @commands.command("orphan")
+        def orphan() -> None: ...  # pragma: no cover - the application is missing, so it never runs
 
-        group = cli.build_cli(app)
-        group.add_command(
-            click.Command(name="peek", callback=lambda: seen.append(commands_module.current_application()))
-        )
-        group.main(args=["peek"], standalone_mode=False)
+        result = CliRunner().invoke(commands.compile()[0])
 
-        assert seen == [app]
-
-    def test_reports_a_context_that_loaded_no_application(self) -> None:
-        with (
-            click.Context(click.Command("orphan"), obj=cli.CliContext(app=None)),
-            pytest.raises(click.UsageError, match="needs an application"),
-        ):
-            commands_module.current_application()
-
-    def test_reports_a_group_kupala_never_built(self) -> None:
-        """A Kupala command added to someone else's group has no context object to read at all."""
-
-        with click.Context(click.Command("orphan")), pytest.raises(click.UsageError, match="needs an application"):
-            commands_module.current_application()
-
-    def test_names_the_variable_that_would_have_loaded_one(self) -> None:
-        """The hint repeats the variable as a literal, so this pins the two together."""
-
-        with click.Context(click.Command("orphan")), pytest.raises(click.UsageError) as caught:
-            commands_module.current_application()
-
-        assert cli.APP_ENV_VAR in caught.value.format_message()
+        assert result.exit_code == 2
+        assert "needs an application" in result.output
+        assert cli.APP_ENV_VAR in result.output
 
 
 class TestCommands:
@@ -607,19 +622,29 @@ class TestCommandInvocation:
     ) -> None:
         """An extension's command is registered with or without an application; needing one is its own error."""
 
-        commands = commands_module.Commands()
+        def register(commands: commands_module.Commands) -> None:
+            @commands.command("orphan")
+            def orphan(app: Kupala) -> None: ...  # pragma: no cover - no application, so it never runs
 
-        @commands.command("orphan")
-        def orphan(app: Kupala) -> None: ...  # pragma: no cover - the application is missing, so it never runs
-
-        command = commands.compile()[0]
-        installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: lambda group: group.add_command(command))])
+        installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: register)])
 
         assert cli.main(["orphan"]) == 2
         assert "needs an application and none was loaded" in capsys.readouterr().err
 
 
 class TestCommandDiscovery:
+    def test_plugin_completion_skips_a_broken_application(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def register(commands: commands_module.Commands) -> None:
+            commands.group("bootstrap", help="Build without an app")(lambda: None)
+
+        installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: register)])
+        monkeypatch.setenv(cli.APP_ENV_VAR, "never.imported:app")
+        group = cli.build_cli(None)
+
+        completed = group.shell_complete(click.Context(group, resilient_parsing=True), "boot")
+
+        assert [item.value for item in completed] == ["bootstrap"]
+
     def test_lists_application_commands(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -691,14 +716,30 @@ class TestCommandDiscovery:
         assert cli.main(["nope"]) == 2
         assert "No such command" in capsys.readouterr().err
 
-    def test_an_application_that_does_not_import_is_reported(
-        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_an_application_import_error_is_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
         installed(monkeypatch)
         monkeypatch.setenv(cli.APP_ENV_VAR, "never.imported:app")
+        group = cli.build_cli(None)
+        context = click.Context(group)
 
-        assert cli.main(["--help"]) == 2
-        assert "Cannot import" in capsys.readouterr().err
+        with pytest.raises(click.UsageError, match="Cannot import"):
+            group.get_command(context, "owned")
+        with pytest.raises(click.UsageError, match="Cannot import"):
+            group.get_command(context, "owned")
+
+    def test_help_degrades_when_the_application_does_not_import(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        def register(commands: commands_module.Commands) -> None:
+            commands.group("plugged", help="Installed command")(lambda: None)
+
+        installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: register)])
+        monkeypatch.setenv(cli.APP_ENV_VAR, "never.imported:app")
+
+        assert cli.main(["--help"]) == 0
+        output = capsys.readouterr().out
+        assert "plugged" in output
+        assert "never.imported" not in output
 
 
 class TestMain:

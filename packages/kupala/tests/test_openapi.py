@@ -284,7 +284,7 @@ class TestSpecValidity:
                     external_docs=openapi.ExternalDocumentation(url="/docs", description="d"),
                     parent="resources",
                     kind="nav",
-                )
+                ),
             ],
             external_docs=openapi.ExternalDocumentation(url="/docs"),
             paths={
@@ -396,9 +396,7 @@ class TestSpecValidity:
                     query=openapi.Operation(
                         responses={
                             "200": openapi.Response(
-                                content={
-                                    "text/event-stream": openapi.Reference(ref="#/components/mediaTypes/Events")
-                                }
+                                content={"text/event-stream": openapi.Reference(ref="#/components/mediaTypes/Events")}
                             )
                         }
                     ),

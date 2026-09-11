@@ -116,6 +116,8 @@ class APIExtension:
         """
 
         self._binders = tuple(app.model_binders)
+        self._document = None
+        self._serialized = None
         self.serialize()
         yield None
 

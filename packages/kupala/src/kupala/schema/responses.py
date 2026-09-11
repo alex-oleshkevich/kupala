@@ -15,6 +15,9 @@ class ResponseSpec:
 
 
 def parse_response(return_type: typing.Any) -> ResponseSpec | None:
+    if typing.get_origin(return_type) is not JSONResponse:
+        return None
+
     args = typing.get_args(return_type)
     if len(args) != 3:
         return None
@@ -37,18 +40,12 @@ def response_schemas(return_type: typing.Any, context: openapi.SchemaContext) ->
     if spec is None:
         return None
 
-    content_type: str | None = None
-    if typing.get_origin(return_type) is JSONResponse:
-        content_type = JSON_MEDIA_TYPE
-
-    assert content_type is not None, "Content type must be determined before creating the response."
-
     headers = headers_schema(spec.headers_type, context)
     response = openapi.Response(
         description="Successful response.",
         headers=headers,
         content={
-            content_type: openapi.MediaType(
+            JSON_MEDIA_TYPE: openapi.MediaType(
                 schema=context.schema_for(spec.body_type),
             ),
         },

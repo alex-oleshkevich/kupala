@@ -497,7 +497,7 @@ def merge_request_body(
         return incoming
     existing_form = existing.content.get(FORM_MEDIA_TYPE) if existing.content else None
     incoming_form = incoming.content.get(FORM_MEDIA_TYPE) if incoming.content else None
-    if existing_form is not None and incoming_form is not None:
+    if isinstance(existing_form, openapi.MediaType) and isinstance(incoming_form, openapi.MediaType):
         left = dict(builder.resolve(existing_form.schema or {}))
         right = dict(builder.resolve(incoming_form.schema or {}))
         properties = {**(left.get("properties") or {}), **(right.get("properties") or {})}

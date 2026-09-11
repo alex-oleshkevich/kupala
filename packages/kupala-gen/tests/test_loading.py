@@ -6,7 +6,8 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from kupala_gen.commands import add, gen
+from kupala.commands import Commands
+from kupala_gen.commands import build_gen_command
 from kupala_gen.loading import GENERATOR_GROUP
 
 
@@ -30,16 +31,6 @@ def install(monkeypatch: pytest.MonkeyPatch, *points: StubEntryPoint) -> None:
     monkeypatch.setattr(importlib.metadata, "entry_points", entry_points)
 
 
-@pytest.fixture(autouse=True)
-def restores_the_add_group() -> typing.Iterator[None]:
-    """Generators attach to one shared group, so a test must not leave its own behind."""
-
-    before = dict(add.commands)
-    yield
-    add.commands.clear()
-    add.commands.update(before)
-
-
 class TestGenerators:
     """A generator is a `kupala.generators` entry point and answers under `add`."""
 
@@ -49,6 +40,7 @@ class TestGenerators:
             click.echo("widget generated")
 
         install(monkeypatch, StubEntryPoint("widget", widget))
+        gen = build_gen_command(Commands())
 
         result = CliRunner().invoke(gen, ["add", "widget"])
         assert result.exit_code == 0
@@ -56,6 +48,7 @@ class TestGenerators:
 
     def test_a_generator_is_visible_in_help(self, monkeypatch: pytest.MonkeyPatch) -> None:
         install(monkeypatch, StubEntryPoint("widget", click.Command("widget")))
+        gen = build_gen_command(Commands())
 
         result = CliRunner().invoke(gen, ["add", "--help"])
         assert result.exit_code == 0
@@ -67,6 +60,7 @@ class TestGenerators:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         install(monkeypatch, StubEntryPoint("widget", RuntimeError("no such module")))
+        gen = build_gen_command(Commands())
 
         with caplog.at_level(logging.WARNING):
             assert CliRunner().invoke(gen, ["add"]).exit_code == 2
@@ -79,6 +73,7 @@ class TestGenerators:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         install(monkeypatch, StubEntryPoint("widget", "not a command"))
+        gen = build_gen_command(Commands())
 
         with caplog.at_level(logging.WARNING):
             assert CliRunner().invoke(gen, ["add"]).exit_code == 2

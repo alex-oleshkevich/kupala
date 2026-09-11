@@ -2,6 +2,7 @@ import re
 import typing
 
 import jinja2
+import pydantic
 import pytest
 from starlette.routing import Route
 from starlette.testclient import TestClient
@@ -12,10 +13,12 @@ from kupala.api import (
     SWAGGER_BASE_URL,
     APIExtension,
     DocsOptions,
+    standard_docs,
 )
 from kupala.applications import Kupala
 from kupala.extensions import AppBuilder
 from kupala.middleware import CallNext
+from kupala.params import Body
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
@@ -51,6 +54,11 @@ def demo_routes() -> Routes:
 
 
 class TestDocumentationIsOptional:
+    def test_standard_docs_selects_one_viewer(self) -> None:
+        assert standard_docs(ui="swagger") == DocsOptions(openapi_path="/openapi.json", swagger_path="/docs")
+        assert standard_docs(ui="redoc") == DocsOptions(openapi_path="/openapi.json", redoc_path="/docs")
+        assert standard_docs(ui="scalar") == DocsOptions(openapi_path="/openapi.json", scalar_path="/docs")
+
     def test_registers_no_routes_by_default(self) -> None:
         api = APIExtension("/api")
 
@@ -82,7 +90,7 @@ class TestDocument:
         with TestClient(app) as client:
             document = client.get("/api/openapi.json").json()
 
-        assert document["openapi"] == "3.1.1"
+        assert document["openapi"] == "3.2.1"
         assert document["info"] == {"title": "Demo", "version": "1.2.3"}
         assert sorted(document["paths"]) == ["/api/users", "/api/users/{id}"]
         assert document["paths"]["/api/users"]["get"]["summary"] == "List users."
@@ -122,6 +130,37 @@ class TestDocument:
         api = APIExtension("/api", routes=demo_routes())
 
         assert api.document() is api.document()
+
+    def test_startup_rebuilds_an_early_document_with_the_application_binders(self) -> None:
+        class Payload(pydantic.BaseModel):
+            value: str
+
+        class Binder:
+            def supports(self, type_: typing.Any) -> bool:
+                return type_ is Payload
+
+            def compile(self, type_: typing.Any, *, coerce: bool) -> typing.Callable[[typing.Any], Payload]:
+                return lambda value: Payload(value=str(value))  # pragma: no cover
+
+            def schema(self, type_: typing.Any) -> dict[str, typing.Any]:
+                return {"type": "string"}
+
+        routes = Routes()
+
+        @routes.post("/payload")
+        async def create(request: Request, payload: Body[Payload]) -> Response:
+            return Response()  # pragma: no cover
+
+        api = APIExtension("/api", routes=routes, docs=DocsOptions(openapi_path="/openapi.json"))
+        components = api.document().components
+        assert components is not None
+        assert (components.schemas or {})["Payload"]["type"] == "object"
+
+        app = Kupala("tests", routes=Routes(), extensions=[api], model_binders=[Binder()])
+        with TestClient(app) as client:
+            document = client.get("/api/openapi.json").json()
+
+        assert document["components"]["schemas"]["Payload"] == {"type": "string"}
 
     def test_names_itself_when_no_info_is_given(self) -> None:
         api = APIExtension("/api", docs=DocsOptions(openapi_path="/openapi.json"))

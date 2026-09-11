@@ -785,7 +785,9 @@ class TestContributions:
         assert described is not None
         body = described.request_body
         assert isinstance(body, openapi.RequestBody)
-        assert "$ref" in (body.content["application/json"].schema or {})
+        media_type = body.content["application/json"]
+        assert isinstance(media_type, openapi.MediaType)
+        assert "$ref" in (media_type.schema or {})
         assert document.components is not None
         assert "User" in (document.components.schemas or {})
 
@@ -901,6 +903,9 @@ class TestContributions:
         annotation = types.GenericAlias(JSONResponse, (User, typing.Literal[200]))
         assert parse_response(annotation) is None
 
+    def test_an_unrelated_three_parameter_return_type_is_ignored(self) -> None:
+        assert parse_response(tuple[User, typing.Literal[200], UserHeaders]) is None
+
     def test_a_response_annotation_is_rejected_when_status_is_not_an_http_code(self) -> None:
         annotation = JSONResponse[User, typing.Literal[99], typing.Mapping[str, str]]
         with pytest.raises(ValueError, match="HTTP status codes"):
@@ -931,7 +936,9 @@ class TestContributions:
         assert described is not None
         schema = described.request_body
         assert isinstance(schema, openapi.RequestBody)
-        form = schema.content["application/x-www-form-urlencoded"].schema
+        media_type = schema.content["application/x-www-form-urlencoded"]
+        assert isinstance(media_type, openapi.MediaType)
+        form = media_type.schema
         assert form is not None
         assert set(form["properties"]) == {"kek", "name"}
         assert form["required"] == ["kek", "name"]

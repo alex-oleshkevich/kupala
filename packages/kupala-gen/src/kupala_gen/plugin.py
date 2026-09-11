@@ -1,17 +1,8 @@
-"""Expose the generator commands to the Kupala command line.
-
-Registered through the `kupala.commands` entry point group, which `kupala.cli.load_plugins` calls
-with the root group. Generator commands answer without an application: scaffolding a project is
-the one thing you do before there is one.
-"""
-
-import click
-
-from kupala_gen.commands import commands
+from kupala.commands import Commands
+from kupala_gen.commands import build_gen_command
 
 
-def register(cli: click.Group) -> None:
-    """Add the generator commands to `cli`."""
+def register(commands: Commands) -> None:
+    """Add the generator commands to the current CLI build."""
 
-    for command in commands.compile():
-        cli.add_command(command)
+    build_gen_command(commands)
