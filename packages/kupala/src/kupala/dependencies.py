@@ -220,6 +220,9 @@ class Factory:
     factory: typing.Callable[..., typing.Any]
     cache: bool = True
 
+    def _dependency_call(self) -> CallableInfo[..., typing.Any]:
+        return inspect_callable(self.factory)
+
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
         if self in context.chain:
             path = " -> ".join(inspection.callable_name(entry.factory) for entry in (*context.chain, self))
@@ -401,6 +404,8 @@ class CallPlan[**PS, R]:
 def compile_call_plan[**PS, R](
     fn: typing.Callable[PS, R],
     context: CompileContext | None = None,
+    *,
+    provided_parameter: str | None = None,
 ) -> CallPlan[PS, R]:
     info = inspect_callable(fn)
     if context is None:
@@ -412,7 +417,9 @@ def compile_call_plan[**PS, R](
 
     return CallPlan(
         callable=info,
-        parameters=tuple(compile_parameter(context, owner, param) for param in info.parameters),
+        parameters=tuple(
+            compile_parameter(context, owner, param) for param in info.parameters if param.name != provided_parameter
+        ),
     )
 
 

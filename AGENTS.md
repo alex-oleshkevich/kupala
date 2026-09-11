@@ -1,4 +1,6 @@
-This is Kupala, an asynchrounous full-stack web framework for modern Python (3.14+).
+Kupala is an asynchronous full-stack web framework for modern Python (3.14+). It lets developers start with a small application and grow it into a high-traffic system without re-platforming or surrendering the composability of the underlying Python ecosystem.
+
+The framework is for Python teams that want a cohesive, batteries-included developer experience while keeping application code explicit, typed, and portable.
 
 Read @VISION.md for project vision.
 
@@ -86,6 +88,8 @@ Files `tests`. Test file names must mirror `kupala/` file structure. For example
 - Preserve Starlette and ASGI compatibility at the integration boundary; do not fork or duplicate Starlette behavior without a documented reason.
 - Reexport Starlettes classes and utilities from Kupala, user's won't need to update their code if we decide to extend base functionality.
 - Keep the core library small. Feature integrations such as database, mail, authentication, storage, and queues must be optional packages or extras unless they are required by the base runtime.
+- Keep transport and command boundaries thin. They translate framework inputs and outputs, then delegate application behavior to the module or optional package that owns it.
+- Define external-integration protocols in their owning optional package and implement only adapters required by a current use case. Do not add speculative adapters.
 - Do not introduce hidden module-level registries, mutable global state, or implicit application discovery.
 - Public APIs require complete type annotations, tests, and documentation of observable behavior.
 - Use `logging`, never `print`, in framework code.
@@ -106,25 +110,48 @@ Files `tests`. Test file names must mirror `kupala/` file structure. For example
 - Session, cookie, upload, form, template, proxy, and host-handling changes require security focused tests.
 - Never add a dependency or integration that expands the attack surface without documenting its trust and configuration model.
 
+## Engineering Discipline
+
+- Implement exactly what was asked — no speculative extra features, files, or abstractions beyond the request.
+- State material assumptions before implementation. If plausible interpretations would change the public contract or scope, present the tradeoff and ask instead of choosing silently.
+- Do not add comments that merely restate the code. Use comments only when they explain a non-obvious constraint or decision.
+- Don't abstract, generalize, or add configurability beyond what's needed right now. The integration protocols required by the project invariants are the deliberate exception, not a license to abstract elsewhere. Before finishing, ask whether a senior engineer would call the change over-engineered; if so, simplify it.
+- Touch only what the request requires, match the surrounding style, and avoid adjacent refactoring. Remove code made unused by your change, but report pre-existing dead code instead of deleting it.
+- Every changed line must trace directly to the requested outcome.
+- Prefer current, idiomatic patterns for the chosen stack over legacy ones (e.g. current Python idioms, no deprecated APIs) — not "modern" for its own sake.
+
+## Beads issue tracker
+
+- Use Beads (`bd`) for durable task tracking and project memory. Do not create parallel markdown TODO lists or ad hoc memory files.
+- Run `bd prime` when starting tracked work or when Beads context may be stale.
+- Use `bd ready` to find available work, `bd show <id>` to inspect it, `bd update <id> --claim` to claim it, `bd close <id>` when it is complete, and `bd remember` for persistent project knowledge.
+- At handoff, report changed files, validation, issue status, and remaining work. Do not commit, push, or synchronize Beads remotes unless explicitly requested.
+
 ## Change workflow
 
 - Inspect the current implementation, tests, `git status`, and related Beads issues before editing.
 - For non-trivial work, create or claim a Beads issue and record design decisions there.
-- Make the smallest contract-preserving change and add a regression test first when fixing behavior.
+- For non-trivial work, state a brief plan with verifiable success criteria before editing.
+- Make the smallest contract-preserving change. Reproduce bugs with a failing regression test, and run relevant tests before and after refactors.
 - Run focused tests, then the full suite, type checks, linting, coverage, and package-build checks.
 - Update README or API documentation when public behavior changes.
 - Leave unrelated user changes untouched and do not commit, push, publish, or deploy unless explicitly requested.
 
-## Verification commands
+## Commands
 
-- `just check` - runs full check suite with `prek`
-- `just test $optional_test_pattern`
-- `just testc $optional_test_pattern` - runs tests with coverage
+- Keep this list synchronized with the recipes in `justfile`.
+- `just dev` — run the demo application with reload on port 7000.
+- `just cli $optional_arguments` — run the Kupala CLI from the demo project.
+- `just test $optional_test_pattern` — run tests.
+- `just test-pkg $package $optional_test_pattern` — run one package's tests.
+- `just testc $optional_test_pattern` — run tests with 100% coverage enforcement.
+- `just check` — run the full `prek` check suite.
 - `uv run mypy`
 - `uv build --all-packages --no-sources`
 - `git diff --check`
 
 <!-- CODEGRAPH_START -->
+
 ## CodeGraph
 
 In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:

@@ -67,8 +67,9 @@ already-constructed value should be returned unchanged.
 ## Bearer credentials
 
 `Bearer` is a regular dependency binding that returns the raw credential and adds the matching security scheme to
-OpenAPI. Missing credentials raise `NotAuthenticatedError`; malformed or duplicate `Authorization` headers raise
-`BadRequestError`, and both errors carry the appropriate `WWW-Authenticate` header.
+OpenAPI. Pass `authenticate=` to resolve an `Identity[T]` instead; the callback's first parameter receives the token,
+and its remaining parameters use normal dependency injection. Raising `InvalidCredentialsError` directly from the
+callback produces the configured Bearer challenge without exposing the token.
 
 ```python
 from typing import Annotated
@@ -79,4 +80,22 @@ type AccessToken = Annotated[str, Bearer(name="accessToken", bearer_format="JWT"
 
 
 async def endpoint(token: AccessToken) -> Response: ...
+```
+
+```python
+from kupala import Bearer, Identity
+from kupala.errors import InvalidCredentialsError
+
+
+async def authenticate(token: str, users: UserRepository) -> Identity[User]:
+    user = await users.for_token(token)
+    if user is None:
+        raise InvalidCredentialsError()
+    return Identity(user)
+
+
+type CurrentIdentity = Annotated[
+    Identity[User],
+    Bearer(realm="api", name="accessToken", bearer_format="JWT", authenticate=authenticate),
+]
 ```

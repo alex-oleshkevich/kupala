@@ -11,7 +11,7 @@ from starlette.routing import compile_path
 
 from kupala import inspection
 from kupala.binders import DEFAULT_MODEL_BINDERS, ModelBinder
-from kupala.dependencies import Binding, Factory, ParamInfo, find_binding, inspect_callable
+from kupala.dependencies import Binding, CallableInfo, ParamInfo, find_binding
 from kupala.routing import RouteDefinition, Routes
 from kupala.schema import openapi
 from kupala.schema.responses import response_schemas
@@ -187,25 +187,32 @@ def merge_operation_security(
     return tuple(merge_security_requirements(alternative, required) or {} for alternative in alternatives)
 
 
+@typing.runtime_checkable
+class _NestedDependencies(typing.Protocol):
+    def _dependency_call(self) -> CallableInfo[..., typing.Any] | None: ...
+
+
 def walk_dependency_bindings(
     parameters: tuple[ParamInfo, ...],
     owner: str,
-    factories: list[Factory],
+    traversed: list[Binding],
 ) -> typing.Iterator[tuple[ParamInfo, Binding]]:
-    """Yield bindings in the dependency graph once per factory."""
+    """Yield bindings while traversing each nested dependency once."""
 
     for param in parameters:
         binding = find_binding(param, owner)
         yield param, binding
-        if not isinstance(binding, Factory) or binding in factories:
+        if not isinstance(binding, _NestedDependencies) or binding in traversed:
             continue
 
-        factories.append(binding)
-        dependency = inspect_callable(binding.factory)
+        dependency = binding._dependency_call()
+        if dependency is None:
+            continue
+        traversed.append(binding)
         yield from walk_dependency_bindings(
             dependency.parameters,
             inspection.callable_name(dependency.callable),
-            factories,
+            traversed,
         )
 
 
