@@ -254,12 +254,14 @@ version = "0"
 source = { editable = "demo" }
 dependencies = [
     { name = "kupala" },
+    { name = "pydantic-settings" },
     { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "kupala", editable = "packages/kupala" },
+    { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "uvicorn", specifier = ">=0.52.1" },
 ]
 

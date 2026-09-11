@@ -1,6 +1,7 @@
 import collections.abc
 import dataclasses
 import enum
+import re
 import typing
 
 __all__ = [
@@ -58,6 +59,7 @@ type Callback = typing.Mapping[str, PathItem | Reference]
 
 class ParameterLocation(enum.StrEnum):
     QUERY = "query"
+    QUERY_STRING = "querystring"
     HEADER = "header"
     PATH = "path"
     COOKIE = "cookie"
@@ -71,6 +73,7 @@ class ParameterStyle(enum.StrEnum):
     SPACE_DELIMITED = "spaceDelimited"
     PIPE_DELIMITED = "pipeDelimited"
     DEEP_OBJECT = "deepObject"
+    COOKIE = "cookie"
 
 
 class SecuritySchemeType(enum.StrEnum):
@@ -121,6 +124,7 @@ class ServerVariable:
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class Server:
     url: str
+    name: str | None = None
     description: str | None = None
     variables: typing.Mapping[str, ServerVariable] | None = None
     extensions: Extensions | None = None
@@ -136,8 +140,11 @@ class ExternalDocumentation:
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class Tag:
     name: str
+    summary: str | None = None
     description: str | None = None
     external_docs: ExternalDocumentation | None = None
+    parent: str | None = None
+    kind: str | None = None
     extensions: Extensions | None = None
 
 
@@ -153,6 +160,8 @@ class Reference:
 class Example:
     summary: str | None = None
     description: str | None = None
+    data_value: typing.Any = None
+    serialized_value: str | None = None
     # an example whose value is literally `null` cannot be spelled: `None` means absent everywhere here
     value: typing.Any = None
     external_value: str | None = None
@@ -175,7 +184,7 @@ class Header:
     schema: Schema | None = None
     example: typing.Any = None
     examples: typing.Mapping[str, Example | Reference] | None = None
-    content: typing.Mapping[str, MediaType] | None = None
+    content: typing.Mapping[str, MediaType | Reference] | None = None
     extensions: Extensions | None = None
 
 
@@ -186,21 +195,28 @@ class Encoding:
     style: ParameterStyle | None = None
     explode: bool | None = None
     allow_reserved: bool | None = None
+    encoding: typing.Mapping[str, Encoding] | None = None
+    prefix_encoding: typing.Sequence[Encoding] | None = None
+    item_encoding: Encoding | None = None
     extensions: Extensions | None = None
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class MediaType:
+    description: str | None = None
     schema: Schema | None = None
+    item_schema: Schema | None = None
     example: typing.Any = None
     examples: typing.Mapping[str, Example | Reference] | None = None
     encoding: typing.Mapping[str, Encoding] | None = None
+    prefix_encoding: typing.Sequence[Encoding] | None = None
+    item_encoding: Encoding | None = None
     extensions: Extensions | None = None
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class RequestBody:
-    content: typing.Mapping[str, MediaType]
+    content: typing.Mapping[str, MediaType | Reference]
     description: str | None = None
     required: bool | None = None
     extensions: Extensions | None = None
@@ -219,9 +235,10 @@ class Link:
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class Response:
-    description: str
+    summary: str | None = None
+    description: str | None = None
     headers: typing.Mapping[str, Header | Reference] | None = None
-    content: typing.Mapping[str, MediaType] | None = None
+    content: typing.Mapping[str, MediaType | Reference] | None = None
     links: typing.Mapping[str, Link | Reference] | None = None
     extensions: Extensions | None = None
 
@@ -240,7 +257,7 @@ class Parameter:
     schema: Schema | None = None
     example: typing.Any = None
     examples: typing.Mapping[str, Example | Reference] | None = None
-    content: typing.Mapping[str, MediaType] | None = None
+    content: typing.Mapping[str, MediaType | Reference] | None = None
     extensions: Extensions | None = None
 
     def __post_init__(self) -> None:
@@ -254,6 +271,7 @@ class OAuthFlow:
     # scope name -> what it permits; required even when the flow defines no scopes
     scopes: typing.Mapping[str, str]
     authorization_url: str | None = None
+    device_authorization_url: str | None = None
     token_url: str | None = None
     refresh_url: str | None = None
     extensions: Extensions | None = None
@@ -265,6 +283,7 @@ OAUTH_FLOW_REQUIREMENTS: typing.Final[typing.Mapping[str, tuple[str, ...]]] = {
     "password": ("token_url",),
     "client_credentials": ("token_url",),
     "authorization_code": ("authorization_url", "token_url"),
+    "device_authorization": ("device_authorization_url", "token_url"),
 }
 
 
@@ -274,6 +293,7 @@ class OAuthFlows:
     password: OAuthFlow | None = None
     client_credentials: OAuthFlow | None = None
     authorization_code: OAuthFlow | None = None
+    device_authorization: OAuthFlow | None = None
     extensions: Extensions | None = None
 
     def __post_init__(self) -> None:
@@ -308,6 +328,8 @@ class SecurityScheme:
     bearer_format: str | None = None
     flows: OAuthFlows | None = None
     open_id_connect_url: str | None = None
+    oauth2_metadata_url: str | None = None
+    deprecated: bool | None = None
     extensions: Extensions | None = None
 
     def __post_init__(self) -> None:
@@ -361,8 +383,9 @@ class SchemaContext(typing.Protocol):
     def properties_of(self, type_: typing.Any) -> tuple[typing.Mapping[str, Schema], frozenset[str]]: ...
 
 
-# the operation slots a path item has, which is also what `with_operation` accepts
-HTTP_METHODS: typing.Final = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
+# operation slots with dedicated fields; `with_operation` places every other HTTP method in `additional_operations`
+HTTP_METHODS: typing.Final = ("get", "put", "post", "delete", "options", "head", "patch", "trace", "query")
+HTTP_METHOD_PATTERN: typing.Final = re.compile(r"^[a-zA-Z0-9!#$%&'*+.^_`|~-]+$")
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
@@ -378,6 +401,8 @@ class PathItem:
     head: Operation | None = None
     patch: Operation | None = None
     trace: Operation | None = None
+    query: Operation | None = None
+    additional_operations: typing.Mapping[str, Operation] | None = None
     servers: typing.Sequence[Server] | None = None
     parameters: typing.Sequence[Parameter | Reference] | None = None
     extensions: Extensions | None = None
@@ -387,8 +412,12 @@ class PathItem:
 
         slot = method.lower()
         if slot not in HTTP_METHODS:
-            listed = ", ".join(name.upper() for name in HTTP_METHODS)
-            raise ValueError(f"OpenAPI path items describe no {method!r} operation. Use one of: {listed}.")
+            if HTTP_METHOD_PATTERN.fullmatch(method) is None:
+                raise ValueError(f"Invalid HTTP method {method!r}.")
+            return dataclasses.replace(
+                self,
+                additional_operations={**(self.additional_operations or {}), method: operation},
+            )
 
         # the check above is what makes this sound: `replace` types each keyword against one named
         # field, which cannot describe a field chosen at runtime
@@ -408,16 +437,19 @@ class Components:
     links: typing.Mapping[str, Link | Reference] | None = None
     callbacks: typing.Mapping[str, Callback | Reference] | None = None
     path_items: typing.Mapping[str, PathItem | Reference] | None = None
+    media_types: typing.Mapping[str, MediaType | Reference] | None = None
     extensions: Extensions | None = None
 
 
 SUPPORTED_OPENAPI_VERSION: typing.Final = "3.2"
+OPENAPI_VERSION_PATTERN: typing.Final = re.compile(r"^3\.2\.\d+(?:-.+)?$")
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class OpenAPI:
     # declared first so it serializes first, which is where every published document carries it
-    openapi: str = "3.2.0"
+    openapi: str = "3.2.1"
+    self_: str | None = None
     info: Info
     json_schema_dialect: str | None = None
     servers: typing.Sequence[Server] | None = None
@@ -430,7 +462,7 @@ class OpenAPI:
     extensions: Extensions | None = None
 
     def __post_init__(self) -> None:
-        if not self.openapi.startswith(f"{SUPPORTED_OPENAPI_VERSION}."):
+        if OPENAPI_VERSION_PATTERN.fullmatch(self.openapi) is None:
             raise ValueError(
                 f"Unsupported OpenAPI version {self.openapi!r}. "
                 f"This document model describes {SUPPORTED_OPENAPI_VERSION}."
@@ -445,6 +477,7 @@ class OpenAPI:
 FIELD_ALIASES: typing.Final[typing.Mapping[str, str]] = {
     "in_": "in",
     "ref": "$ref",
+    "self_": "$self",
 }
 
 

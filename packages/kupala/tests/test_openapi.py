@@ -83,7 +83,7 @@ class TestOpenAPI:
         )
 
         assert openapi.to_dict(document) == {
-            "openapi": "3.2.0",
+            "openapi": "3.2.1",
             "info": {"title": "Demo", "version": "1.0", "license": {"name": "MIT", "identifier": "MIT"}},
             "paths": {"/users": {"get": {"operationId": "listUsers"}}},
             "components": {"schemas": {"User": {"type": "object"}}},
@@ -97,15 +97,19 @@ class TestOpenAPI:
 
         assert openapi.to_dict(document)["webhooks"] == {"userCreated": {"post": {}}}
 
-    @pytest.mark.parametrize("version", ["3.1.2", "3.10.0", "4.0.0"])
+    @pytest.mark.parametrize(
+        "version",
+        ["3.1.2", "3.10.0", "4.0.0", "3.2", "3.2.", "3.2.next", "3.2.0.1"],
+    )
     def test_rejects_a_version_it_does_not_describe(self, version: str) -> None:
         with pytest.raises(ValueError, match="Unsupported OpenAPI version"):
             openapi.OpenAPI(info=openapi.Info(title="Demo", version="1.0"), openapi=version)
 
-    def test_accepts_any_patch_release_of_3_2(self) -> None:
-        document = openapi.OpenAPI(info=openapi.Info(title="Demo", version="1.0"), openapi="3.2.1")
+    @pytest.mark.parametrize("version", ["3.2.0", "3.2.42", "3.2.0-rc.1"])
+    def test_accepts_any_patch_release_of_3_2(self, version: str) -> None:
+        document = openapi.OpenAPI(info=openapi.Info(title="Demo", version="1.0"), openapi=version)
 
-        assert document.openapi == "3.2.1"
+        assert document.openapi == version
 
     def test_rejects_a_path_without_a_leading_slash(self) -> None:
         with pytest.raises(ValueError, match="must start with '/'"):
@@ -171,6 +175,10 @@ class TestOAuthFlows:
                 lambda flow: openapi.OAuthFlows(authorization_code=flow),
                 "authorization_code flow is missing 'authorization_url', 'token_url'",
             ),
+            (
+                lambda flow: openapi.OAuthFlows(device_authorization=flow),
+                "device_authorization flow is missing 'device_authorization_url', 'token_url'",
+            ),
         ],
     )
     def test_reports_the_urls_a_flow_cannot_work_without(
@@ -203,7 +211,7 @@ class TestOAuthFlows:
 
 
 class TestPathItem:
-    @pytest.mark.parametrize("method", ["get", "PATCH"])
+    @pytest.mark.parametrize("method", ["get", "PATCH", "QUERY"])
     def test_places_an_operation_under_its_method(self, method: str) -> None:
         item = openapi.PathItem()
 
@@ -219,11 +227,16 @@ class TestPathItem:
         assert openapi.to_dict(item) == {"get": {"operationId": "read"}}
         assert openapi.to_dict(placed) == {"get": {"operationId": "read"}, "post": {"operationId": "write"}}
 
-    def test_rejects_a_method_no_path_item_describes(self) -> None:
+    def test_places_an_additional_operation_under_its_exact_method(self) -> None:
         item = openapi.PathItem()
 
-        with pytest.raises(ValueError, match="no 'CONNECT' operation"):
-            item.with_operation("CONNECT", openapi.Operation())
+        placed = item.with_operation("CONNECT", openapi.Operation(operation_id="connect"))
+
+        assert openapi.to_dict(placed) == {"additionalOperations": {"CONNECT": {"operationId": "connect"}}}
+
+    def test_rejects_an_invalid_http_method(self) -> None:
+        with pytest.raises(ValueError, match="Invalid HTTP method"):
+            openapi.PathItem().with_operation("NOT A METHOD", openapi.Operation())
 
 
 class TestSpecValidity:
@@ -241,6 +254,7 @@ class TestSpecValidity:
             )
         }
         document = openapi.OpenAPI(
+            self_="https://example.com/openapi.json",
             info=openapi.Info(
                 title="Demo",
                 version="1.0",
@@ -255,16 +269,21 @@ class TestSpecValidity:
             servers=[
                 openapi.Server(
                     url="https://{stage}.example.com",
+                    name="production",
                     description="d",
                     variables={"stage": openapi.ServerVariable(default="live", enum=["live", "test"], description="d")},
                 )
             ],
             security=[{"bearerAuth": []}],
             tags=[
+                openapi.Tag(name="resources", kind="nav"),
                 openapi.Tag(
                     name="users",
+                    summary="Users",
                     description="d",
                     external_docs=openapi.ExternalDocumentation(url="/docs", description="d"),
+                    parent="resources",
+                    kind="nav",
                 )
             ],
             external_docs=openapi.ExternalDocumentation(url="/docs"),
@@ -297,12 +316,13 @@ class TestSpecValidity:
                             openapi.Parameter(
                                 name="session",
                                 in_=openapi.ParameterLocation.COOKIE,
-                                style=openapi.ParameterStyle.FORM,
+                                style=openapi.ParameterStyle.COOKIE,
                                 schema={"type": "string"},
                             ),
                         ],
                         responses={
                             "200": openapi.Response(
+                                summary="Users",
                                 description="ok",
                                 headers={
                                     "x-total": openapi.Header(
@@ -313,8 +333,15 @@ class TestSpecValidity:
                                 },
                                 content={
                                     "application/json": openapi.MediaType(
+                                        description="Users",
                                         schema={"type": "array", "items": {"$ref": "#/components/schemas/User"}},
-                                        examples={"one": openapi.Example(summary="s", external_value="/one.json")},
+                                        examples={
+                                            "one": openapi.Example(
+                                                summary="s",
+                                                data_value={"id": 1},
+                                                serialized_value='{"id":1}',
+                                            )
+                                        },
                                     )
                                 },
                                 # `Link.server` is absent on purpose: see the test below
@@ -335,6 +362,13 @@ class TestSpecValidity:
                         extensions={"x-operation": True},
                     ),
                     post=openapi.Operation(
+                        parameters=[
+                            openapi.Parameter(
+                                name="filter",
+                                in_=openapi.ParameterLocation.QUERY_STRING,
+                                content={"application/json": openapi.MediaType(schema={"type": "object"})},
+                            )
+                        ],
                         request_body=openapi.RequestBody(
                             description="d",
                             required=True,
@@ -359,6 +393,18 @@ class TestSpecValidity:
                         ),
                         responses={"201": openapi.Response(description="created")},
                     ),
+                    query=openapi.Operation(
+                        responses={
+                            "200": openapi.Response(
+                                content={
+                                    "text/event-stream": openapi.Reference(ref="#/components/mediaTypes/Events")
+                                }
+                            )
+                        }
+                    ),
+                    additional_operations={
+                        "COPY": openapi.Operation(responses={"200": openapi.Response(description="copied")})
+                    },
                 ),
                 "/users/{id}": openapi.PathItem(
                     # declared once on the item, so every operation below inherits it
@@ -421,6 +467,8 @@ class TestSpecValidity:
                     ),
                     "oauth2": openapi.SecurityScheme(
                         type=openapi.SecuritySchemeType.OAUTH2,
+                        deprecated=False,
+                        oauth2_metadata_url="https://example.com/.well-known/oauth-authorization-server",
                         flows=openapi.OAuthFlows(
                             implicit=openapi.OAuthFlow(scopes={"read": "d"}, authorization_url="/authorize"),
                             password=openapi.OAuthFlow(scopes={}, token_url="/token"),
@@ -430,8 +478,23 @@ class TestSpecValidity:
                             authorization_code=openapi.OAuthFlow(
                                 scopes={"read": "d"}, authorization_url="/authorize", token_url="/token"
                             ),
+                            device_authorization=openapi.OAuthFlow(
+                                scopes={"read": "d"},
+                                device_authorization_url="/device",
+                                token_url="/token",
+                            ),
                         ),
                     ),
+                },
+                media_types={
+                    "Events": openapi.MediaType(
+                        item_schema=user_schema,
+                        prefix_encoding=[openapi.Encoding(content_type="application/json")],
+                        item_encoding=openapi.Encoding(
+                            content_type="application/json",
+                            encoding={"id": openapi.Encoding(content_type="text/plain")},
+                        ),
+                    )
                 },
                 links={"Self": openapi.Link(operation_ref="#/paths/~1users/get")},
                 callbacks={"OnData": callback},

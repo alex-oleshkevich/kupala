@@ -7,7 +7,6 @@ import re
 import typing
 
 import click
-from click.shell_completion import CompletionItem
 
 from kupala.applications import Kupala
 from kupala.commands import UsageError
@@ -100,32 +99,34 @@ def resolve_application(app: Kupala | None = None) -> Kupala | None:
     return None
 
 
-type ApplicationResolver = typing.Callable[[], Kupala | None]
-
-
 def load_plugins(cli: click.Group, group: str = PLUGIN_GROUP) -> None:
     """Let installed packages register their commands on the command line."""
 
     for entry_point in importlib.metadata.entry_points(group=group):
         try:
             plugin = entry_point.load()
-        except Exception as exc:  # noqa: BLE001 - a third-party module may raise anything on import
-            logger.warning("Ignoring CLI plugin %r, which failed to load: %s", entry_point.name, exc)
+        except Exception:  # noqa: BLE001 - a third-party module may raise anything on import
+            logger.warning("Ignoring CLI plugin %r: import failed.", entry_point.name)
             continue
 
         # a click.Command is callable, and calling one would try to *run* it rather than register it
         if isinstance(plugin, click.Command) or not callable(plugin):
             logger.warning(
-                "Ignoring CLI plugin %r: expected a callable taking the root group, got %s.",
+                "Ignoring CLI plugin %r: expected a registration callback, got %s.",
                 entry_point.name,
                 type(plugin).__name__,
             )
             continue
 
+        registration = click.Group()
         try:
-            plugin(cli)
-        except Exception as exc:  # noqa: BLE001 - a third-party plugin may raise anything
-            logger.warning("Ignoring CLI plugin %r, which failed while registering: %s", entry_point.name, exc)
+            plugin(registration)
+        except Exception:  # noqa: BLE001 - a third-party plugin may raise anything
+            logger.warning("Ignoring CLI plugin %r: registration failed.", entry_point.name)
+            continue
+
+        for command in registration.commands.values():
+            cli.add_command(command)
 
 
 @dataclasses.dataclass

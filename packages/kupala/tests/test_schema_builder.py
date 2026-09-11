@@ -106,6 +106,9 @@ class TestDocumentedMethods:
     def test_collapses_a_repeated_method(self) -> None:
         assert documented_methods(definition("POST", "POST")) == ("post",)
 
+    def test_preserves_the_spelling_of_an_additional_method(self) -> None:
+        assert documented_methods(definition("CONNECT")) == ("CONNECT",)
+
 
 class TestBuildDocument:
     def test_names_a_path_by_the_group_that_encloses_it(self) -> None:
@@ -200,12 +203,21 @@ class TestBuildDocument:
         with pytest.raises(DuplicateOperationError, match=r"both describe GET /users/\{key\}"):
             build_document(routes, DOCUMENT)
 
-    def test_a_method_no_path_item_models_is_named(self) -> None:
+    def test_two_routes_cannot_document_the_same_additional_operation(self) -> None:
+        routes = Routes()
+        routes.add("/users", view, methods=["REPORT"], name="first", openapi=openapi.Operation())
+        routes.add("/users", view, methods=["REPORT"], name="second", openapi=openapi.Operation())
+
+        with pytest.raises(DuplicateOperationError, match="both describe REPORT /users"):
+            build_document(routes, DOCUMENT)
+
+    def test_an_additional_method_is_documented(self) -> None:
         routes = Routes()
         routes.add("/x", view, methods=["REPORT"], openapi=openapi.Operation())
 
-        with pytest.raises(ValueError, match="describe no 'report' operation"):
-            build_document(routes, DOCUMENT)
+        operation = ((build_document(routes, DOCUMENT).paths or {})["/x"].additional_operations or {})["REPORT"]
+
+        assert operation.operation_id == "view"
 
     def test_two_operations_cannot_share_an_id(self) -> None:
         routes = Routes()
@@ -954,6 +966,20 @@ class TestContributions:
         schemas = (build_document(routes, DOCUMENT).components or openapi.Components()).schemas or {}
         assert set(schemas) == {"User", "test_schema_builder.User"}
 
+    def test_an_authored_component_name_reserves_the_generated_name(self) -> None:
+        async def create(request: Request, user: Body[User]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.post("/users")(create)
+        authored = {"User": {"type": "string"}}
+        document = dataclasses.replace(DOCUMENT, components=openapi.Components(schemas=authored))
+
+        schemas = (build_document(routes, document).components or openapi.Components()).schemas or {}
+
+        assert schemas["User"] == {"type": "string"}
+        assert schemas["test_schema_builder.User"]["type"] == "object"
+
     def test_body_and_form_on_one_endpoint_are_refused(self) -> None:
         async def mixed(request: Request, user: Body[User], filters: Form[Filters]) -> Response:
             return Response()  # pragma: no cover
@@ -1034,7 +1060,19 @@ def test_reuses_a_registered_schema_name() -> None:
     assert builder.name_for(User) == "User"
 
 
-def test_registers_and_skips_colliding_nested_definitions() -> None:
+def test_refuses_a_prebuilt_schema_that_conflicts_with_an_authored_component() -> None:
+    builder = OpenAPIBuilder()
+    builder.schema_for(User)
+    document = dataclasses.replace(
+        DOCUMENT,
+        components=openapi.Components(schemas={"User": {"type": "string"}}),
+    )
+
+    with pytest.raises(ValueError, match="Generated schema 'User' conflicts"):
+        builder.build(Routes(), document)
+
+
+def test_registers_colliding_nested_definitions_under_a_fresh_name() -> None:
     class First:
         pass
 
@@ -1048,6 +1086,7 @@ def test_registers_and_skips_colliding_nested_definitions() -> None:
     builder.register(Second, schema)
     assert builder.schemas["Nested"] == {"type": "object"}
     assert builder.schemas["Second.Nested"] == {"type": "string"}
+    assert builder.schemas["Second.Nested.2"] == {"type": "object"}
 
 
 def test_rejects_a_model_binder_for_a_non_type() -> None:
@@ -1065,10 +1104,16 @@ def test_rejects_a_model_binder_for_a_non_type() -> None:
 
 @pytest.mark.parametrize(
     ("annotation", "expected"),
-    [(enum.Enum("StringEnum", {"one": "one"}), "string"), (enum.Enum("IntegerEnum", {"one": 1}), "integer")],
+    [
+        (enum.Enum("StringEnum", {"one": "one"}), {"type": "string", "enum": ["one"]}),
+        (enum.Enum("IntegerEnum", {"one": 1}), {"type": "integer", "enum": [1]}),
+        (enum.Enum("NumberEnum", {"one": 1.5}), {"type": "number", "enum": [1.5]}),
+        (enum.Enum("BooleanEnum", {"one": True}), {"type": "boolean", "enum": [True]}),
+        (enum.Enum("MixedEnum", {"one": 1, "two": "two"}), {"enum": [1, "two"]}),
+    ],
 )
-def test_schema_for_enums(annotation: type[enum.Enum], expected: str) -> None:
-    assert OpenAPIBuilder().schema_for(annotation) == {"type": expected, "enum": [next(iter(annotation)).value]}
+def test_schema_for_enums(annotation: type[enum.Enum], expected: openapi.Schema) -> None:
+    assert OpenAPIBuilder().schema_for(annotation) == expected
 
 
 def test_properties_of_a_non_model_schema() -> None:
@@ -1079,3 +1124,17 @@ def test_merge_responses_keeps_non_response_authored_values() -> None:
     reference = openapi.Reference(ref="#/components/responses/Other")
     merged = merge_responses({"200": openapi.Response(description="Generated")}, {"200": reference})
     assert merged == {"200": reference}
+
+
+def test_merge_responses_keeps_generated_fields_an_author_does_not_replace() -> None:
+    generated = openapi.Response(description="Generated", headers={"x-id": openapi.Header(schema={"type": "string"})})
+
+    merged = merge_responses({"200": generated}, {"200": openapi.Response(summary="Success")})
+
+    assert merged == {
+        "200": openapi.Response(
+            summary="Success",
+            description="Generated",
+            headers=generated.headers,
+        )
+    }

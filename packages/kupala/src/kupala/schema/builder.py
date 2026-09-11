@@ -210,9 +210,13 @@ def walk_dependency_bindings(
 
 
 def documented_methods(definition: RouteDefinition) -> tuple[str, ...]:
-    """The methods of a definition worth documenting, lowercased for a path item."""
+    """The methods of a definition worth documenting, in their OpenAPI spelling."""
 
-    methods = tuple(dict.fromkeys(method.lower() for method in definition.methods))
+    methods = tuple(
+        dict.fromkeys(
+            method.lower() if method.lower() in openapi.HTTP_METHODS else method for method in definition.methods
+        )
+    )
     # `get()` registers HEAD alongside GET, and a HEAD entry beside its GET only repeats it
     if "get" in methods:
         methods = tuple(method for method in methods if method != "head")
@@ -255,12 +259,13 @@ class OpenAPIBuilder:
         self.namer = namer
         self.schemas: dict[str, openapi.Schema] = {}
         self.types: dict[type, str] = {}
+        self._reserved_schema_names: set[str] = set()
 
     def name_for(self, type_: type) -> str:
         if type_ in self.types:
             return self.types[type_]
 
-        taken = set(self.schemas) | set(self.types.values())
+        taken = set(self.schemas) | set(self.types.values()) | self._reserved_schema_names
         name = self.namer(type_, taken)
         owner = next((existing for existing, assigned in self.types.items() if assigned == name), None)
         if name in taken and owner is not type_:
@@ -274,15 +279,24 @@ class OpenAPIBuilder:
 
         root, defs = _split_library_schema(schema)
         name = self.name_for(type_)
-        mapping = {name: name}
+        taken = set(self.schemas) | self._reserved_schema_names | {name}
+        mapping: dict[str, str] = {}
         for def_name in defs:
-            mapping[def_name] = def_name if def_name not in self.schemas or def_name == name else f"{name}.{def_name}"
+            stored = def_name
+            if stored in taken:
+                qualified = f"{name}.{def_name}"
+                stored = qualified
+                suffix = 2
+                while stored in taken:
+                    stored = f"{qualified}.{suffix}"
+                    suffix += 1
+            mapping[def_name] = stored
+            taken.add(stored)
+        mapping.setdefault(name, name)
 
         self.schemas[name] = typing.cast(openapi.Schema, _rewrite_refs(root, mapping))
         for def_name, def_schema in defs.items():
             stored = mapping[def_name]
-            if stored in self.schemas and stored != name:
-                continue
             self.schemas[stored] = typing.cast(openapi.Schema, _rewrite_refs(def_schema, mapping))
         return {"$ref": f"#/components/schemas/{name}"}
 
@@ -306,7 +320,15 @@ class OpenAPIBuilder:
             return scalar
         if isinstance(type_, type) and issubclass(type_, enum.Enum):
             values = [member.value for member in type_]
-            json_type = "string" if all(isinstance(value, str) for value in values) else "integer"
+            json_type = {
+                frozenset({str}): "string",
+                frozenset({int}): "integer",
+                frozenset({float}): "number",
+                frozenset({int, float}): "number",
+                frozenset({bool}): "boolean",
+            }.get(frozenset(type(value) for value in values))
+            if json_type is None:
+                return {"enum": values}
             return {"type": json_type, "enum": values}
 
         origin = typing.get_origin(type_)
@@ -354,6 +376,13 @@ class OpenAPIBuilder:
 
     def build(self, routes: Routes, document: openapi.OpenAPI) -> openapi.OpenAPI:
         """Describe `routes` in `document`, replacing whatever paths it carries."""
+
+        components = document.components or openapi.Components()
+        authored_schemas = components.schemas or {}
+        conflict = next((name for name in self.schemas if name in authored_schemas), None)
+        if conflict is not None:
+            raise ValueError(f"Generated schema {conflict!r} conflicts with an authored component.")
+        self._reserved_schema_names.update(authored_schemas)
 
         paths: dict[str, openapi.PathItem] = {}
         operation_ids: dict[str, str] = {}
@@ -422,14 +451,18 @@ class OpenAPIBuilder:
                     security=security,
                 )
                 item = paths.get(template, openapi.PathItem())
-                if getattr(item, method, None) is not None:
+                existing = (
+                    getattr(item, method)
+                    if method in openapi.HTTP_METHODS
+                    else (item.additional_operations or {}).get(method)
+                )
+                if existing is not None:
                     raise DuplicateOperationError(
                         f"Two routes both describe {method.upper()} {template}, which a document cannot "
                         f"express. Give them distinct paths."
                     )
                 paths[template] = item.with_operation(method, described)
 
-        components = document.components or openapi.Components()
         if self.schemas:
             components = dataclasses.replace(
                 components,
@@ -490,7 +523,8 @@ def merge_responses(
         if isinstance(existing, openapi.Response) and isinstance(response, openapi.Response):
             merged[status] = dataclasses.replace(
                 existing,
-                description=response.description,
+                summary=response.summary if response.summary is not None else existing.summary,
+                description=response.description if response.description is not None else existing.description,
                 headers=response.headers if response.headers is not None else existing.headers,
                 content=response.content if response.content is not None else existing.content,
                 links=response.links if response.links is not None else existing.links,

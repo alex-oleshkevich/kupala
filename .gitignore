@@ -5,6 +5,7 @@ __pycache__
 .coverage*
 .idea
 dist/
+/demo/.env
 demo_app
 _private
 coverage.xml
