@@ -11,7 +11,7 @@ from starlette.routing import compile_path
 
 from kupala import inspection
 from kupala.binders import DEFAULT_MODEL_BINDERS, ModelBinder
-from kupala.dependencies import ParamInfo, find_binding
+from kupala.dependencies import Binding, Factory, ParamInfo, find_binding, inspect_callable
 from kupala.routing import RouteDefinition, Routes
 from kupala.schema import openapi
 from kupala.schema.responses import response_schemas
@@ -75,7 +75,7 @@ def default_schema_namer(type_: type, taken: collections.abc.Set[str]) -> str:
 
 
 class DuplicateOperationError(ValueError):
-    """Raised when two documented routes would share one operation id."""
+    """Raised when generated OpenAPI cannot describe an operation unambiguously."""
 
 
 class UnsupportedSchemaError(ValueError):
@@ -111,14 +111,102 @@ def path_parameters(path: str) -> tuple[str, tuple[openapi.Parameter, ...]]:
 def merge_parameters(
     generated: tuple[openapi.Parameter, ...],
     authored: typing.Sequence[openapi.Parameter | openapi.Reference] | None,
+    owner: str,
 ) -> tuple[openapi.Parameter | openapi.Reference, ...] | None:
     """The parameters a path declares, plus whatever its author declared beside them."""
+
+    claimed = {
+        (parameter.name, parameter.in_) for parameter in authored or () if isinstance(parameter, openapi.Parameter)
+    }
+    unique: dict[tuple[str, openapi.ParameterLocation], openapi.Parameter] = {}
+    for parameter in generated:
+        key = (parameter.name, parameter.in_)
+        if key in claimed:
+            continue
+        existing = unique.get(key)
+        if existing is not None and existing != parameter:
+            raise DuplicateOperationError(
+                f"{parameter.in_.value} parameter {parameter.name!r} has conflicting definitions "
+                f"while describing {owner}()."
+            )
+        unique[key] = parameter
+    generated = tuple(unique.values())
 
     if not authored:
         return generated or None
 
-    claimed = {(p.name, p.in_) for p in authored if isinstance(p, openapi.Parameter)}
-    return (*(p for p in generated if (p.name, p.in_) not in claimed), *authored)
+    return (*generated, *authored)
+
+
+def merge_security_schemes(
+    existing: typing.Mapping[str, openapi.SecurityScheme | openapi.Reference] | None,
+    incoming: typing.Mapping[str, openapi.SecurityScheme | openapi.Reference],
+    owner: str,
+) -> dict[str, openapi.SecurityScheme | openapi.Reference]:
+    """Merge named schemes without mutating either contribution."""
+
+    merged = dict(existing or {})
+    for name, scheme in incoming.items():
+        if name in merged and merged[name] != scheme:
+            raise ValueError(
+                f"Security scheme {name!r} has conflicting definitions while describing {owner}. "
+                f"Reuse the same definition or choose a distinct name."
+            )
+        merged[name] = scheme
+    return merged
+
+
+def merge_security_requirements(
+    existing: openapi.SecurityRequirement | None,
+    incoming: openapi.SecurityRequirement | None,
+) -> dict[str, tuple[str, ...]] | None:
+    """Combine two simultaneously required scheme mappings with stable scope order."""
+
+    if not existing and not incoming:
+        return None
+
+    merged = {name: tuple(scopes) for name, scopes in (existing or {}).items()}
+    for name, scopes in (incoming or {}).items():
+        merged[name] = tuple(dict.fromkeys((*merged.get(name, ()), *scopes)))
+    return merged
+
+
+def merge_operation_security(
+    required: openapi.SecurityRequirement | None,
+    authored: typing.Sequence[openapi.SecurityRequirement] | None,
+    inherited: typing.Sequence[openapi.SecurityRequirement] | None,
+) -> typing.Sequence[openapi.SecurityRequirement] | None:
+    """Add required bindings to every authored or document-level alternative."""
+
+    if not required:
+        return authored
+
+    alternatives = authored if authored is not None else inherited
+    if not alternatives:
+        return (required,)
+    return tuple(merge_security_requirements(alternative, required) or {} for alternative in alternatives)
+
+
+def walk_dependency_bindings(
+    parameters: tuple[ParamInfo, ...],
+    owner: str,
+    factories: list[Factory],
+) -> typing.Iterator[tuple[ParamInfo, Binding]]:
+    """Yield bindings in the dependency graph once per factory."""
+
+    for param in parameters:
+        binding = find_binding(param, owner)
+        yield param, binding
+        if not isinstance(binding, Factory) or binding in factories:
+            continue
+
+        factories.append(binding)
+        dependency = inspect_callable(binding.factory)
+        yield from walk_dependency_bindings(
+            dependency.parameters,
+            inspection.callable_name(dependency.callable),
+            factories,
+        )
 
 
 def documented_methods(definition: RouteDefinition) -> tuple[str, ...]:
@@ -269,6 +357,7 @@ class OpenAPIBuilder:
 
         paths: dict[str, openapi.PathItem] = {}
         operation_ids: dict[str, str] = {}
+        security_schemes: dict[str, openapi.SecurityScheme | openapi.Reference] = {}
 
         for info in routes.describe():
             operation = info.definition.openapi
@@ -279,23 +368,39 @@ class OpenAPIBuilder:
             methods = documented_methods(info.definition)
 
             call = info.definition.call
-            responses = merge_responses(response_schemas(call.return_type, self), operation.responses)
+            inferred_responses = response_schemas(call.return_type, self)
             owner = inspection.callable_name(call.callable)
             contributed: list[openapi.Parameter] = []
+            contributed_responses: openapi.Responses | None = None
+            required_security: openapi.SecurityRequirement | None = None
             request_body: openapi.RequestBody | openapi.Reference | None = operation.request_body
             generated_body: openapi.RequestBody | None = None
 
-            for param_info in call.parameters:
-                binding = find_binding(param_info, owner)
+            for param_info, binding in walk_dependency_bindings(call.parameters, owner, []):
                 if not isinstance(binding, OpenAPIContributor):
                     continue
                 piece = binding.to_openapi(param_info, self)
                 contributed.extend(piece.parameters)
+                if piece.security_schemes:
+                    security_schemes = merge_security_schemes(security_schemes, piece.security_schemes, f"{owner}()")
+                required_security = merge_security_requirements(required_security, piece.security)
+                if piece.responses:
+                    contributed_responses = merge_responses(contributed_responses, piece.responses)
                 if piece.request_body is not None and operation.request_body is None:
                     generated_body = merge_request_body(generated_body, piece.request_body, owner, self)
                     request_body = generated_body
 
-            parameters = merge_parameters((*declared, *contributed), operation.parameters)
+            parameters = merge_parameters((*declared, *contributed), operation.parameters, owner)
+            responses: openapi.Responses = (
+                dict(DEFAULT_RESPONSES) if inferred_responses is None and not operation.responses else {}
+            )
+            if contributed_responses is not None:
+                responses = merge_responses(responses, contributed_responses)
+            if inferred_responses is not None:
+                responses = merge_responses(responses, inferred_responses)
+            if operation.responses is not None:
+                responses = merge_responses(responses, operation.responses)
+            security = merge_operation_security(required_security, operation.security, document.security)
 
             for method in methods:
                 base = operation.operation_id or info.name
@@ -314,6 +419,7 @@ class OpenAPIBuilder:
                     parameters=parameters,
                     request_body=request_body,
                     responses=responses,
+                    security=security,
                 )
                 item = paths.get(template, openapi.PathItem())
                 if getattr(item, method, None) is not None:
@@ -328,6 +434,15 @@ class OpenAPIBuilder:
             components = dataclasses.replace(
                 components,
                 schemas={**(components.schemas or {}), **self.schemas},
+            )
+        if security_schemes:
+            components = dataclasses.replace(
+                components,
+                security_schemes=merge_security_schemes(
+                    components.security_schemes,
+                    security_schemes,
+                    "the OpenAPI document",
+                ),
             )
         if components.schemas or components.security_schemes or components.parameters or components.responses:
             return dataclasses.replace(document, paths=paths, components=components)
@@ -364,12 +479,10 @@ def merge_request_body(
 
 def merge_responses(
     generated: openapi.Responses | None,
-    authored: openapi.Responses | None,
+    authored: openapi.Responses,
 ) -> openapi.Responses:
     if generated is None:
-        return dict(authored or DEFAULT_RESPONSES)
-    if authored is None:
-        return generated
+        return dict(authored)
 
     merged = dict(generated)
     for status, response in authored.items():

@@ -348,6 +348,9 @@ class Contribution:
 
     parameters: tuple[Parameter, ...] = ()
     request_body: RequestBody | None = None
+    security_schemes: typing.Mapping[str, SecurityScheme | Reference] | None = None
+    security: SecurityRequirement | None = None
+    responses: Responses | None = None
 
 
 class SchemaContext(typing.Protocol):

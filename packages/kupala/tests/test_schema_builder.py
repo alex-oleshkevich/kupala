@@ -1,4 +1,5 @@
 import collections.abc
+import dataclasses
 import enum
 import types
 import typing
@@ -8,6 +9,7 @@ import pytest
 from starlette.convertors import Convertor
 from starlette.types import Receive, Scope, Send
 
+from kupala.dependencies import Factory, Inject, ParamInfo
 from kupala.params import Body, Form, Query, QueryParam
 from kupala.requests import Request
 from kupala.responses import JSONResponse, Response
@@ -30,6 +32,18 @@ from kupala.schema.responses import parse_response
 from kupala.websockets import WebSocket
 
 DOCUMENT = openapi.OpenAPI(info=openapi.Info(title="Test", version="1"))
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class SchemaContributor(Inject):
+    contribution: openapi.Contribution
+
+    def to_openapi(
+        self,
+        _param_info: ParamInfo,
+        _context: openapi.SchemaContext,
+    ) -> openapi.Contribution:
+        return self.contribution
 
 
 async def view(request: Request) -> Response:
@@ -305,6 +319,403 @@ class TestContributions:
             True,
             {"type": "string"},
         )
+
+    def test_serializes_the_scheme_requirement_and_authentication_response(self) -> None:
+        bearer = openapi.SecurityScheme(type=openapi.SecuritySchemeType.HTTP, scheme="bearer")
+        unauthorized = openapi.Response(
+            description="Missing credentials.",
+            headers={"WWW-Authenticate": openapi.Header(schema={"type": "string"})},
+        )
+        binding = SchemaContributor(
+            openapi.Contribution(
+                security_schemes={"bearer": bearer},
+                security={"bearer": ()},
+                responses={"401": unauthorized},
+            )
+        )
+
+        async def protected(request: Request, token: typing.Annotated[str, binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected")(protected)
+
+        rendered = openapi.to_dict(build_document(routes, DOCUMENT))
+
+        assert rendered["components"]["securitySchemes"] == {"bearer": {"type": "http", "scheme": "bearer"}}
+        operation = rendered["paths"]["/protected"]["get"]
+        assert operation["security"] == [{"bearer": []}]
+        assert operation["responses"]["401"] == {
+            "description": "Missing credentials.",
+            "headers": {"WWW-Authenticate": {"schema": {"type": "string"}}},
+        }
+        assert "200" in operation["responses"]
+
+    def test_collects_security_from_a_shared_nested_factory_dependency(self) -> None:
+        bearer = SchemaContributor(
+            openapi.Contribution(
+                security_schemes={
+                    "bearer": openapi.SecurityScheme(type=openapi.SecuritySchemeType.HTTP, scheme="bearer")
+                },
+                security={"bearer": ()},
+                responses={"401": openapi.Response(description="Missing credentials.")},
+            )
+        )
+
+        type AccessToken = typing.Annotated[str, bearer]
+
+        async def resolve_user(token: AccessToken) -> User:
+            return User(name=token)  # pragma: no cover
+
+        type CurrentUser = typing.Annotated[User, Factory(resolve_user)]
+
+        async def protected(request: Request, user: CurrentUser, owner: CurrentUser) -> Response:
+            return Response(f"{user.name}:{owner.name}")  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected")(protected)
+        rendered = openapi.to_dict(build_document(routes, DOCUMENT))
+
+        assert rendered["components"]["securitySchemes"] == {"bearer": {"type": "http", "scheme": "bearer"}}
+        operation = rendered["paths"]["/protected"]["get"]
+        assert operation["security"] == [{"bearer": []}]
+        assert operation["responses"]["401"] == {"description": "Missing credentials."}
+
+    def test_walks_an_uncached_factory_with_an_unhashable_callable(self) -> None:
+        bearer = SchemaContributor(openapi.Contribution(security={"bearer": ()}))
+        type AccessToken = typing.Annotated[str, bearer]
+
+        @dataclasses.dataclass
+        class UserLoader:
+            prefix: str
+
+            async def __call__(self, token: AccessToken) -> User:
+                return User(name=f"{self.prefix}{token}")  # pragma: no cover
+
+        type CurrentUser = typing.Annotated[User, Factory(UserLoader("user:"), cache=False)]
+
+        async def protected(request: Request, user: CurrentUser) -> Response:
+            return Response(user.name)  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected")(protected)
+        operation = (build_document(routes, DOCUMENT).paths or {})["/protected"].get
+        assert operation is not None
+
+        assert operation.security == ({"bearer": ()},)
+
+    def test_deduplicates_a_parameter_shared_with_a_nested_factory(self) -> None:
+        async def load_item(q: Query[int]) -> int:
+            return q  # pragma: no cover
+
+        type Item = typing.Annotated[int, Factory(load_item)]
+
+        async def search(request: Request, q: Query[int], item: Item) -> Response:
+            return Response(f"{q}:{item}")  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/search")(search)
+        operation = (build_document(routes, DOCUMENT).paths or {})["/search"].get
+        assert operation is not None
+
+        assert operation.parameters == (
+            openapi.Parameter(
+                name="q",
+                in_=openapi.ParameterLocation.QUERY,
+                required=True,
+                schema={"type": "integer"},
+            ),
+        )
+
+    def test_rejects_conflicting_parameters_from_a_nested_factory(self) -> None:
+        async def load_item(q: Query[int]) -> int:
+            return q  # pragma: no cover
+
+        type Item = typing.Annotated[int, Factory(load_item)]
+
+        async def search(request: Request, q: Query[str], item: Item) -> Response:
+            return Response(f"{q}:{item}")  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/search")(search)
+
+        with pytest.raises(DuplicateOperationError, match="query parameter 'q'.*conflicting"):
+            build_document(routes, DOCUMENT)
+
+    def test_an_authored_parameter_overrides_conflicting_contributions(self) -> None:
+        first = SchemaContributor(
+            openapi.Contribution(
+                parameters=(
+                    openapi.Parameter(
+                        name="X-Trace",
+                        in_=openapi.ParameterLocation.HEADER,
+                        schema={"type": "string"},
+                    ),
+                )
+            )
+        )
+        second = SchemaContributor(
+            openapi.Contribution(
+                parameters=(
+                    openapi.Parameter(
+                        name="X-Trace",
+                        in_=openapi.ParameterLocation.HEADER,
+                        schema={"type": "integer"},
+                    ),
+                )
+            )
+        )
+        authored = openapi.Parameter(
+            name="X-Trace",
+            in_=openapi.ParameterLocation.HEADER,
+            description="The trace identifier.",
+            schema={"type": "string"},
+        )
+
+        async def traced(
+            request: Request,
+            one: typing.Annotated[str, first],
+            two: typing.Annotated[int, second],
+        ) -> Response:
+            return Response(f"{one}:{two}")  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/traced", parameters=(authored,))(traced)
+        operation = (build_document(routes, DOCUMENT).paths or {})["/traced"].get
+        assert operation is not None
+
+        assert operation.parameters == (authored,)
+
+    def test_required_sibling_schemes_compose_with_and_in_parameter_order(self) -> None:
+        bearer = SchemaContributor(
+            openapi.Contribution(
+                security_schemes={
+                    "bearer": openapi.SecurityScheme(type=openapi.SecuritySchemeType.HTTP, scheme="bearer")
+                },
+                security={"bearer": ()},
+            )
+        )
+        api_key = SchemaContributor(
+            openapi.Contribution(
+                security_schemes={
+                    "apiKey": openapi.SecurityScheme(
+                        type=openapi.SecuritySchemeType.API_KEY,
+                        name="X-API-Key",
+                        in_=openapi.ParameterLocation.HEADER,
+                    )
+                },
+                security={"apiKey": ()},
+            )
+        )
+
+        async def protected(
+            request: Request,
+            token: typing.Annotated[str, bearer],
+            key: typing.Annotated[str, api_key],
+        ) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected")(protected)
+        document = build_document(routes, DOCUMENT)
+        operation = (document.paths or {})["/protected"].get
+        assert operation is not None
+
+        assert operation.security is not None
+        assert [*operation.security[0]] == ["bearer", "apiKey"]
+        assert operation.security == ({"bearer": (), "apiKey": ()},)
+
+    def test_identical_schemes_merge_and_repeated_scopes_union_once(self) -> None:
+        oauth = openapi.SecurityScheme(
+            type=openapi.SecuritySchemeType.OAUTH2,
+            flows=openapi.OAuthFlows(
+                authorization_code=openapi.OAuthFlow(
+                    authorization_url="/authorize",
+                    token_url="/token",
+                    scopes={"read": "Read", "write": "Write", "admin": "Admin"},
+                )
+            ),
+        )
+        read = SchemaContributor(
+            openapi.Contribution(security_schemes={"oauth": oauth}, security={"oauth": ("read", "write")})
+        )
+        admin = SchemaContributor(
+            openapi.Contribution(security_schemes={"oauth": oauth}, security={"oauth": ("write", "admin")})
+        )
+
+        async def protected(
+            request: Request,
+            token: typing.Annotated[str, read],
+            elevated: typing.Annotated[str, admin],
+        ) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected")(protected)
+        document = build_document(routes, DOCUMENT)
+        operation = (document.paths or {})["/protected"].get
+        assert operation is not None
+
+        assert list((document.components or openapi.Components()).security_schemes or {}) == ["oauth"]
+        assert operation.security == ({"oauth": ("read", "write", "admin")},)
+
+    def test_conflicting_contributed_scheme_definitions_are_refused(self) -> None:
+        first = SchemaContributor(
+            openapi.Contribution(
+                security_schemes={"auth": openapi.SecurityScheme(type=openapi.SecuritySchemeType.HTTP, scheme="bearer")}
+            )
+        )
+        second = SchemaContributor(
+            openapi.Contribution(
+                security_schemes={"auth": openapi.SecurityScheme(type=openapi.SecuritySchemeType.HTTP, scheme="basic")}
+            )
+        )
+
+        async def protected(
+            request: Request,
+            token: typing.Annotated[str, first],
+            credentials: typing.Annotated[str, second],
+        ) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected")(protected)
+
+        with pytest.raises(ValueError, match="Security scheme 'auth'.*distinct name"):
+            build_document(routes, DOCUMENT)
+
+    def test_generated_security_composes_with_authored_alternatives_and_components(self) -> None:
+        bearer = openapi.SecurityScheme(type=openapi.SecuritySchemeType.HTTP, scheme="bearer")
+        binding = SchemaContributor(openapi.Contribution(security_schemes={"bearer": bearer}, security={"bearer": ()}))
+        basic = openapi.SecurityScheme(type=openapi.SecuritySchemeType.HTTP, scheme="basic")
+        document = dataclasses.replace(
+            DOCUMENT,
+            components=openapi.Components(security_schemes={"basic": basic, "bearer": bearer}),
+        )
+
+        async def protected(request: Request, token: typing.Annotated[str, binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected", security=({"basic": ()}, {"session": ()}))(protected)
+        built = build_document(routes, document)
+        operation = (built.paths or {})["/protected"].get
+        assert operation is not None
+
+        assert list((built.components or openapi.Components()).security_schemes or {}) == ["basic", "bearer"]
+        assert operation.security == (
+            {"basic": (), "bearer": ()},
+            {"session": (), "bearer": ()},
+        )
+
+    def test_generated_security_keeps_inherited_document_requirements(self) -> None:
+        bearer = openapi.SecurityScheme(type=openapi.SecuritySchemeType.HTTP, scheme="bearer")
+        binding = SchemaContributor(openapi.Contribution(security_schemes={"bearer": bearer}, security={"bearer": ()}))
+        document = dataclasses.replace(DOCUMENT, security=({"basic": ()},))
+
+        async def protected(request: Request, token: typing.Annotated[str, binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected")(protected)
+        operation = (build_document(routes, document).paths or {})["/protected"].get
+        assert operation is not None
+
+        assert operation.security == ({"basic": (), "bearer": ()},)
+
+    def test_explicit_empty_security_drops_inheritance_but_not_a_required_binding(self) -> None:
+        binding = SchemaContributor(openapi.Contribution(security={"bearer": ()}))
+        document = dataclasses.replace(DOCUMENT, security=({"basic": ()},))
+
+        async def protected(request: Request, token: typing.Annotated[str, binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected", security=())(protected)
+        operation = (build_document(routes, document).paths or {})["/protected"].get
+        assert operation is not None
+
+        assert operation.security == ({"bearer": ()},)
+
+    def test_a_contributed_scheme_cannot_redefine_an_authored_component(self) -> None:
+        binding = SchemaContributor(
+            openapi.Contribution(
+                security_schemes={"auth": openapi.SecurityScheme(type=openapi.SecuritySchemeType.HTTP, scheme="bearer")}
+            )
+        )
+        document = dataclasses.replace(
+            DOCUMENT,
+            components=openapi.Components(
+                security_schemes={"auth": openapi.Reference(ref="#/components/securitySchemes/shared")}
+            ),
+        )
+
+        async def protected(request: Request, token: typing.Annotated[str, binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected")(protected)
+
+        with pytest.raises(ValueError, match="Security scheme 'auth'.*distinct name"):
+            build_document(routes, document)
+
+    def test_authored_response_fields_override_contributed_fields(self) -> None:
+        contributed = openapi.Response(
+            description="Authentication failed.",
+            headers={"WWW-Authenticate": openapi.Header(schema={"type": "string"})},
+        )
+        binding = SchemaContributor(openapi.Contribution(responses={"401": contributed}))
+
+        async def protected(request: Request, token: typing.Annotated[str, binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get(
+            "/protected",
+            responses={
+                "204": openapi.Response(description="Success."),
+                "401": openapi.Response(description="Use a valid token."),
+            },
+        )(protected)
+        operation = (build_document(routes, DOCUMENT).paths or {})["/protected"].get
+        assert operation is not None
+
+        assert list(operation.responses or {}) == ["401", "204"]
+        response = (operation.responses or {})["401"]
+        assert isinstance(response, openapi.Response)
+        assert response.description == "Use a valid token."
+        assert response.headers == contributed.headers
+
+    def test_a_contributed_response_overrides_the_default_response(self) -> None:
+        binding = SchemaContributor(
+            openapi.Contribution(responses={"200": openapi.Response(description="Authenticated response.")})
+        )
+
+        async def protected(request: Request, token: typing.Annotated[str, binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected")(protected)
+        operation = (build_document(routes, DOCUMENT).paths or {})["/protected"].get
+        assert operation is not None
+
+        assert operation.responses == {"200": openapi.Response(description="Authenticated response.")}
+
+    def test_an_empty_contribution_changes_nothing(self) -> None:
+        binding = SchemaContributor(openapi.Contribution(security_schemes={}, security={}, responses={}))
+
+        async def public(request: Request, value: typing.Annotated[str, binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/public", security=())(public)
+        document = build_document(routes, DOCUMENT)
+        operation = (document.paths or {})["/public"].get
+        assert operation is not None
+
+        assert document.components is None
+        assert operation.security == ()
+        assert list(operation.responses or {}) == ["200"]
 
     def test_an_optional_query_parameter_is_not_required(self) -> None:
         async def search(request: Request, q: Query[str] = "") -> Response:

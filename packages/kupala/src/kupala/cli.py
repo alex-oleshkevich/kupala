@@ -3,9 +3,11 @@ import importlib
 import importlib.metadata
 import logging
 import os
+import re
 import typing
 
 import click
+from click.shell_completion import CompletionItem
 
 from kupala.applications import Kupala
 from kupala.commands import UsageError
@@ -98,7 +100,7 @@ def resolve_application(app: Kupala | None = None) -> Kupala | None:
     return None
 
 
-type Plugin = typing.Callable[[click.Group], None]
+type ApplicationResolver = typing.Callable[[], Kupala | None]
 
 
 def load_plugins(cli: click.Group, group: str = PLUGIN_GROUP) -> None:
