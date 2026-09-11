@@ -16,10 +16,11 @@ from kupala.responses import (
     response,
 )
 from kupala.routing import Routes
-from kupala.security import Identity
+from kupala.security import Bearer, Identity
 
 __all__ = [
     "AppBuilder",
+    "Bearer",
     "Commands",
     "FileResponse",
     "HTMLResponse",
