@@ -5,6 +5,7 @@ description = "Demo application exercising the framework."
 requires-python = ">=3.14"
 dependencies = [
   "kupala",
+  "pydantic-settings>=2.15.0",
   "uvicorn>=0.52.1",
 ]
 

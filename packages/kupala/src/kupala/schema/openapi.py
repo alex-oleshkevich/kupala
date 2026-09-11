@@ -411,13 +411,13 @@ class Components:
     extensions: Extensions | None = None
 
 
-SUPPORTED_OPENAPI_VERSION: typing.Final = "3.1"
+SUPPORTED_OPENAPI_VERSION: typing.Final = "3.2"
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class OpenAPI:
     # declared first so it serializes first, which is where every published document carries it
-    openapi: str = "3.1.1"
+    openapi: str = "3.2.0"
     info: Info
     json_schema_dialect: str | None = None
     servers: typing.Sequence[Server] | None = None
@@ -430,8 +430,6 @@ class OpenAPI:
     extensions: Extensions | None = None
 
     def __post_init__(self) -> None:
-        # this module models 3.1 only: `webhooks`, `Info.summary`, `License.identifier` and mutualTLS
-        # are all invalid under 3.0, and a document that claims 3.0 while carrying them is silently wrong
         if not self.openapi.startswith(f"{SUPPORTED_OPENAPI_VERSION}."):
             raise ValueError(
                 f"Unsupported OpenAPI version {self.openapi!r}. "

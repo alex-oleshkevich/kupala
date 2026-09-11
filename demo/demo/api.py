@@ -3,6 +3,7 @@ import typing
 from pydantic import BaseModel
 
 from demo.dependencies import ProductCatalog
+from demo.security import DemoAPIKey
 from kupala.api import APIExtension, DocsOptions
 from kupala.errors import NotFoundError
 from kupala.params import Body, Form, Query
@@ -61,7 +62,7 @@ async def show_product(
 
 
 @routes.delete("/products/{sku}", name="products.destroy", summary="Withdraw a product", deprecated=True)
-async def delete_product(request: Request, catalog: ProductCatalog) -> Response:
+async def delete_product(request: Request, catalog: ProductCatalog, _api_key: DemoAPIKey) -> Response:
     catalog.products.pop(request.path_params["sku"], None)
     return response(request).empty()
 

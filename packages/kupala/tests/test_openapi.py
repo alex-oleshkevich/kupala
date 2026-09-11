@@ -1,7 +1,7 @@
 import typing
 
 import pytest
-from openapi_spec_validator import OpenAPIV31SpecValidator
+from openapi_spec_validator import OpenAPIV32SpecValidator
 
 from kupala.schema import openapi
 
@@ -83,7 +83,7 @@ class TestOpenAPI:
         )
 
         assert openapi.to_dict(document) == {
-            "openapi": "3.1.1",
+            "openapi": "3.2.0",
             "info": {"title": "Demo", "version": "1.0", "license": {"name": "MIT", "identifier": "MIT"}},
             "paths": {"/users": {"get": {"operationId": "listUsers"}}},
             "components": {"schemas": {"User": {"type": "object"}}},
@@ -97,15 +97,15 @@ class TestOpenAPI:
 
         assert openapi.to_dict(document)["webhooks"] == {"userCreated": {"post": {}}}
 
-    @pytest.mark.parametrize("version", ["3.0.3", "3.10.0", "4.0.0"])
+    @pytest.mark.parametrize("version", ["3.1.2", "3.10.0", "4.0.0"])
     def test_rejects_a_version_it_does_not_describe(self, version: str) -> None:
         with pytest.raises(ValueError, match="Unsupported OpenAPI version"):
             openapi.OpenAPI(info=openapi.Info(title="Demo", version="1.0"), openapi=version)
 
-    def test_accepts_any_patch_release_of_3_1(self) -> None:
-        document = openapi.OpenAPI(info=openapi.Info(title="Demo", version="1.0"), openapi="3.1.0")
+    def test_accepts_any_patch_release_of_3_2(self) -> None:
+        document = openapi.OpenAPI(info=openapi.Info(title="Demo", version="1.0"), openapi="3.2.1")
 
-        assert document.openapi == "3.1.0"
+        assert document.openapi == "3.2.1"
 
     def test_rejects_a_path_without_a_leading_slash(self) -> None:
         with pytest.raises(ValueError, match="must start with '/'"):
@@ -227,7 +227,7 @@ class TestPathItem:
 
 
 class TestSpecValidity:
-    """Check the rendered JSON against the published OpenAPI 3.1 meta-schema, not against our own idea of it."""
+    """Check the rendered JSON against the published OpenAPI 3.2 meta-schema, not against our own idea of it."""
 
     def test_a_document_using_every_modelled_object_validates(self) -> None:
         user_schema: openapi.Schema = {
@@ -447,7 +447,7 @@ class TestSpecValidity:
 
         errors = [
             f"{'/'.join(str(part) for part in error.absolute_path)}: {error.message}"
-            for error in OpenAPIV31SpecValidator(openapi.to_dict(document)).iter_errors()
+            for error in OpenAPIV32SpecValidator(openapi.to_dict(document)).iter_errors()
         ]
 
         assert errors == []
@@ -489,6 +489,6 @@ class TestSpecValidity:
             },
         )
 
-        errors = list(OpenAPIV31SpecValidator(openapi.to_dict(document)).iter_errors())
+        errors = list(OpenAPIV32SpecValidator(openapi.to_dict(document)).iter_errors())
 
         assert [error.absolute_path[-1] for error in errors] == [0, 0]
