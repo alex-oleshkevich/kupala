@@ -282,6 +282,9 @@ class User(pydantic.BaseModel):
     name: str
 
 
+ANY_USER = User(name="")
+
+
 class UserHeaders(typing.TypedDict, total=False):
     XRequestId: str
 
@@ -335,6 +338,18 @@ class TestContributions:
         assert described is not None
         names = [typing.cast(openapi.Parameter, parameter).name for parameter in described.parameters or ()]
         assert names == ["page", "tags"]
+
+    def test_an_optional_query_model_has_no_required_parameters(self) -> None:
+        async def search(request: Request, user: Query[User] = ANY_USER) -> Response:
+            return Response()  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/search")(search)
+        described = (build_document(routes, DOCUMENT).paths or {})["/search"].get
+        assert described is not None
+        parameters = typing.cast(tuple[openapi.Parameter, ...], described.parameters or ())
+        assert [parameter.name for parameter in parameters] == ["name"]
+        assert parameters[0].required is False
 
     def test_a_json_body_is_a_request_body(self) -> None:
         async def create(request: Request, user: Body[User]) -> Response:

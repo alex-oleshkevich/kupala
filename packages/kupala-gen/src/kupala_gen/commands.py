@@ -1,16 +1,15 @@
-from kupala import commands
-from kupala.cli import load_plugins
+from kupala import Commands
+from kupala_gen.loading import load_generators
 
-APP_GROUP = "kupala.generator"
-
-cli = commands.Commands()
+commands = Commands()
 
 
 @commands.group("gen")
 def gen() -> None:
     """Generate code."""
-    # a package ships its own generators by registering them on one of the groups below
-    load_plugins(add, APP_GROUP)
+    # loaded here rather than in `add`: click resolves a group's subcommand before it runs that
+    # group's own callback, so a generator has to be attached before `add` is asked for one
+    load_generators(add)
 
 
 @gen.command("new")
