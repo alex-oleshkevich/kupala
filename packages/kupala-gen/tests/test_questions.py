@@ -111,6 +111,19 @@ class TestResolveAnswers:
         assert "module" in caught.value.message
         assert "name" not in caught.value.message
 
+    def test_rejects_an_explicit_answer_when_its_condition_cannot_be_evaluated(self) -> None:
+        questions: tuple[Question[object], ...] = (
+            Question("kind", "Kind", required=False),
+            Question("name", "Name", when=lambda answers: answers["kind"] == "named"),
+        )
+
+        with pytest.raises(click.UsageError, match="Answer supplied for inactive question: name"):
+            resolve_answers(
+                questions,
+                {"name": "widget"},
+                mode=InteractionMode.NON_INTERACTIVE,
+            )
+
     def test_unrelated_missing_answers_do_not_disable_a_condition(self) -> None:
         questions: tuple[Question[object], ...] = (
             Question("unrelated", "Unrelated"),
@@ -200,7 +213,7 @@ class TestResolveAnswers:
         assert len(ask.calls) == 2
 
     def test_secret_conversion_errors_do_not_include_the_value(self) -> None:
-        secret = "-".join(("top", "secret"))
+        secret = "-".join(("top", "secret"))  # noqa: FLY002 - keep it out of traceback source
         with pytest.raises(click.UsageError) as caught:
             resolve_answers(
                 (Question("token", "Token", type=int, secret=True),),
@@ -211,7 +224,7 @@ class TestResolveAnswers:
         assert "top-secret" not in "".join(traceback.format_exception(caught.value))
 
     def test_secret_validator_exceptions_do_not_include_the_value(self) -> None:
-        secret = "-".join(("top", "secret"))
+        secret = "-".join(("top", "secret"))  # noqa: FLY002 - keep it out of traceback source
 
         def validate(value: str) -> bool:
             raise RuntimeError(f"rejected {value}")

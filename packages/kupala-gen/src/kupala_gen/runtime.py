@@ -7,7 +7,6 @@ import sys
 import typing
 
 import click
-from click.core import UNSET as CLICK_UNSET
 from click.core import ParameterSource
 
 from kupala_gen.plans import (
@@ -83,7 +82,7 @@ class ClickReporter:
             tofile=f"b/{self._redact(operation.relative_path)}",
             lineterm="",
         ):
-            click.echo(line)
+            click.echo(self._redact(line))
 
     def confirm(self) -> bool:
         return click.confirm("Apply these changes?", default=False)
@@ -123,6 +122,15 @@ def _report(plan: PreparedPlan) -> GenerationReport:
     )
 
 
+def _redact_report(report: GenerationReport, secrets: typing.Iterable[object]) -> GenerationReport:
+    return GenerationReport(
+        tuple(
+            OperationResult(pathlib.PurePath(_redact(result.path, secrets)), result.status)
+            for result in report.operations
+        )
+    )
+
+
 def run_generation(
     planner: Planner,
     *,
@@ -150,12 +158,9 @@ def run_generation(
     )
     resolved = resolve_answers(questions, answers or {}, mode=mode, ask=ask)
     secret_values = tuple(
-        resolved[question.key]
-        for question in questions
-        if question.secret and question.key in resolved
+        resolved[question.key] for question in questions if question.secret and question.key in resolved
     )
     output = reporter or ClickReporter(secret_values)
-    has_secrets = any(question.secret and question.key in resolved for question in questions)
     context = GenerationContext(
         target_root=target_root.resolve(),
         answers=resolved,
@@ -169,7 +174,7 @@ def run_generation(
     try:
         plan = planner(context)
     except click.ClickException:
-        if has_secrets:
+        if secret_values:
             raise click.ClickException("Generation planning failed.") from None
         raise
     except Exception:  # noqa: BLE001 - planner errors may contain secret answers
@@ -177,14 +182,14 @@ def run_generation(
     try:
         prepared = prepare_plan(plan, context.target_root, force=force)
     except ConflictError as error:
-        output.finish(error.report)
-        if has_secrets:
+        output.finish(_redact_report(error.report, secret_values))
+        if secret_values:
             raise click.UsageError("Generation plan conflicts with existing files.") from None
         raise
     except Exception:  # noqa: BLE001 - operation renderers may contain secret answers
         raise click.ClickException("Generation planning failed.") from None
     output.preview(prepared)
-    preview = _report(prepared)
+    preview = _redact_report(_report(prepared), secret_values)
     if dry_run:
         return preview
 
@@ -201,20 +206,21 @@ def run_generation(
     try:
         report = apply_plan(prepared)
     except ConflictError as error:
-        output.finish(error.report)
-        if has_secrets:
+        output.finish(_redact_report(error.report, secret_values))
+        if secret_values:
             raise click.UsageError("Generation plan conflicts with existing files.") from None
         raise
     except ApplyError as error:
-        output.finish(error.report)
+        output.finish(_redact_report(error.report, secret_values))
         notes = "\n".join(getattr(error, "__notes__", ()))
         notes = _redact(notes, secret_values)
         message = "Could not apply the generation plan."
         raise click.ClickException(f"{message}\n{notes}" if notes else message) from None
     except Exception:  # noqa: BLE001 - filesystem errors may expose sensitive paths or content
         raise click.ClickException("Could not apply the generation plan.") from None
-    output.finish(report)
-    return report
+    safe_report = _redact_report(report, secret_values)
+    output.finish(safe_report)
+    return safe_report
 
 
 _COMMON_OPTIONS = frozenset({"project", "yes", "dry_run", "force"})
@@ -249,6 +255,10 @@ def _bound_questions(
         bound_parameters.add(parameter_name)
         if parameter.required:
             raise TypeError(f"Interviewed Click parameter cannot be required: {parameter_name}")
+        if not parameter.expose_value:
+            raise TypeError(f"Interviewed Click parameter must expose its value: {parameter_name}")
+        if parameter.callback is not None:
+            raise TypeError(f"Interviewed Click parameter cannot use a Click callback: {parameter_name}")
         if parameter.nargs != 1 or (isinstance(parameter, click.Option) and parameter.multiple):
             raise TypeError(f"Interviewed Click parameter must produce one single value: {parameter_name}")
         if isinstance(parameter, click.Option) and parameter.prompt is not None:
@@ -266,12 +276,6 @@ def _bound_questions(
             if not question.choices:
                 derived = dataclasses.replace(derived, choices=click_choices)
         derived = dataclasses.replace(derived, type=parameter.type)
-        if (
-            question.default is UNSET
-            and parameter.default not in (None, CLICK_UNSET)
-            and not callable(parameter.default)
-        ):
-            derived = dataclasses.replace(derived, default=parameter.default)
         if isinstance(parameter, click.Option) and derived.cli_hint is None and parameter.opts:
             derived = dataclasses.replace(derived, cli_hint=parameter.opts[0])
         question = derived
@@ -286,7 +290,7 @@ def generator(
     bindings: typing.Mapping[str, str] | None = None,
 ) -> typing.Callable[[click.Command], click.Command]:
     def decorate(command: click.Command) -> click.Command:
-        names = {parameter.name for parameter in command.params}
+        names = {parameter.name for parameter in command.params if parameter.name}
         option_flags = {
             option
             for parameter in command.params
@@ -313,6 +317,7 @@ def generator(
             dry_run = typing.cast(bool, kwargs.pop("dry_run"))
             force = typing.cast(bool, kwargs.pop("force"))
             explicit: dict[str, object] = {}
+            defaults: dict[str, object] = {}
             for question, parameter_name in bound:
                 source = ctx.get_parameter_source(parameter_name)
                 if source in (ParameterSource.ENVIRONMENT, ParameterSource.DEFAULT_MAP):
@@ -321,6 +326,17 @@ def generator(
                     )
                 if source is ParameterSource.COMMANDLINE:
                     explicit[question.key] = kwargs[parameter_name]
+                elif (
+                    source is ParameterSource.DEFAULT
+                    and question.default is UNSET
+                    and kwargs[parameter_name] is not None
+                ):
+                    defaults[question.key] = kwargs[parameter_name]
+
+            runtime_questions = tuple(
+                dataclasses.replace(question, default=defaults[question.key]) if question.key in defaults else question
+                for question in normalized
+            )
 
             def plan(context: GenerationContext) -> ChangePlan:
                 arguments = kwargs.copy()
@@ -335,7 +351,7 @@ def generator(
             run_generation(
                 plan,
                 target_root=project,
-                questions=normalized,
+                questions=runtime_questions,
                 answers=explicit,
                 yes=yes,
                 dry_run=dry_run,

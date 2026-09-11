@@ -330,24 +330,30 @@ def _recheck(operation: PreparedOperation, root: pathlib.Path) -> None:
 
 def _backup_path(operation: PreparedOperation) -> pathlib.Path:
     descriptor, name = tempfile.mkstemp(prefix=f".{operation.path.name}.kupala-backup-", dir=operation.path.parent)
-    os.close(descriptor)
     backup = pathlib.Path(name)
-    backup.write_bytes(typing.cast(bytes, operation.before))
-    backup.chmod(typing.cast(int, operation.before_mode))
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(typing.cast(bytes, operation.before))
+        backup.chmod(typing.cast(int, operation.before_mode))
+    except BaseException:
+        backup.unlink(missing_ok=True)
+        raise
     return backup
 
 
 def _write_file(operation: PreparedOperation) -> pathlib.Path | None:
     backup = _backup_path(operation) if operation.status is OperationStatus.MODIFIED else None
-    descriptor, name = tempfile.mkstemp(prefix=f".{operation.path.name}.kupala-", dir=operation.path.parent)
-    temporary = pathlib.Path(name)
+    temporary: pathlib.Path | None = None
     try:
+        descriptor, name = tempfile.mkstemp(prefix=f".{operation.path.name}.kupala-", dir=operation.path.parent)
+        temporary = pathlib.Path(name)
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(typing.cast(bytes, operation.after))
         temporary.chmod(operation.after_mode)
         os.replace(temporary, operation.path)
     except BaseException:
-        temporary.unlink(missing_ok=True)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
         if backup is not None:
             backup.unlink(missing_ok=True)
         raise
@@ -370,16 +376,18 @@ def _check_root(plan: PreparedPlan) -> None:
 def _rollback(
     operation: PreparedOperation,
     backup: pathlib.Path | None,
+    identity: tuple[int, int],
     root: pathlib.Path,
 ) -> bool:
     _inspect_ancestors(root, operation.relative_path, set())
-    if operation.status is OperationStatus.CREATED:
-        if _matches(operation, after=True):
-            operation.path.rmdir() if operation.directory else operation.path.unlink()
-            return True
-        return False
     if not _matches(operation, after=True):
         return False
+    current = operation.path.stat(follow_symlinks=False)
+    if (current.st_dev, current.st_ino) != identity:
+        return False
+    if operation.status is OperationStatus.CREATED:
+        operation.path.rmdir() if operation.directory else operation.path.unlink()
+        return True
     if operation.directory:
         operation.path.chmod(typing.cast(int, operation.before_mode))
     else:
@@ -388,7 +396,7 @@ def _rollback(
 
 
 def apply_plan(plan: PreparedPlan) -> GenerationReport:
-    completed: list[tuple[PreparedOperation, pathlib.Path | None]] = []
+    completed: list[tuple[PreparedOperation, pathlib.Path | None, tuple[int, int]]] = []
     statuses: dict[pathlib.PurePath, OperationStatus] = {}
     current: PreparedOperation | None = None
     try:
@@ -404,15 +412,19 @@ def apply_plan(plan: PreparedPlan) -> GenerationReport:
                     operation.path.mkdir(mode=operation.after_mode)
                     try:
                         operation.path.chmod(operation.after_mode)
-                    except BaseException:
-                        operation.path.rmdir()
+                    except BaseException as error:
+                        try:
+                            operation.path.rmdir()
+                        except OSError:
+                            error.add_note(f"Could not remove {operation.relative_path} after its setup failed.")
                         raise
                 else:
                     operation.path.chmod(operation.after_mode)
                 backup = None
             else:
                 backup = _write_file(operation)
-            completed.append((operation, backup))
+            applied = operation.path.stat(follow_symlinks=False)
+            completed.append((operation, backup, (applied.st_dev, applied.st_ino)))
             statuses[operation.relative_path] = operation.status
             current = None
     except BaseException as error:
@@ -421,17 +433,19 @@ def apply_plan(plan: PreparedPlan) -> GenerationReport:
         if not _root_matches(plan):
             error.add_note("Could not roll back because the target root changed.")
         else:
-            for operation, backup in reversed(completed):
+            for operation, backup, identity in reversed(completed):
                 try:
                     _check_root(plan)
-                    if _rollback(operation, backup, plan.target_root):
+                    if _rollback(operation, backup, identity, plan.target_root):
                         statuses[operation.relative_path] = OperationStatus.ROLLED_BACK
                     else:
                         recovery = f" Backup preserved as {backup.name}." if backup is not None else ""
                         error.add_note(f"Could not roll back {operation.relative_path}.{recovery}")
                 except Exception:  # noqa: BLE001 - rollback must preserve the original apply error
                     error.add_note(f"Could not roll back {operation.relative_path}; recovery files were preserved.")
-        statuses[typing.cast(PreparedOperation, current).relative_path] = OperationStatus.FAILED
+        statuses[typing.cast(PreparedOperation, current).relative_path] = (
+            OperationStatus.CONFLICTED if isinstance(error, ConflictError) else OperationStatus.FAILED
+        )
         report = GenerationReport(
             tuple(
                 OperationResult(operation.relative_path, statuses[operation.relative_path])
@@ -446,7 +460,7 @@ def apply_plan(plan: PreparedPlan) -> GenerationReport:
             failure.add_note(note)
         raise failure from None
 
-    for _, backup in completed:
+    for _, backup, _ in completed:
         if backup is not None:
             backup.unlink(missing_ok=True)
     return GenerationReport(

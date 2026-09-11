@@ -92,7 +92,7 @@ def _validate(question: Question[typing.Any], value: object) -> object:
     if question.validate is not None:
         try:
             result = question.validate(value)
-        except Exception:
+        except Exception:  # noqa: BLE001 - user validators may raise arbitrary exceptions
             raise click.UsageError(f"Could not validate answer for {question.key}") from None
         if result is False:
             raise click.UsageError(f"Invalid answer for {question.key}")
@@ -130,10 +130,10 @@ def resolve_answers(
         except KeyError as error:
             dependency = error.args[0] if error.args else None
             if isinstance(dependency, str) and dependency in earlier and dependency not in answers:
-                earlier.add(question.key)
-                continue
-            raise click.UsageError(f"Invalid condition for {question.key}") from None
-        except Exception:
+                active = False
+            else:
+                raise click.UsageError(f"Invalid condition for {question.key}") from None
+        except Exception:  # noqa: BLE001 - user conditions may raise arbitrary exceptions
             raise click.UsageError(f"Invalid condition for {question.key}") from None
         earlier.add(question.key)
         if not active:

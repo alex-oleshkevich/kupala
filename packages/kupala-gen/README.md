@@ -45,7 +45,8 @@ Every run resolves explicit Click values before interview answers and defaults, 
 the complete change plan before writing, and applies it with conflict checks and rollback. `--yes`
 never prompts, while `--dry-run` never writes.
 
-Bound questions must use scalar, non-prompting Click parameters. Command-line values are explicit;
+Bound questions must use scalar, value-exposing Click parameters without prompts or callbacks.
+Command-line values are explicit;
 environment and `default_map` values are rejected so they cannot silently replace interview answers.
 `--force` only affects a `CreateFile` marked `overwriteable=True`; it never bypasses a modification
 baseline or a concurrent-edit check. Sensitive operations show their path and status without a diff.

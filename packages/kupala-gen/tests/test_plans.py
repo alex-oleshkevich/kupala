@@ -312,6 +312,31 @@ class TestApplyPlan:
 
         assert list(tmp_path.iterdir()) == []
 
+    def test_reports_a_conflict_found_after_an_earlier_write(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        prepared = prepare_plan(
+            ChangePlan((CreateFile("first.txt", "first"), CreateFile("second.txt", "second"))),
+            tmp_path,
+        )
+        write = plans._write_file
+
+        def create_conflict(operation: plans.PreparedOperation) -> pathlib.Path | None:
+            backup = write(operation)
+            assert operation.path.name == "first.txt"
+            (tmp_path / "second.txt").write_text("concurrent")
+            return backup
+
+        monkeypatch.setattr(plans, "_write_file", create_conflict)
+
+        with pytest.raises(ApplyError) as caught:
+            apply_plan(prepared)
+
+        assert [result.status for result in caught.value.report.operations] == [
+            OperationStatus.ROLLED_BACK,
+            OperationStatus.CONFLICTED,
+        ]
+
     def test_rolls_back_before_propagating_an_interrupt(
         self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -337,6 +362,7 @@ class TestApplyPlan:
         self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         prepared = prepare_plan(ChangePlan((CreateDirectory("pkg"),)), tmp_path)
+
         def fail_generated_directory(path: pathlib.Path, mode: int) -> None:
             assert path == tmp_path / "pkg"
             assert mode == 0o755
@@ -348,6 +374,18 @@ class TestApplyPlan:
             apply_plan(prepared)
 
         assert list(tmp_path.iterdir()) == []
+
+    def test_preserves_a_directory_setup_error_when_cleanup_fails(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        prepared = prepare_plan(ChangePlan((CreateDirectory("pkg"),)), tmp_path)
+        monkeypatch.setattr(pathlib.Path, "chmod", lambda path, mode: (_ for _ in ()).throw(OSError("chmod failed")))
+        monkeypatch.setattr(pathlib.Path, "rmdir", lambda path: (_ for _ in ()).throw(OSError("cleanup failed")))
+
+        with pytest.raises(ApplyError, match="chmod failed") as caught:
+            apply_plan(prepared)
+
+        assert caught.value.__notes__ == ["Could not remove pkg after its setup failed."]
 
     def test_rolls_back_a_modified_file(self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
         target = tmp_path / "first.txt"
@@ -445,6 +483,87 @@ class TestApplyPlan:
         assert backups[0].read_text() == "before"
         assert "Backup preserved as" in caught.value.__notes__[0]
 
+    def test_does_not_rollback_over_an_identical_concurrent_replacement(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        target = tmp_path / "first.txt"
+        target.write_text("before")
+        prepared = prepare_plan(
+            ChangePlan(
+                (
+                    ModifyFile("first.txt", before="before", after="after"),
+                    CreateFile("second.txt", "second"),
+                )
+            ),
+            tmp_path,
+        )
+        write = plans._write_file
+
+        def replace_then_fail(operation: plans.PreparedOperation) -> pathlib.Path | None:
+            if operation.path.name == "second.txt":
+                replacement = tmp_path / "replacement"
+                replacement.write_text("after")
+                replacement.chmod(os.stat(target).st_mode & 0o777)
+                os.replace(replacement, target)
+                raise OSError("disk full")
+            return write(operation)
+
+        monkeypatch.setattr(plans, "_write_file", replace_then_fail)
+
+        with pytest.raises(ApplyError, match="disk full"):
+            apply_plan(prepared)
+
+        assert target.read_text() == "after"
+        assert len(list(tmp_path.glob(".*.kupala-backup-*"))) == 1
+
+    def test_removes_a_backup_when_creating_the_write_temporary_fails(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        target = tmp_path / "item.txt"
+        target.write_text("before")
+        prepared = prepare_plan(
+            ChangePlan((ModifyFile("item.txt", before="before", after="after"),)),
+            tmp_path,
+        )
+        mkstemp = plans.tempfile.mkstemp
+        calls = 0
+
+        def fail_second(*, prefix: str, dir: pathlib.Path) -> tuple[int, str]:
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OSError("temporary failed")
+            return mkstemp(prefix=prefix, dir=dir)
+
+        monkeypatch.setattr(plans.tempfile, "mkstemp", fail_second)
+
+        with pytest.raises(ApplyError, match="temporary failed"):
+            apply_plan(prepared)
+
+        assert target.read_text() == "before"
+        assert list(tmp_path.iterdir()) == [target]
+
+    def test_removes_an_incomplete_backup(self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        target = tmp_path / "item.txt"
+        target.write_text("before")
+        prepared = prepare_plan(
+            ChangePlan((ModifyFile("item.txt", before="before", after="after"),)),
+            tmp_path,
+        )
+
+        def fail_backup(path: pathlib.Path, mode: int) -> None:
+            assert ".kupala-backup-" in path.name
+            assert mode == os.stat(target).st_mode & 0o777
+            raise OSError("backup failed")
+
+        monkeypatch.setattr(pathlib.Path, "chmod", fail_backup)
+
+        with pytest.raises(ApplyError, match="backup failed"):
+            apply_plan(prepared)
+
+        assert target.read_text() == "before"
+        assert list(tmp_path.iterdir()) == [target]
+
     def test_removes_temporary_files_after_a_failed_replace(
         self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -494,6 +613,32 @@ class TestApplyPlan:
             apply_plan(prepared)
 
         assert (tmp_path / "first.txt").read_text() == "concurrent"
+
+    def test_does_not_remove_an_identical_concurrent_replacement(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        target = tmp_path / "first.txt"
+        prepared = prepare_plan(
+            ChangePlan((CreateFile("first.txt", "first"), CreateFile("second.txt", "second"))),
+            tmp_path,
+        )
+        write = plans._write_file
+
+        def replace_then_fail(operation: plans.PreparedOperation) -> pathlib.Path | None:
+            if operation.path.name == "second.txt":
+                replacement = tmp_path / "replacement"
+                replacement.write_text("first")
+                replacement.chmod(os.stat(target).st_mode & 0o777)
+                os.replace(replacement, target)
+                raise OSError("disk full")
+            return write(operation)
+
+        monkeypatch.setattr(plans, "_write_file", replace_then_fail)
+
+        with pytest.raises(OSError, match="disk full"):
+            apply_plan(prepared)
+
+        assert target.read_text() == "first"
 
     def test_rolls_back_a_directory_mode_change(self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
         target = tmp_path / "pkg"

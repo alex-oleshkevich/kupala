@@ -174,10 +174,8 @@ class TestRunGeneration:
     def test_redacts_secret_values_from_default_output(
         self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        run_generation(
-            lambda context: ChangePlan(
-                (CreateFile(f"{context.answers['token']}.txt", "content", sensitive=True),)
-            ),
+        report = run_generation(
+            lambda context: ChangePlan((CreateFile(f"{context.answers['token']}.txt", "content", sensitive=True),)),
             target_root=tmp_path,
             questions=(Question("token", "Token", secret=True),),
             answers={"token": "top-secret"},
@@ -188,6 +186,21 @@ class TestRunGeneration:
         output = capsys.readouterr()
         assert "top-secret" not in output.out
         assert "***.txt" in output.out
+        assert report.operations[0].path == pathlib.PurePath("***.txt")
+
+    def test_redacts_secret_values_from_text_diffs(
+        self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        run_generation(
+            lambda context: ChangePlan((CreateFile("item.txt", str(context.answers["token"])),)),
+            target_root=tmp_path,
+            questions=(Question("token", "Token", secret=True),),
+            answers={"token": "top-secret"},
+            yes=True,
+            dry_run=True,
+        )
+
+        assert "top-secret" not in capsys.readouterr().out
 
     def test_hides_file_modifier_exception_details(self, tmp_path: pathlib.Path) -> None:
         @dataclasses.dataclass(frozen=True)
@@ -253,9 +266,7 @@ class TestRunGeneration:
 
         with pytest.raises(click.UsageError) as caught:
             run_generation(
-                lambda context: ChangePlan(
-                    (CreateFile(f"{context.answers['token']}.txt", "content"),)
-                ),
+                lambda context: ChangePlan((CreateFile(f"{context.answers['token']}.txt", "content"),)),
                 target_root=tmp_path,
                 questions=(Question("token", "Token", secret=True),),
                 answers={"token": "top-secret"},
@@ -265,6 +276,7 @@ class TestRunGeneration:
 
         assert "top-secret" not in caught.value.message
         assert reporter.reports[0].operations[0].status is OperationStatus.CONFLICTED
+        assert reporter.reports[0].operations[0].path == pathlib.PurePath("***.txt")
 
     def test_reports_a_preflight_conflict(self, tmp_path: pathlib.Path) -> None:
         (tmp_path / "item.txt").write_text("existing")
@@ -289,9 +301,7 @@ class TestRunGeneration:
 
         with pytest.raises(click.UsageError) as caught:
             run_generation(
-                lambda context: ChangePlan(
-                    (CreateFile(f"{context.answers['token']}.txt", "different"),)
-                ),
+                lambda context: ChangePlan((CreateFile(f"{context.answers['token']}.txt", "different"),)),
                 target_root=tmp_path,
                 questions=(Question("token", "Token", secret=True),),
                 answers={"token": "top-secret"},
@@ -431,6 +441,18 @@ class TestGenerator:
 
         assert result.exit_code == 0
         assert (tmp_path / "count.txt").read_text() == "2"
+
+    def test_uses_a_callable_click_default(self, tmp_path: pathlib.Path) -> None:
+        @generator(questions=(Question("name", "Name"),))
+        @click.command()
+        @click.option("--name", default=lambda: "widget")
+        def widget(context: GenerationContext, name: str) -> ChangePlan:
+            return ChangePlan((CreateFile("name.txt", name),))
+
+        result = CliRunner().invoke(widget, ["--project", str(tmp_path), "--yes"])
+
+        assert result.exit_code == 0
+        assert (tmp_path / "name.txt").read_text() == "widget"
 
         required = Question[str]("name", "Name")
 
@@ -592,6 +614,8 @@ class TestGenerator:
         [
             (click.Option(("--name",), required=True), "required"),
             (click.Option(("--name",), prompt=True), "prompt"),
+            (click.Option(("--name",), expose_value=False), "expose"),
+            (click.Option(("--name",), callback=lambda ctx, parameter, value: value), "callback"),
         ],
     )
     def test_rejects_click_prompting_and_required_interviewed_options(
