@@ -84,7 +84,7 @@ class TestIdentity:
 
 
 class TestBearer:
-    def test_requires_a_realm_for_a_valid_challenge(self) -> None:
+    def test_requires_explicit_realm_configuration(self) -> None:
         with pytest.raises(TypeError, match="realm"):
             typing.cast(typing.Any, Bearer)()
 

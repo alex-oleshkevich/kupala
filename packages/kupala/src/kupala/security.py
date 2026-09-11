@@ -27,7 +27,7 @@ class Identity[T]:
 
 @dataclasses.dataclass(frozen=True, slots=True, eq=False)
 class Bearer:
-    """Read an HTTP Bearer credential and describe the same OpenAPI security requirement."""
+    """Read an HTTP Bearer credential using an explicit challenge realm."""
 
     realm: str
     name: str = "bearer"
