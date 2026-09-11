@@ -5,7 +5,7 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from kupala.applications import Kupala
-from kupala.errors import BadRequestError, BaseHTTPError, ValidationError
+from kupala.errors import BadRequestError, BaseHTTPError, InvalidCredentialsError, ValidationError
 from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
@@ -140,6 +140,44 @@ class TestBaseHTTPError:
             client.websocket_connect("/socket").__enter__()
 
         assert error.value.code == 4403
+
+
+class TestInvalidCredentialsError:
+    def test_uses_the_authentication_error_contract(self) -> None:
+        error = InvalidCredentialsError(headers={"WWW-Authenticate": 'Bearer realm="api"'})
+
+        assert error.detail == "Invalid credentials."
+        assert error.title == "Invalid credentials."
+        assert error.type == "invalid_credentials_error"
+        assert error.status_code == 401
+        assert error.headers == {"WWW-Authenticate": 'Bearer realm="api"'}
+
+    def test_accepts_inherited_error_fields(self) -> None:
+        error = InvalidCredentialsError(
+            "Expired credentials.",
+            title="Expired credentials",
+            type="expired_credentials",
+        )
+
+        assert error.detail == "Expired credentials."
+        assert error.title == "Expired credentials"
+        assert error.type == "expired_credentials"
+
+    def test_http_handler_preserves_the_authentication_challenge(self) -> None:
+        routes = Routes()
+
+        @routes.get("/protected")
+        async def endpoint(request: Request) -> Response:
+            raise InvalidCredentialsError(headers={"WWW-Authenticate": 'Bearer realm="api"'})
+
+        app = Kupala("tests", routes=routes)
+
+        with TestClient(app) as client:
+            http_response = client.get("/protected")
+
+        assert http_response.status_code == 401
+        assert http_response.text == "401: Invalid credentials."
+        assert http_response.headers["WWW-Authenticate"] == 'Bearer realm="api"'
 
 
 class TestValidationError:

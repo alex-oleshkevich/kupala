@@ -16,12 +16,14 @@ from kupala.responses import (
     response,
 )
 from kupala.routing import Routes
+from kupala.security import Identity
 
 __all__ = [
     "AppBuilder",
     "Commands",
     "FileResponse",
     "HTMLResponse",
+    "Identity",
     "JSONResponse",
     "Kupala",
     "PlainTextResponse",

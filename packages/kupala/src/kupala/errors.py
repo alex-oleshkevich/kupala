@@ -51,6 +51,14 @@ class NotAuthenticatedError(BaseHTTPError):
     status_code: int = 401
 
 
+class InvalidCredentialsError(NotAuthenticatedError):
+    """The request supplied credentials that could not be authenticated."""
+
+    detail: str = "Invalid credentials."
+    title: str = "Invalid credentials."
+    type: str = "invalid_credentials_error"
+
+
 class NotAuthorizedError(BaseHTTPError):
     detail: str = "Not authorized."
     title: str = "Authorization error."
