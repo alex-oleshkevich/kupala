@@ -84,6 +84,10 @@ class TestIdentity:
 
 
 class TestBearer:
+    def test_requires_a_realm_for_a_valid_challenge(self) -> None:
+        with pytest.raises(TypeError, match="realm"):
+            typing.cast(typing.Any, Bearer)()
+
     @pytest.mark.parametrize(
         ("authorization", "token"),
         [
@@ -93,21 +97,21 @@ class TestBearer:
         ],
     )
     def test_returns_the_exact_token(self, authorization: str, token: str) -> None:
-        with bearer_client(Bearer()) as client:
+        with bearer_client(Bearer(realm="test")) as client:
             response = client.get("/", headers={"Authorization": authorization})
 
         assert response.status_code == 200
         assert response.text == token
 
     @pytest.mark.parametrize("authorization", [None, "Basic token"])
-    def test_missing_bearer_credentials_get_a_bare_challenge(self, authorization: str | None) -> None:
+    def test_missing_bearer_credentials_get_a_realm_challenge(self, authorization: str | None) -> None:
         headers = {} if authorization is None else {"Authorization": authorization}
 
-        with bearer_client(Bearer()) as client:
+        with bearer_client(Bearer(realm="test")) as client:
             response = client.get("/", headers=headers)
 
         assert response.status_code == 401
-        assert response.headers["WWW-Authenticate"] == "Bearer"
+        assert response.headers["WWW-Authenticate"] == 'Bearer realm="test"'
 
     @pytest.mark.parametrize(
         "authorization",
@@ -121,18 +125,18 @@ class TestBearer:
         ],
     )
     def test_malformed_credentials_are_a_bad_request(self, authorization: str) -> None:
-        with bearer_client(Bearer()) as client:
+        with bearer_client(Bearer(realm="test")) as client:
             response = client.get(
                 "/",
                 headers={"Authorization": authorization},
             )
 
         assert response.status_code == 400
-        assert response.headers["WWW-Authenticate"] == 'Bearer error="invalid_request"'
+        assert response.headers["WWW-Authenticate"] == 'Bearer realm="test", error="invalid_request"'
         assert response.text == "400: Malformed Bearer credentials."
 
     async def test_rejects_non_ascii_credentials(self, scope_f: ScopeFactory) -> None:
-        binding = Bearer()
+        binding = Bearer(realm="test")
         context = InvocationContext(
             InjectionScope(
                 {HTTPConnection: constant(HTTPConnection(scope_f(headers=[(b"authorization", b"Bearer t\xe9st")])))},
@@ -143,14 +147,14 @@ class TestBearer:
             await compile_bearer(binding)(context)
 
     def test_duplicate_authorization_fields_are_a_bad_request(self) -> None:
-        with bearer_client(Bearer()) as client:
+        with bearer_client(Bearer(realm="test")) as client:
             response = client.get(
                 "/",
                 headers=[("Authorization", "Bearer one"), ("Authorization", "Bearer two")],
             )
 
         assert response.status_code == 400
-        assert response.headers["WWW-Authenticate"] == 'Bearer error="invalid_request"'
+        assert response.headers["WWW-Authenticate"] == 'Bearer realm="test", error="invalid_request"'
 
     @pytest.mark.parametrize(
         ("realm", "challenge"),
@@ -173,10 +177,10 @@ class TestBearer:
     @pytest.mark.parametrize("name", ["", "has space", "has/slash"])
     def test_rejects_an_invalid_openapi_component_name(self, name: str) -> None:
         with pytest.raises(ValueError, match="name"):
-            Bearer(name=name)
+            Bearer(realm="test", name=name)
 
     def test_requires_a_non_optional_string_annotation(self) -> None:
-        binding = Bearer()
+        binding = Bearer(realm="test")
 
         with pytest.raises(InvalidDependencyError, match="required str"):
             compile_bearer(binding, type_=int)
@@ -184,7 +188,7 @@ class TestBearer:
             compile_bearer(binding, default=None)
 
     async def test_caches_extraction_by_binding_identity(self, scope_f: ScopeFactory) -> None:
-        binding = Bearer()
+        binding = Bearer(realm="test")
         context = InvocationContext(
             InjectionScope(
                 {HTTPConnection: constant(HTTPConnection(scope_f(headers=[(b"authorization", b"Bearer first")])))},
@@ -200,8 +204,8 @@ class TestBearer:
         assert await resolver(context) == "first"
 
     async def test_equal_bindings_and_separate_contexts_do_not_share_tokens(self, scope_f: ScopeFactory) -> None:
-        first = Bearer()
-        second = Bearer()
+        first = Bearer(realm="test")
+        second = Bearer(realm="test")
         context = InvocationContext(
             InjectionScope(
                 {HTTPConnection: constant(HTTPConnection(scope_f(headers=[(b"authorization", b"Bearer first")])))}
@@ -222,7 +226,7 @@ class TestBearer:
         context = InvocationContext(InjectionScope({HTTPConnection: constant(connection)}))
 
         with pytest.raises(InvalidDependencyError, match="HTTP requests"):
-            await compile_bearer(Bearer())(context)
+            await compile_bearer(Bearer(realm="test"))(context)
 
     def test_contributes_the_runtime_security_contract_to_openapi(self) -> None:
         binding = Bearer(name="accessToken", bearer_format="JWT", realm="api")

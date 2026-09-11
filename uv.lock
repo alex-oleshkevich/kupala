@@ -472,6 +472,7 @@ dependencies = [
     { name = "copier" },
     { name = "kupala" },
     { name = "libcst" },
+    { name = "questionary" },
 ]
 
 [package.metadata]
@@ -480,6 +481,7 @@ requires-dist = [
     { name = "copier", specifier = ">=9.18" },
     { name = "kupala", editable = "packages/kupala" },
     { name = "libcst", specifier = ">=1.8" },
+    { name = "questionary", specifier = ">=2.1.1" },
 ]
 
 [[package]]

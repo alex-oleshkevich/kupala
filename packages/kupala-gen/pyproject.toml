@@ -10,6 +10,7 @@ dependencies = [
   "copier>=9.18",
   "kupala",
   "libcst>=1.8",
+  "questionary>=2.1.1",
 ]
 
 [project.entry-points."kupala.commands"]

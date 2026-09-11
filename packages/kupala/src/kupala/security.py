@@ -1,5 +1,6 @@
 import dataclasses
 import re
+from email.utils import quote
 
 from starlette.requests import HTTPConnection
 
@@ -28,14 +29,14 @@ class Identity[T]:
 class Bearer:
     """Read an HTTP Bearer credential and describe the same OpenAPI security requirement."""
 
+    realm: str
     name: str = "bearer"
     bearer_format: str | None = None
-    realm: str | None = None
 
     def __post_init__(self) -> None:
         if _COMPONENT_NAME.fullmatch(self.name) is None:
             raise ValueError("Bearer name must contain only letters, digits, dots, hyphens, and underscores.")
-        if self.realm is not None and not all(char.isascii() and char.isprintable() for char in self.realm):
+        if not all(char.isascii() and char.isprintable() for char in self.realm):
             raise ValueError("Bearer realm must contain only printable ASCII characters.")
 
     def _validate_parameter(self, param: ParamInfo) -> None:
@@ -43,13 +44,10 @@ class Bearer:
             raise InvalidDependencyError(f"Bearer parameter {param.name!r} must be a required str.")
 
     def _challenge(self, error: str | None = None) -> str:
-        values: list[str] = []
-        if self.realm is not None:
-            realm = self.realm.replace("\\", "\\\\").replace('"', '\\"')
-            values.append(f'realm="{realm}"')
+        values = [f'realm="{quote(self.realm)}"']
         if error is not None:
             values.append(f'error="{error}"')
-        return "Bearer" if not values else f"Bearer {', '.join(values)}"
+        return f"Bearer {', '.join(values)}"
 
     def compile(self, _context: CompileContext, param: ParamInfo) -> Resolver:
         self._validate_parameter(param)

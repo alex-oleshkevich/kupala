@@ -63,3 +63,20 @@ app = Kupala("example", routes=Routes(), bindings={Mailer: resolve_mailer})
 
 Extensions contribute the same resolver mapping through `AppBuilder.bindings`. Use `constant(value)` when an
 already-constructed value should be returned unchanged.
+
+## Bearer credentials
+
+`Bearer` is a regular dependency binding that returns the raw credential and adds the matching security scheme to
+OpenAPI. Missing credentials raise `NotAuthenticatedError`; malformed or duplicate `Authorization` headers raise
+`BadRequestError`, and both errors carry the appropriate `WWW-Authenticate` header.
+
+```python
+from typing import Annotated
+
+from kupala import Bearer, Response
+
+type AccessToken = Annotated[str, Bearer(name="accessToken", bearer_format="JWT", realm="api")]
+
+
+async def endpoint(token: AccessToken) -> Response: ...
+```
