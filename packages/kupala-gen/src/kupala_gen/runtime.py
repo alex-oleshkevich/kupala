@@ -24,23 +24,39 @@ from kupala_gen.plans import (
 from kupala_gen.questions import UNSET, Ask, InteractionMode, Question, resolve_answers
 
 
-def _redact(value: object, secrets: typing.Iterable[object]) -> str:
+def _redact(value: object, secrets: typing.Iterable[str]) -> str:
     text = str(value)
-    for secret in filter(None, map(str, secrets)):
+    for secret in secrets:
         text = text.replace(secret, "***")
+
     return text
 
 
-class ProjectMetadata(typing.Protocol):
-    root: pathlib.Path
+def _redact_bytes(value: bytes | None, secrets: typing.Iterable[str]) -> bytes | None:
+    if value is None:
+        return None
+
+    for secret in secrets:
+        value = value.replace(secret.encode(), b"***")
+
+    return value
 
 
-class TemplateRenderer(typing.Protocol):
-    def render(self, template: str, context: typing.Mapping[str, object]) -> bytes: ...
-
-
-class CodemodRunner(typing.Protocol):
-    def run(self, path: pathlib.Path, transform: object) -> bytes: ...
+def _redact_plan(plan: PreparedPlan, secrets: tuple[str, ...]) -> PreparedPlan:
+    return dataclasses.replace(
+        plan,
+        target_root=pathlib.Path(_redact(plan.target_root, secrets)),
+        operations=tuple(
+            dataclasses.replace(
+                operation,
+                relative_path=pathlib.PurePath(_redact(operation.relative_path, secrets)),
+                path=pathlib.Path(_redact(operation.path, secrets)),
+                before=_redact_bytes(operation.before, secrets),
+                after=_redact_bytes(operation.after, secrets),
+            )
+            for operation in plan.operations
+        ),
+    )
 
 
 class Reporter(typing.Protocol):
@@ -52,21 +68,16 @@ class Reporter(typing.Protocol):
 
 
 class ClickReporter:
-    def __init__(self, secrets: typing.Iterable[object] = ()) -> None:
-        self._secrets = tuple(sorted(filter(None, map(str, secrets)), key=len, reverse=True))
-
-    def _redact(self, value: object) -> str:
-        return _redact(value, self._secrets)
-
     def preview(self, plan: PreparedPlan) -> None:
         for operation in plan.operations:
-            click.echo(f"{operation.status.value:9} {self._redact(operation.relative_path)}")
+            click.echo(f"{operation.status.value:9} {operation.relative_path}")
             if operation.status is not OperationStatus.UNCHANGED and not operation.directory:
                 self._diff(operation)
 
     def _diff(self, operation: PreparedOperation) -> None:
         if operation.sensitive:
             return
+
         before = operation.before or b""
         after = typing.cast(bytes, operation.after)
         try:
@@ -78,11 +89,11 @@ class ClickReporter:
         for line in difflib.unified_diff(
             before_text.splitlines(),
             after_text.splitlines(),
-            fromfile=f"a/{self._redact(operation.relative_path)}",
-            tofile=f"b/{self._redact(operation.relative_path)}",
+            fromfile=f"a/{operation.relative_path}",
+            tofile=f"b/{operation.relative_path}",
             lineterm="",
         ):
-            click.echo(self._redact(line))
+            click.echo(line)
 
     def confirm(self) -> bool:
         return click.confirm("Apply these changes?", default=False)
@@ -95,8 +106,10 @@ class ClickReporter:
         )
         if failures:
             for result in failures:
-                click.echo(f"{result.status.value:9} {self._redact(result.path)}", err=True)
+                click.echo(f"{result.status.value:9} {result.path}", err=True)
+
             return
+
         changed = sum(result.status is not OperationStatus.UNCHANGED for result in report.operations)
         click.echo(f"Applied {changed} change{'s' if changed != 1 else ''}.")
 
@@ -105,12 +118,6 @@ class ClickReporter:
 class GenerationContext:
     target_root: pathlib.Path
     answers: typing.Mapping[str, object]
-    interaction: InteractionMode
-    force: bool
-    reporter: Reporter
-    project: ProjectMetadata | None = None
-    renderer: TemplateRenderer | None = None
-    codemods: CodemodRunner | None = None
 
 
 type Planner = typing.Callable[[GenerationContext], ChangePlan]
@@ -122,7 +129,7 @@ def _report(plan: PreparedPlan) -> GenerationReport:
     )
 
 
-def _redact_report(report: GenerationReport, secrets: typing.Iterable[object]) -> GenerationReport:
+def _redact_report(report: GenerationReport, secrets: typing.Iterable[str]) -> GenerationReport:
     return GenerationReport(
         tuple(
             OperationResult(pathlib.PurePath(_redact(result.path, secrets)), result.status)
@@ -143,9 +150,6 @@ def run_generation(
     reporter: Reporter | None = None,
     interaction: InteractionMode | None = None,
     ask: Ask | None = None,
-    project: ProjectMetadata | None = None,
-    renderer: TemplateRenderer | None = None,
-    codemods: CodemodRunner | None = None,
 ) -> GenerationReport:
     mode = (
         InteractionMode.ASSUME_YES
@@ -158,18 +162,19 @@ def run_generation(
     )
     resolved = resolve_answers(questions, answers or {}, mode=mode, ask=ask)
     secret_values = tuple(
-        resolved[question.key] for question in questions if question.secret and question.key in resolved
+        sorted(
+            filter(
+                None,
+                (str(resolved[question.key]) for question in questions if question.secret and question.key in resolved),
+            ),
+            key=len,
+            reverse=True,
+        )
     )
-    output = reporter or ClickReporter(secret_values)
+    output = reporter if reporter is not None else ClickReporter()
     context = GenerationContext(
         target_root=target_root.resolve(),
         answers=resolved,
-        interaction=mode,
-        force=force,
-        reporter=output,
-        project=project,
-        renderer=renderer,
-        codemods=codemods,
     )
     try:
         plan = planner(context)
@@ -179,6 +184,7 @@ def run_generation(
         raise
     except Exception:  # noqa: BLE001 - planner errors may contain secret answers
         raise click.ClickException("Generation planning failed.") from None
+
     try:
         prepared = prepare_plan(plan, context.target_root, force=force)
     except ConflictError as error:
@@ -188,7 +194,8 @@ def run_generation(
         raise
     except Exception:  # noqa: BLE001 - operation renderers may contain secret answers
         raise click.ClickException("Generation planning failed.") from None
-    output.preview(prepared)
+
+    output.preview(_redact_plan(prepared, secret_values))
     preview = _redact_report(_report(prepared), secret_values)
     if dry_run:
         return preview
@@ -197,9 +204,11 @@ def run_generation(
     if not changed:
         output.finish(preview)
         return preview
+
     if not yes:
         if mode is not InteractionMode.INTERACTIVE:
             raise click.UsageError("Applying changes requires --yes when input is not interactive.")
+
         if not output.confirm():
             raise click.Abort
 
@@ -218,6 +227,7 @@ def run_generation(
         raise click.ClickException(f"{message}\n{notes}" if notes else message) from None
     except Exception:  # noqa: BLE001 - filesystem errors may expose sensitive paths or content
         raise click.ClickException("Could not apply the generation plan.") from None
+
     safe_report = _redact_report(report, secret_values)
     output.finish(safe_report)
     return safe_report
@@ -250,32 +260,46 @@ def _bound_questions(
                 raise TypeError(f"Binding names unknown Click parameter: {parameter_name}")
             normalized.append(question)
             continue
+
         if parameter_name in bound_parameters:
             raise TypeError(f"Click parameter cannot answer more than one question: {parameter_name}")
+
         bound_parameters.add(parameter_name)
         if parameter.required:
             raise TypeError(f"Interviewed Click parameter cannot be required: {parameter_name}")
+
         if not parameter.expose_value:
             raise TypeError(f"Interviewed Click parameter must expose its value: {parameter_name}")
+
         if parameter.callback is not None:
             raise TypeError(f"Interviewed Click parameter cannot use a Click callback: {parameter_name}")
+
         if parameter.nargs != 1 or (isinstance(parameter, click.Option) and parameter.multiple):
             raise TypeError(f"Interviewed Click parameter must produce one single value: {parameter_name}")
+
         if isinstance(parameter, click.Option) and parameter.prompt is not None:
             raise TypeError(f"Interviewed Click parameter cannot use a Click prompt: {parameter_name}")
+
         if question.secret and not isinstance(parameter.type, click.types.StringParamType):
             raise TypeError(f"A secret Click parameter must use string conversion: {parameter_name}")
+
         derived = question
         question_type = click.types.convert_type(question.type)
         if question.type is not str and not isinstance(parameter.type, type(question_type)):
             raise TypeError(f"Question and Click parameter types are incompatible: {parameter_name}")
+
         if isinstance(parameter.type, click.Choice):
             click_choices = tuple(parameter.type.choices)
             if question.choices and question.choices != click_choices:
                 raise TypeError(f"Question and Click parameter choices are incompatible: {parameter_name}")
+
             if not question.choices:
                 derived = dataclasses.replace(derived, choices=click_choices)
-        derived = dataclasses.replace(derived, type=parameter.type)
+
+        derived = dataclasses.replace(
+            derived,
+            type=question.type if isinstance(question.type, click.ParamType) else parameter.type,
+        )
         if isinstance(parameter, click.Option) and derived.cli_hint is None and parameter.opts:
             derived = dataclasses.replace(derived, cli_hint=parameter.opts[0])
         question = derived
@@ -324,6 +348,7 @@ def generator(
                     raise click.UsageError(
                         f"Interviewed parameter {parameter_name} cannot come from environment or default-map input."
                     )
+
                 if source is ParameterSource.COMMANDLINE:
                     explicit[question.key] = kwargs[parameter_name]
                 elif (

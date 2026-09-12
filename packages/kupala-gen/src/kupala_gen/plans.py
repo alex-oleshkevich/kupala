@@ -5,6 +5,7 @@ import pathlib
 import stat
 import tempfile
 import typing
+import unicodedata
 
 import click
 
@@ -123,18 +124,15 @@ def _bytes(content: str | bytes) -> bytes:
 
 
 def _relative_path(value: str | pathlib.PurePath) -> pathlib.PurePath:
-    path = pathlib.PurePath(value)
-    windows_path = pathlib.PureWindowsPath(str(value))
-    if (
-        not path.parts
-        or path == pathlib.PurePath(".")
-        or path.is_absolute()
-        or windows_path.is_absolute()
-        or windows_path.drive
-    ):
-        raise ConflictError(f"Unsafe target path: {value}")
-    if "\0" in str(path) or ".." in path.parts:
-        raise ConflictError(f"Unsafe target path: {value}")
+    text = str(value)
+    path = pathlib.PurePath(text)
+    windows_path = pathlib.PureWindowsPath(text)
+    if not path.parts or windows_path.anchor:
+        raise ConflictError(f"Unsafe target path: {value}", path)
+
+    if ".." in path.parts or ".." in windows_path.parts or "\0" in text:
+        raise ConflictError(f"Unsafe target path: {value}", path)
+
     return path
 
 
@@ -150,15 +148,15 @@ def _inspect_ancestors(
     current = root
     for part in relative.parts[:-1]:
         current /= part
-        current_relative = pathlib.PurePath(*current.relative_to(root).parts)
+        current_relative = current.relative_to(root)
         if current_relative in planned_directories:
             continue
         if current.is_symlink():
-            raise ConflictError(f"Target path has a symlink ancestor: {relative}")
+            raise ConflictError(f"Target path has a symlink ancestor: {relative}", relative)
         if current.exists() and not current.is_dir():
-            raise ConflictError(f"Target path has a non-directory ancestor: {relative}")
+            raise ConflictError(f"Target path has a non-directory ancestor: {relative}", relative)
         if not current.exists():
-            raise ConflictError(f"Target directory does not exist: {current_relative}")
+            raise ConflictError(f"Target directory does not exist: {current_relative}", relative)
 
 
 def _check_existing_case(root: pathlib.Path, relative: pathlib.PurePath) -> None:
@@ -167,19 +165,15 @@ def _check_existing_case(root: pathlib.Path, relative: pathlib.PurePath) -> None
         if not current.is_dir():
             return
         if any(child.name.casefold() == part.casefold() and child.name != part for child in current.iterdir()):
-            raise ConflictError(f"Target path case-collides with an existing path: {relative}")
+            raise ConflictError(f"Target path case-collides with an existing path: {relative}", relative)
         current /= part
 
 
 def _check_collisions(operations: tuple[ChangeOperation, ...]) -> None:
     paths: list[tuple[pathlib.PurePath, tuple[str, ...], bool]] = []
     for operation in operations:
-        try:
-            path = _relative_path(operation.path)
-        except ConflictError as error:
-            error.path = pathlib.PurePath(operation.path)
-            raise
-        folded = tuple(part.casefold() for part in path.parts)
+        path = _relative_path(operation.path)
+        folded = tuple(unicodedata.normalize("NFC", part).casefold() for part in path.parts)
         directory = isinstance(operation, CreateDirectory)
         for previous, previous_folded, previous_directory in paths:
             if folded == previous_folded:
@@ -203,32 +197,33 @@ def _prepare_operation(
     _inspect_ancestors(root, relative, planned_directories)
     _check_existing_case(root, relative)
     if target.is_symlink():
-        raise ConflictError(f"Target path is a symlink: {relative}")
+        raise ConflictError(f"Target path is a symlink: {relative}", relative)
 
     exists = target.exists()
     if isinstance(operation, CreateDirectory):
         if exists and not target.is_dir():
-            raise ConflictError(f"A file already exists at directory target: {relative}")
+            raise ConflictError(f"A file already exists at directory target: {relative}", relative)
+
         before_mode = _mode(target) if exists else None
-        status = (
-            OperationStatus.UNCHANGED
-            if before_mode == operation.mode
-            else OperationStatus.MODIFIED
-            if exists
-            else OperationStatus.CREATED
-        )
+        if not exists:
+            status = OperationStatus.CREATED
+        elif before_mode == operation.mode:
+            status = OperationStatus.UNCHANGED
+        else:
+            status = OperationStatus.MODIFIED
+
         return PreparedOperation(relative, target, status, True, None, None, before_mode, operation.mode, False)
 
     if exists and not target.is_file():
-        raise ConflictError(f"Unsupported target file type: {relative}")
+        raise ConflictError(f"Unsupported target file type: {relative}", relative)
 
     if isinstance(operation, FileModification):
         if not exists:
-            raise ConflictError(f"File does not exist: {relative}")
+            raise ConflictError(f"File does not exist: {relative}", relative)
         actual = target.read_bytes()
         expected = _bytes(operation.before)
         if actual != expected:
-            raise ConflictError(f"File changed since it was planned: {relative}")
+            raise ConflictError(f"File changed since it was planned: {relative}", relative)
         after = _bytes(operation.render(actual))
         before_mode = _mode(target)
         after_mode = operation.mode if operation.mode is not None else before_mode
@@ -264,7 +259,7 @@ def _prepare_operation(
     actual = target.read_bytes()
     before_mode = _mode(target)
     if actual != after and not (force and operation.overwriteable):
-        raise ConflictError(f"File already exists with different content: {relative}")
+        raise ConflictError(f"File already exists with different content: {relative}", relative)
     status = (
         OperationStatus.UNCHANGED if actual == after and before_mode == operation.mode else OperationStatus.MODIFIED
     )
@@ -296,14 +291,11 @@ def prepare_plan(
     prepared: list[PreparedOperation] = []
     planned_directories: set[pathlib.PurePath] = set()
     for operation in plan.operations:
-        try:
-            item = _prepare_operation(operation, root, planned_directories, force=force)
-        except ConflictError as error:
-            error.path = pathlib.PurePath(operation.path)
-            raise
+        item = _prepare_operation(operation, root, planned_directories, force=force)
         prepared.append(item)
         if item.directory:
             planned_directories.add(item.relative_path)
+
     return PreparedPlan(root, root_stat.st_dev, root_stat.st_ino, tuple(prepared))
 
 
@@ -386,7 +378,11 @@ def _rollback(
     if (current.st_dev, current.st_ino) != identity:
         return False
     if operation.status is OperationStatus.CREATED:
-        operation.path.rmdir() if operation.directory else operation.path.unlink()
+        if operation.directory:
+            operation.path.rmdir()
+        else:
+            operation.path.unlink()
+
         return True
     if operation.directory:
         operation.path.chmod(typing.cast(int, operation.before_mode))

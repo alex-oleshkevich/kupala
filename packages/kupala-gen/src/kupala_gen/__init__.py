@@ -15,6 +15,7 @@ from kupala_gen.sources import (
     GitTemplate,
     TemplateIdentity,
     TemplateSnapshot,
+    TemplateSource,
     resolve_template,
 )
 from kupala_gen.templates import TemplateDefinition, inspect_template, render_template
@@ -38,6 +39,7 @@ __all__ = [
     "TemplateDefinition",
     "TemplateIdentity",
     "TemplateSnapshot",
+    "TemplateSource",
     "generator",
     "inspect_template",
     "render_template",

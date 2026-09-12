@@ -37,9 +37,8 @@ def widget(context: GenerationContext, name: str) -> ChangePlan:
 widget = "my_package.generators:widget"
 ```
 
-Generators load when `gen` runs, before `add` is asked for a command, so installing the package is
-enough to make `kupala gen add widget` work. One that fails to import, or whose target is not a
-click command, is logged and skipped rather than breaking the command line.
+Generator names are discovered without importing their commands. The selected generator loads when
+it is invoked, and a broken generator reports an error without blocking the others.
 
 Every run resolves explicit Click values before interview answers and defaults, prepares and previews
 the complete change plan before writing, and applies it with conflict checks and rollback. `--yes`

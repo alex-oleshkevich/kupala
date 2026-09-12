@@ -53,6 +53,7 @@ extras = ["starlette"]
 [tool.mypy]
 files = ["packages/", "demo/demo"]
 mypy_path = ["packages/kupala/src", "packages/kupala-gen/src"]
+explicit_package_bases = true
 python_version = "3.14"
 pretty = true
 strict = true
@@ -87,6 +88,10 @@ indent-width = 4
 exclude = ["var", ".venv", ".git"]
 
 [tool.ruff.lint]
+preview = true
+explicit-preview-rules = true
+extend-select = ["E301", "E302", "E303", "E304", "E305", "E306", "W293"]
+ignore = ["PT012", "RUF043"]
 fixable = ["ALL"]
 
 [tool.ruff.lint.isort]

@@ -188,6 +188,25 @@ class TestRunGeneration:
         assert "***.txt" in output.out
         assert report.operations[0].path == pathlib.PurePath("***.txt")
 
+    def test_redacts_secrets_before_custom_reporting(self, tmp_path: pathlib.Path) -> None:
+        reporter = RecordingReporter()
+        run_generation(
+            lambda context: ChangePlan((CreateFile(f"{context.answers['token']}.txt", str(context.answers["token"])),)),
+            target_root=tmp_path,
+            questions=(
+                Question("prefix", "Prefix", secret=True),
+                Question("token", "Token", secret=True),
+            ),
+            answers={"prefix": "secret", "token": "top-secret\nsecond"},
+            reporter=reporter,
+            yes=True,
+            dry_run=True,
+        )
+
+        operation = reporter.previews[0].operations[0]
+        assert operation.relative_path == pathlib.PurePath("***.txt")
+        assert operation.after == b"***"
+
     def test_redacts_secret_values_from_text_diffs(
         self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -195,12 +214,14 @@ class TestRunGeneration:
             lambda context: ChangePlan((CreateFile("item.txt", str(context.answers["token"])),)),
             target_root=tmp_path,
             questions=(Question("token", "Token", secret=True),),
-            answers={"token": "top-secret"},
+            answers={"token": "top-secret\nsecond"},
             yes=True,
             dry_run=True,
         )
 
-        assert "top-secret" not in capsys.readouterr().out
+        output = capsys.readouterr().out
+        assert "top-secret" not in output
+        assert "second" not in output
 
     def test_hides_file_modifier_exception_details(self, tmp_path: pathlib.Path) -> None:
         @dataclasses.dataclass(frozen=True)
@@ -584,6 +605,18 @@ class TestGenerator:
             return ChangePlan(())  # pragma: no cover - range validation stops first
 
         result = CliRunner().invoke(widget, ["--project", str(tmp_path), "--yes"])
+
+        assert result.exit_code == 2
+        assert "not in the range 1<=x<=3" in result.output
+
+    def test_preserves_explicit_question_type_constraints(self, tmp_path: pathlib.Path) -> None:
+        @generator(questions=(Question("count", "Count", type=click.IntRange(1, 3)),))
+        @click.command()
+        @click.option("--count", type=click.IntRange(1, 9))
+        def widget(context: GenerationContext, count: int) -> ChangePlan:
+            return ChangePlan(())  # pragma: no cover - range validation stops first
+
+        result = CliRunner().invoke(widget, ["--project", str(tmp_path), "--count", "4", "--yes"])
 
         assert result.exit_code == 2
         assert "not in the range 1<=x<=3" in result.output

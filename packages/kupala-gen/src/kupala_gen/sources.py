@@ -14,9 +14,9 @@ import urllib.request
 
 from dulwich import porcelain
 from dulwich.config import ConfigDict
-from dulwich.objects import Blob, Tree
+from dulwich.index import build_index_from_tree
+from dulwich.object_store import iter_tree_contents
 from dulwich.objectspec import parse_commit
-from dulwich.repo import BaseRepo
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -54,8 +54,9 @@ class TemplateSnapshot:
 
 def _resource_path(value: str) -> pathlib.PurePosixPath:
     path = pathlib.PurePosixPath(value)
-    if not path.parts or path.is_absolute() or "." in path.parts or ".." in path.parts:
+    if not path.parts or path.is_absolute() or ".." in path.parts:
         raise ValueError(f"Unsafe bundled template path: {value}")
+
     return path
 
 
@@ -63,13 +64,15 @@ def _file_path(value: str) -> pathlib.Path:
     parsed = urllib.parse.urlsplit(value)
     if parsed.scheme != "file" or parsed.netloc or parsed.query or parsed.fragment:
         raise ValueError("Template source must be an absolute file URI.")
+
     path = pathlib.Path(urllib.request.url2pathname(urllib.parse.unquote(parsed.path)))
     if not path.is_absolute():
         raise ValueError("Template source must be an absolute file URI.")
+
     return path
 
 
-def _git_url(value: str) -> str:
+def _validate_git_url(value: str) -> str:
     parsed = urllib.parse.urlsplit(value)
     if (
         parsed.scheme != "https"
@@ -80,6 +83,7 @@ def _git_url(value: str) -> str:
         or parsed.fragment
     ):
         raise ValueError("Template source must be an HTTPS Git URL without embedded credentials.")
+
     try:
         port = parsed.port
     except ValueError as error:
@@ -87,6 +91,7 @@ def _git_url(value: str) -> str:
     host = parsed.hostname.encode("idna").decode().lower()
     if ":" in host:
         host = f"[{host}]"
+
     netloc = host if port in {None, 443} else f"{host}:{port}"
     return urllib.parse.urlunsplit(("https", netloc, parsed.path or "/", "", ""))
 
@@ -95,93 +100,64 @@ def _full_commit(value: str) -> bool:
     return len(value) in {40, 64} and re.fullmatch(r"[0-9a-fA-F]+", value) is not None
 
 
-def _copy_directory(source: pathlib.Path, destination: pathlib.Path) -> str:
+def _raise_walk_error(error: OSError) -> typing.Never:
+    raise error
+
+
+def _snapshot_directory(source: pathlib.Path, destination: pathlib.Path) -> str:
     if source.is_symlink():
         raise ValueError("Template source may not be a symlink.")
+
     if not source.is_dir():
         raise FileNotFoundError(source)
+
     digest = hashlib.sha256()
     destination.mkdir()
+    seen: set[tuple[str, ...]] = set()
+    paths: list[pathlib.Path] = []
+    for root, directories, files in source.walk(on_error=_raise_walk_error):
+        directories[:] = [name for name in directories if name != ".git"]
+        paths.extend(root / name for name in (*directories, *files) if name != ".git")
 
-    def record(kind: bytes, relative: pathlib.PurePath, mode: int, content: bytes = b"") -> None:
-        path = os.fsencode(relative.as_posix())
+    paths.sort(key=lambda path: tuple(os.fsencode(part) for part in path.relative_to(source).parts))
+
+    for path in paths:
+        relative = path.relative_to(source)
+        key = tuple(unicodedata.normalize("NFC", part).casefold() for part in relative.parts)
+        if key in seen:
+            raise ValueError(f"Template contains case-colliding paths: {relative}")
+
+        seen.add(key)
+
+        info = path.lstat()
+        if stat.S_ISLNK(info.st_mode):
+            raise ValueError(f"Template contains a symlink: {relative}")
+
+        target = destination / relative
+        if stat.S_ISDIR(info.st_mode):
+            kind, mode, content = b"d", 0o755, b""
+            target.mkdir(mode=mode)
+        elif stat.S_ISREG(info.st_mode):
+            kind = b"f"
+            mode = 0o755 if info.st_mode & 0o111 else 0o644
+            content = path.read_bytes()
+            target.write_bytes(content)
+            target.chmod(mode)
+        else:
+            raise ValueError(f"Template contains a special file: {relative}")
+
+        encoded = os.fsencode(relative.as_posix())
         digest.update(kind)
-        digest.update(len(path).to_bytes(4))
-        digest.update(path)
+        digest.update(len(encoded).to_bytes(4))
+        digest.update(encoded)
         digest.update(mode.to_bytes(2))
         digest.update(len(content).to_bytes(8))
         digest.update(content)
 
-    def copy(current: pathlib.Path, relative: pathlib.PurePath) -> None:
-        entries = sorted(os.scandir(current), key=lambda entry: os.fsencode(entry.name))
-        folded: set[str] = set()
-        for entry in entries:
-            if entry.name == ".git":
-                continue
-            name = unicodedata.normalize("NFC", entry.name).casefold()
-            if name in folded:
-                raise ValueError(f"Template contains case-colliding paths: {relative / entry.name}")
-            folded.add(name)
-            path = pathlib.Path(entry.path)
-            target_relative = relative / entry.name
-            target = destination / target_relative
-            info = entry.stat(follow_symlinks=False)
-            if stat.S_ISLNK(info.st_mode):
-                raise ValueError(f"Template contains a symlink: {target_relative}")
-            if stat.S_ISDIR(info.st_mode):
-                target.mkdir(mode=0o755)
-                record(b"d", target_relative, 0o755)
-                copy(path, target_relative)
-                continue
-            if not stat.S_ISREG(info.st_mode):
-                raise ValueError(f"Template contains a special file: {target_relative}")
-            content = path.read_bytes()
-            mode = 0o755 if info.st_mode & 0o111 else 0o644
-            target.write_bytes(content)
-            target.chmod(mode)
-            record(b"f", target_relative, mode, content)
-
-    copy(source, pathlib.PurePath())
     return digest.hexdigest()
 
 
-def _export_tree(repo: BaseRepo, tree_id: bytes, destination: pathlib.Path) -> None:
-    destination.mkdir()
-
-    def export(tree_id: bytes, relative: pathlib.PurePath) -> None:
-        tree = repo[tree_id]
-        if not isinstance(tree, Tree):
-            raise TypeError("Git template contains an invalid tree.")
-        folded: set[str] = set()
-        for entry in tree.iteritems(name_order=True):
-            try:
-                name = entry.path.decode()
-            except UnicodeDecodeError as error:
-                raise ValueError("Git template contains a non-UTF-8 path.") from error
-            if not name or "/" in name or "\0" in name or name in {".", ".."}:
-                raise ValueError("Git template contains an unsafe path.")
-            folded_name = unicodedata.normalize("NFC", name).casefold()
-            if folded_name in folded:
-                raise ValueError(f"Template contains case-colliding paths: {relative / name}")
-            folded.add(folded_name)
-            target_relative = relative / name
-            target = destination / target_relative
-            if stat.S_ISDIR(entry.mode):
-                target.mkdir(mode=0o755)
-                export(entry.sha, target_relative)
-            elif stat.S_ISREG(entry.mode):
-                blob = repo[entry.sha]
-                if not isinstance(blob, Blob):
-                    raise ValueError("Git template contains an invalid file.")
-                target.write_bytes(blob.data)
-                target.chmod(0o755 if entry.mode & 0o111 else 0o644)
-            else:
-                raise ValueError(f"Git template contains an unsupported entry: {target_relative}")
-
-    export(tree_id, pathlib.PurePath())
-
-
-def _approve(
+def _check_trust(
     identity: TemplateIdentity,
     *,
     trust: bool,
@@ -191,9 +167,12 @@ def _approve(
     if expected is not None:
         if identity != expected:
             raise PermissionError("Template identity changed from the trusted value.")
+
         return
+
     if trust or (confirm is not None and confirm(identity)):
         return
+
     raise PermissionError("Template source is not trusted.")
 
 
@@ -211,17 +190,18 @@ def resolve_template(
             resource_path = _resource_path(source.path)
             resource = importlib.resources.files(source.package).joinpath(*resource_path.parts)
             with importlib.resources.as_file(resource) as local:
-                digest = _copy_directory(local, snapshot_root)
+                digest = _snapshot_directory(local, snapshot_root)
             identity = TemplateIdentity(f"bundled:{source.package}/{resource_path}", None, digest)
         elif isinstance(source, FileTemplate):
             path = _file_path(source.url)
-            digest = _copy_directory(path, snapshot_root)
+            digest = _snapshot_directory(path, snapshot_root)
             identity = TemplateIdentity(path.resolve().as_uri(), None, digest)
-            _approve(identity, trust=trust, expected=expected, confirm=confirm)
+            _check_trust(identity, trust=trust, expected=expected, confirm=confirm)
         else:
-            url = _git_url(source.url)
+            url = _validate_git_url(source.url)
             if confirm is None and expected is None and not _full_commit(source.revision):
                 raise ValueError("Non-interactive Git templates require a full commit SHA.")
+
             repository_path = pathlib.Path(temporary) / "repository.git"
             repo = porcelain.clone(
                 url,
@@ -232,11 +212,38 @@ def resolve_template(
                 config=ConfigDict(),
                 recurse_submodules=False,
             )
+
             try:
                 commit = parse_commit(repo, source.revision)
-                _export_tree(repo, commit.tree, snapshot_root)
+                paths: set[str] = set()
+                for entry in iter_tree_contents(repo.object_store, commit.tree):
+                    if not stat.S_ISREG(entry.mode):
+                        raise ValueError("Git template contains an unsupported entry.")
+
+                    try:
+                        entry_path = entry.path.decode()
+                    except UnicodeDecodeError as error:
+                        raise ValueError("Git template contains a non-UTF-8 path.") from error
+
+                    key = unicodedata.normalize("NFC", entry_path).casefold()
+                    if key in paths:
+                        raise ValueError(f"Git template contains case-colliding paths: {entry_path}")
+
+                    paths.add(key)
+
+                checkout = pathlib.Path(temporary) / "checkout"
+                checkout.mkdir()
+                build_index_from_tree(
+                    str(checkout),
+                    str(pathlib.Path(temporary) / "index"),
+                    repo.object_store,
+                    commit.tree,
+                )
+                _snapshot_directory(checkout, snapshot_root)
             finally:
                 repo.close()
+
             identity = TemplateIdentity(url, source.revision, commit.id.decode())
-            _approve(identity, trust=trust, expected=expected, confirm=confirm)
+            _check_trust(identity, trust=trust, expected=expected, confirm=confirm)
+
         yield TemplateSnapshot(identity, snapshot_root)

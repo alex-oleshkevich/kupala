@@ -1,12 +1,13 @@
 import os
 import pathlib
 import stat
+import typing
 
 import pytest
 from dulwich import porcelain
 from dulwich.config import Config
-from dulwich.objects import Blob, Tree
-from dulwich.repo import MemoryRepo, Repo
+from dulwich.objects import ObjectID, TreeEntry
+from dulwich.repo import Repo
 
 from kupala_gen import sources
 from kupala_gen.sources import BundledTemplate, FileTemplate, GitTemplate, TemplateIdentity, resolve_template
@@ -119,6 +120,32 @@ class TestFileTemplate:
         ):
             pass  # pragma: no cover
 
+    def test_fails_when_a_source_directory_cannot_be_read(
+        self,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = tmp_path / "template"
+        source.mkdir()
+
+        def walk(
+            path: pathlib.Path,
+            *,
+            top_down: bool = True,
+            on_error: typing.Callable[[OSError], object] | None = None,
+            follow_symlinks: bool = False,
+        ) -> typing.Iterator[tuple[pathlib.Path, list[str], list[str]]]:
+            assert on_error is not None
+            on_error(PermissionError("denied"))
+            yield path, [], []  # pragma: no cover
+
+        monkeypatch.setattr(pathlib.Path, "walk", walk)
+        with (
+            pytest.raises(PermissionError, match="denied"),
+            resolve_template(FileTemplate(source.as_uri()), trust=True),
+        ):
+            pass  # pragma: no cover
+
 
 class TestBundledTemplate:
     def test_resolves_an_installed_package_directory_without_trust(self) -> None:
@@ -160,7 +187,7 @@ class TestGitTemplate:
             config: Config,
             recurse_submodules: bool,
         ) -> Repo:
-            assert source == "https://example.test/template.git"
+            assert source == "https://[2001:db8::1]/template.git"
             assert bare is True
             assert recurse_submodules is False
             return clone(
@@ -174,7 +201,7 @@ class TestGitTemplate:
             )
 
         monkeypatch.setattr(sources.porcelain, "clone", clone_local)
-        template = GitTemplate("https://example.test/template.git", commit.decode())
+        template = GitTemplate("https://[2001:db8::1]/template.git", commit.decode())
 
         with resolve_template(template, trust=True) as snapshot:
             assert snapshot.identity.resolved == commit.decode()
@@ -188,6 +215,7 @@ class TestGitTemplate:
             "ssh://example.test/template.git",
             "https://user:secret@example.test/template.git",
             "https://example.test/template.git?token=secret",
+            "https://example.test:invalid/template.git",
         ):
             with (
                 pytest.raises(ValueError, match="HTTPS Git URL"),
@@ -242,52 +270,40 @@ class TestGitTemplate:
             assert snapshot.identity.resolved == commit.decode()
             assert approved == [snapshot.identity]
 
-    def test_rejects_unicode_normalized_local_collisions(self, tmp_path: pathlib.Path) -> None:
-        source = tmp_path / "template"
-        source.mkdir()
-        source.joinpath("é").write_text("one")
-        source.joinpath("e\N{COMBINING ACUTE ACCENT}").write_text("two")
-
+        monkeypatch.setattr(
+            sources,
+            "iter_tree_contents",
+            lambda store, tree: iter(
+                [
+                    TreeEntry(b"Name", stat.S_IFREG, ObjectID(commit)),
+                    TreeEntry(b"name", stat.S_IFREG, ObjectID(commit)),
+                ]
+            ),
+        )
         with (
             pytest.raises(ValueError, match="case-colliding"),
-            resolve_template(FileTemplate(source.as_uri()), trust=True),
+            resolve_template(GitTemplate("https://example.test/template.git", commit.decode()), trust=True),
         ):
             pass  # pragma: no cover
 
-    @pytest.mark.parametrize(
-        ("case", "message"),
-        [
-            ("root-file", "invalid tree"),
-            ("non-utf8", "non-UTF-8"),
-            ("unsafe", "unsafe path"),
-            ("case-collision", "case-colliding"),
-            ("invalid-file", "invalid file"),
-            ("symlink", "unsupported entry"),
-        ],
-    )
-    def test_rejects_invalid_git_trees(self, tmp_path: pathlib.Path, case: str, message: str) -> None:
-        repo = MemoryRepo()
-        blob = Blob.from_string(b"content")
-        repo.object_store.add_object(blob)
-        if case == "root-file":
-            tree_id = blob.id
-        else:
-            tree = Tree()
-            if case == "non-utf8":
-                tree.add(b"\xff", stat.S_IFREG | 0o644, blob.id)
-            elif case == "unsafe":
-                tree.add(b"..", stat.S_IFREG | 0o644, blob.id)
-            elif case == "case-collision":
-                tree.add(b"Name", stat.S_IFREG | 0o644, blob.id)
-                tree.add(b"name", stat.S_IFREG | 0o644, blob.id)
-            elif case == "invalid-file":
-                child = Tree()
-                repo.object_store.add_object(child)
-                tree.add(b"file", stat.S_IFREG | 0o644, child.id)
-            else:
-                tree.add(b"link", stat.S_IFLNK, blob.id)
-            repo.object_store.add_object(tree)
-            tree_id = tree.id
+        monkeypatch.setattr(
+            sources,
+            "iter_tree_contents",
+            lambda store, tree: iter([TreeEntry(b"\xff", stat.S_IFREG, ObjectID(commit))]),
+        )
+        with (
+            pytest.raises(ValueError, match="non-UTF-8"),
+            resolve_template(GitTemplate("https://example.test/template.git", commit.decode()), trust=True),
+        ):
+            pass  # pragma: no cover
 
-        with pytest.raises((TypeError, ValueError), match=message):
-            sources._export_tree(repo, tree_id, tmp_path / case)
+        monkeypatch.setattr(
+            sources,
+            "iter_tree_contents",
+            lambda store, tree: iter([TreeEntry(b"link", stat.S_IFLNK, ObjectID(commit))]),
+        )
+        with (
+            pytest.raises(ValueError, match="unsupported entry"),
+            resolve_template(GitTemplate("https://example.test/template.git", commit.decode()), trust=True),
+        ):
+            pass  # pragma: no cover

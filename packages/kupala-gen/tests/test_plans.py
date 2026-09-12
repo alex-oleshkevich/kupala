@@ -97,7 +97,16 @@ class TestPreparePlan:
 
     @pytest.mark.parametrize(
         "path",
-        ["/absolute", "C:\\absolute", "../outside", "a/../../outside", "bad\0name", "."],
+        [
+            "/absolute",
+            "C:\\absolute",
+            "\\outside",
+            "../outside",
+            "a/../../outside",
+            "a\\..\\outside",
+            "bad\0name",
+            ".",
+        ],
     )
     def test_rejects_unsafe_paths(self, tmp_path: pathlib.Path, path: str) -> None:
         with pytest.raises(ConflictError):
@@ -117,6 +126,7 @@ class TestPreparePlan:
         [
             (CreateFile("item", "a"), CreateFile("item", "b")),
             (CreateFile("Item", "a"), CreateFile("item", "b")),
+            (CreateFile("é", "a"), CreateFile("e\N{COMBINING ACUTE ACCENT}", "b")),
             (CreateFile("pkg", "a"), CreateFile("pkg/item", "b")),
         ],
     )
