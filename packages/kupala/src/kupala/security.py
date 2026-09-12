@@ -1,5 +1,7 @@
+import base64
 import dataclasses
 import re
+import string
 import typing
 from email.utils import quote
 
@@ -23,13 +25,11 @@ from kupala.dependencies import (
 from kupala.errors import BadRequestError, InvalidCredentialsError, NotAuthenticatedError
 from kupala.schema import openapi
 
-__all__ = ["Bearer", "Identity"]
+__all__ = ["BasicAuth", "BasicCredentials", "Bearer", "Identity"]
 
-_BEARER_CREDENTIALS = re.compile(
-    r"Bearer +(?P<token>[A-Za-z0-9._~+/-]+=*)",
-    re.ASCII | re.IGNORECASE,
-)
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 _COMPONENT_NAME = re.compile(r"[A-Za-z0-9._-]+", re.ASCII)
+_BEARER_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-._~+/")
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -38,6 +38,14 @@ class Identity[T]:
 
     principal: T
     scopes: frozenset[str] = dataclasses.field(default_factory=frozenset)
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class BasicCredentials:
+    """A username and password extracted from HTTP Basic credentials."""
+
+    username: str
+    password: str = dataclasses.field(repr=False)
 
 
 def _compile_authenticate[Credential, T](
@@ -99,6 +107,115 @@ def _compile_authenticate[Credential, T](
     return authenticate
 
 
+def _split_authorization(value: str) -> tuple[str, str]:
+    scheme = value.split(maxsplit=1)[0].lower() if value else ""
+    prefix, separator, credentials = value.partition(" ")
+    if not separator or prefix.lower() != scheme:
+        return scheme, ""
+    return scheme, credentials.lstrip(" ")
+
+
+def _decode_basic(value: str) -> BasicCredentials | None:
+    try:
+        user_pass = base64.b64decode(value, validate=True).decode()
+    except ValueError:
+        return None
+
+    username, separator, password = user_pass.partition(":")
+    if not separator or _CONTROL_CHARACTERS.search(user_pass) is not None:
+        return None
+    return BasicCredentials(username, password)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, eq=False)
+class BasicAuth[T = typing.Never]:
+    """Read HTTP Basic credentials using an explicit challenge realm."""
+
+    realm: str
+    name: str = "basic"
+    authenticate: typing.Callable[..., Identity[T] | typing.Awaitable[Identity[T]]] | None = None
+
+    def __post_init__(self) -> None:
+        if _COMPONENT_NAME.fullmatch(self.name) is None:
+            raise ValueError("BasicAuth name must contain only letters, digits, dots, hyphens, and underscores.")
+        if not all(char.isascii() and char.isprintable() for char in self.realm):
+            raise ValueError("BasicAuth realm must contain only printable ASCII characters.")
+
+    def _validate_parameter(self, param: ParamInfo) -> None:
+        if self.authenticate is None:
+            if param.type is not BasicCredentials or param.optional:
+                raise InvalidDependencyError(f"BasicAuth parameter {param.name!r} must be required BasicCredentials.")
+            return
+
+        if typing.get_origin(param.type) is not Identity or len(typing.get_args(param.type)) != 1 or param.optional:
+            raise InvalidDependencyError(
+                f"Authenticated BasicAuth parameter {param.name!r} must be a required Identity[T]."
+            )
+
+    def _challenge(self) -> str:
+        return f'Basic realm="{quote(self.realm)}", charset="UTF-8"'
+
+    def dependency_info(self) -> CallableInfo[..., typing.Any] | None:
+        if self.authenticate is None:
+            return None
+        info = inspect_callable(self.authenticate)
+        return dataclasses.replace(info, parameters=info.parameters[1:])
+
+    def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
+        self._validate_parameter(param)
+        challenge = self._challenge()
+        authenticate = None
+        if self.authenticate is not None:
+            authenticate = _compile_authenticate(
+                self.authenticate,
+                context,
+                param,
+                challenge,
+                credential_type=BasicCredentials,
+                scheme="BasicAuth",
+            )
+
+        async def resolve(context: InvocationContext) -> object:
+            connection = await context.resolve(HTTPConnection)
+            if connection.scope["type"] != "http":
+                raise InvalidDependencyError("Basic credentials can only be resolved for HTTP requests.")
+            if self in context.cache:
+                return context.cache[self]
+
+            values = connection.headers.getlist("authorization")
+            headers = {"WWW-Authenticate": challenge}
+            if not values:
+                raise NotAuthenticatedError("Basic credentials are required.", headers=headers)
+            if len(values) != 1:
+                raise InvalidCredentialsError("Invalid Basic credentials.", headers=headers)
+
+            value = values[0].strip(" \t")
+            scheme, encoded = _split_authorization(value)
+            if scheme and scheme != "basic":
+                raise NotAuthenticatedError("Basic credentials are required.", headers=headers)
+
+            credentials = _decode_basic(encoded)
+            if credentials is None:
+                raise InvalidCredentialsError("Invalid Basic credentials.", headers=headers)
+            resolved = credentials if authenticate is None else await authenticate(credentials, context)
+            context.cache[self] = resolved
+            return resolved
+
+        return resolve
+
+    def to_openapi(self, param: ParamInfo, _context: openapi.SchemaContext) -> openapi.Contribution:
+        self._validate_parameter(param)
+        return openapi.Contribution(
+            security_schemes={
+                self.name: openapi.SecurityScheme(
+                    type=openapi.SecuritySchemeType.HTTP,
+                    scheme="basic",
+                )
+            },
+            security={self.name: ()},
+        )
+
+
 @dataclasses.dataclass(frozen=True, slots=True, eq=False)
 class Bearer[T = typing.Never]:
     """Read an HTTP Bearer credential using an explicit challenge realm."""
@@ -154,6 +271,7 @@ class Bearer[T = typing.Never]:
             connection = await context.resolve(HTTPConnection)
             if connection.scope["type"] != "http":
                 raise InvalidDependencyError("Bearer credentials can only be resolved for HTTP requests.")
+
             if self in context.cache:
                 return context.cache[self]
 
@@ -163,6 +281,7 @@ class Bearer[T = typing.Never]:
                     "Bearer credentials are required.",
                     headers={"WWW-Authenticate": self._challenge()},
                 )
+
             if len(values) != 1:
                 raise BadRequestError(
                     "Malformed Bearer credentials.",
@@ -170,19 +289,18 @@ class Bearer[T = typing.Never]:
                 )
 
             value = values[0].strip(" \t")
-            match = _BEARER_CREDENTIALS.fullmatch(value)
-            if match is not None:
-                token = match.group("token")
-                resolved = token if authenticate is None else await authenticate(token, context)
-                context.cache[self] = resolved
-                return resolved
-
-            scheme = value.split(maxsplit=1)[0].lower() if value else ""
+            scheme, token = _split_authorization(value)
             if scheme and scheme != "bearer":
                 raise NotAuthenticatedError(
                     "Bearer credentials are required.",
                     headers={"WWW-Authenticate": self._challenge()},
                 )
+
+            token_body = token.rstrip("=")
+            if token_body and all(char in _BEARER_TOKEN_CHARACTERS for char in token_body):
+                resolved = token if authenticate is None else await authenticate(token, context)
+                context.cache[self] = resolved
+                return resolved
 
             raise BadRequestError(
                 "Malformed Bearer credentials.",

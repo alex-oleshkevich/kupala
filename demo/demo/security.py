@@ -8,6 +8,7 @@ from demo.settings import Settings
 from kupala.dependencies import CompileContext, InvocationContext, ParamInfo, Resolver
 from kupala.errors import InvalidCredentialsError
 from kupala.schema import openapi
+from kupala.security import BasicAuth, BasicCredentials, Identity
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -44,4 +45,21 @@ class HeaderAPIKey:
 type DemoAPIKey = typing.Annotated[
     str,
     HeaderAPIKey(header="X-Demo-Key"),
+]
+
+
+def authenticate_basic(credentials: BasicCredentials, settings: Settings) -> Identity[str]:
+    username_matches = hmac.compare_digest(credentials.username.encode(), b"demo")
+    password_matches = hmac.compare_digest(
+        credentials.password.encode(),
+        settings.demo_api_key.get_secret_value().encode(),
+    )
+    if not username_matches or not password_matches:
+        raise InvalidCredentialsError("Invalid username or password.")
+    return Identity(credentials.username)
+
+
+type DemoBasicIdentity = typing.Annotated[
+    Identity[str],
+    BasicAuth[str](realm="Kupala demo", name="demoBasic", authenticate=authenticate_basic),
 ]

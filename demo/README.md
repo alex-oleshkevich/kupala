@@ -20,5 +20,11 @@ curl -X DELETE http://localhost:7000/api/v1/products/DSK-01 \
   -H 'X-Demo-Key: local-demo-key'
 ```
 
+The Basic-auth example uses `demo` as the username and the same local key as its password:
+
+```console
+curl -u demo:local-demo-key http://localhost:7000/api/v1/basic
+```
+
 `DEMO_API_KEY` is only a local demonstration credential. Use a secret manager and a real authenticator
 for deployed applications.

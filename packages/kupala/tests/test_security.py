@@ -1,3 +1,4 @@
+import base64
 import dataclasses
 import inspect
 import threading
@@ -30,7 +31,7 @@ from kupala.responses import Response
 from kupala.routing import Routes
 from kupala.schema import openapi
 from kupala.schema.builder import build_document
-from kupala.security import Bearer, Identity
+from kupala.security import BasicAuth, BasicCredentials, Bearer, Identity
 from kupala.testutils import ScopeFactory
 
 
@@ -68,6 +69,35 @@ def bearer_context(scope_f: ScopeFactory, authorization: bytes = b"Bearer creden
     return InvocationContext(InjectionScope({HTTPConnection: constant(connection)}))
 
 
+def basic_client(binding: BasicAuth[typing.Any]) -> TestClient:
+    routes = Routes()
+
+    @routes.get("/")
+    async def endpoint(credentials: typing.Annotated[BasicCredentials, binding]) -> Response:
+        return Response(f"{credentials.username}\0{credentials.password}")
+
+    return TestClient(Kupala("tests", routes=routes), raise_server_exceptions=False)
+
+
+def compile_basic(
+    binding: BasicAuth[typing.Any],
+    *,
+    type_: typing.Any = BasicCredentials,
+    default: object = MISSING,
+) -> Resolver:
+    return binding.compile(
+        CompileContext(),
+        ParamInfo(
+            name="credentials",
+            type=type_,
+            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            annotation=type_,
+            default=default,
+            metadata=(binding,),
+        ),
+    )
+
+
 class TestIdentity:
     def test_preserves_the_principal_and_granted_scopes(self) -> None:
         principal = object()
@@ -92,6 +122,238 @@ class TestIdentity:
 
     def test_is_exported_from_the_public_package(self) -> None:
         assert kupala.Identity is Identity
+
+
+class TestBasicCredentials:
+    def test_preserves_values_without_exposing_the_password(self) -> None:
+        credentials = BasicCredentials("alice", "secret")
+
+        assert credentials.username == "alice"
+        assert credentials.password == "secret"
+        assert "secret" not in repr(credentials)
+
+    def test_is_frozen_and_slotted(self) -> None:
+        credentials = BasicCredentials("alice", "secret")
+
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            credentials.__setattr__("username", "bob")
+
+        assert not hasattr(credentials, "__dict__")
+
+
+class TestBasicAuth:
+    @pytest.mark.parametrize(
+        ("username", "password"),
+        [
+            ("alice", "secret"),
+            ("Jöhn", "påssword"),
+            ("alice", "one:two"),
+            ("", "secret"),
+            ("alice", ""),
+            (" spaced ", " padded "),
+        ],
+    )
+    def test_returns_decoded_credentials(self, username: str, password: str) -> None:
+        encoded = base64.b64encode(f"{username}:{password}".encode()).decode()
+
+        with basic_client(BasicAuth(realm="test")) as client:
+            response = client.get("/", headers={"Authorization": f"bAsIc   {encoded}"})
+
+        assert response.status_code == 200
+        assert response.text == f"{username}\0{password}"
+
+    @pytest.mark.parametrize("authorization", [None, "Bearer token"])
+    def test_missing_credentials_get_a_basic_challenge(self, authorization: str | None) -> None:
+        headers = {} if authorization is None else {"Authorization": authorization}
+
+        with basic_client(BasicAuth(realm="test")) as client:
+            response = client.get("/", headers=headers)
+
+        assert response.status_code == 401
+        assert response.headers["WWW-Authenticate"] == 'Basic realm="test", charset="UTF-8"'
+
+    @pytest.mark.parametrize(
+        "authorization",
+        [
+            "",
+            "Basic",
+            "Basic\tdXNlcjpwYXNz",
+            "Basic\t dXNlcjpwYXNz",
+            "Basic dXNlcjpwYXNz extra",
+            "Basic dXNlcjpwYXNz_",
+            "Basic dXNlcjpwYQ",
+            "Basic dXNlcjpwYXNz===",
+            "Basic dXNlcg==",
+            "Basic /zpwYXNz",
+            f"Basic {base64.b64encode(b'user:\x00pass').decode()}",
+        ],
+    )
+    def test_rejects_malformed_credentials(self, authorization: str) -> None:
+        with basic_client(BasicAuth(realm="test")) as client:
+            response = client.get("/", headers={"Authorization": authorization})
+
+        assert response.status_code == 401
+        assert response.headers["WWW-Authenticate"] == 'Basic realm="test", charset="UTF-8"'
+        assert response.text == "401: Invalid Basic credentials."
+
+    def test_rejects_duplicate_authorization_fields(self) -> None:
+        with basic_client(BasicAuth(realm="test")) as client:
+            response = client.get(
+                "/",
+                headers=[("Authorization", "Basic dXNlcjpwYXNz"), ("Authorization", "Basic dXNlcjpwYXNz")],
+            )
+
+        assert response.status_code == 401
+        assert response.headers["WWW-Authenticate"] == 'Basic realm="test", charset="UTF-8"'
+
+    @pytest.mark.parametrize(
+        ("realm", "challenge"),
+        [
+            ('private "area"', 'Basic realm="private \\"area\\"", charset="UTF-8"'),
+            ("private\\area", 'Basic realm="private\\\\area", charset="UTF-8"'),
+        ],
+    )
+    def test_quotes_the_realm_safely(self, realm: str, challenge: str) -> None:
+        with basic_client(BasicAuth(realm=realm)) as client:
+            response = client.get("/")
+
+        assert response.headers["WWW-Authenticate"] == challenge
+
+    @pytest.mark.parametrize("realm", ["line\nbreak", "tab\tseparated", "snowman ☃"])
+    def test_rejects_a_realm_that_is_not_printable_ascii(self, realm: str) -> None:
+        with pytest.raises(ValueError, match="realm"):
+            BasicAuth(realm=realm)
+
+    @pytest.mark.parametrize("name", ["", "has space", "has/slash"])
+    def test_rejects_an_invalid_openapi_component_name(self, name: str) -> None:
+        with pytest.raises(ValueError, match="name"):
+            BasicAuth(realm="test", name=name)
+
+    def test_requires_non_optional_basic_credentials(self) -> None:
+        binding = BasicAuth(realm="test")
+
+        with pytest.raises(InvalidDependencyError, match="required BasicCredentials"):
+            compile_basic(binding, type_=str)
+        with pytest.raises(InvalidDependencyError, match="required BasicCredentials"):
+            compile_basic(binding, default=None)
+
+    async def test_caches_credentials_by_binding_identity(self, scope_f: ScopeFactory) -> None:
+        binding = BasicAuth(realm="test")
+        connection = HTTPConnection(scope_f(headers=[(b"authorization", b"Basic dXNlcjpwYXNz")]))
+        context = InvocationContext(InjectionScope({HTTPConnection: constant(connection)}))
+        resolver = compile_basic(binding)
+
+        first = await resolver(context)
+        context.scope.bind(
+            HTTPConnection,
+            constant(HTTPConnection(scope_f(headers=[(b"authorization", b"Basic Ym9iOnNlY3JldA==")]))),
+        )
+
+        assert await resolver(context) is first
+
+    async def test_rejects_websocket_use_explicitly(self, scope_f: ScopeFactory) -> None:
+        connection = HTTPConnection(scope_f(type="websocket"))
+        context = InvocationContext(InjectionScope({HTTPConnection: constant(connection)}))
+
+        with pytest.raises(InvalidDependencyError, match="HTTP requests"):
+            await compile_basic(BasicAuth(realm="test"))(context)
+
+    def test_contributes_the_runtime_security_contract_to_openapi(self) -> None:
+        binding = BasicAuth(name="account", realm="test")
+        routes = Routes()
+
+        @routes.get("/private")
+        async def endpoint(_credentials: typing.Annotated[BasicCredentials, binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        rendered = openapi.to_dict(
+            build_document(routes, openapi.OpenAPI(info=openapi.Info(title="Test", version="1")))
+        )
+        OpenAPIV32SpecValidator(rendered).validate()
+
+        assert rendered["components"]["securitySchemes"]["account"] == {
+            "type": "http",
+            "scheme": "basic",
+        }
+        assert rendered["paths"]["/private"]["get"]["security"] == [{"account": []}]
+
+    def test_is_exported_from_the_public_package(self) -> None:
+        assert kupala.BasicAuth is BasicAuth
+        assert kupala.BasicCredentials is BasicCredentials
+
+
+class TestAuthenticatedBasicAuth:
+    def test_authenticates_with_an_injected_dependency_and_challenges_rejection(self) -> None:
+        async def authenticate(credentials: BasicCredentials, tenant: Injected[int]) -> Identity[str]:
+            if credentials.password != "secret":
+                raise InvalidCredentialsError("Wrong username or password.")
+            return Identity(f"{tenant}:{credentials.username}")
+
+        binding = BasicAuth[str](realm="test", authenticate=authenticate)
+        routes = Routes()
+
+        @routes.get("/")
+        async def endpoint(identity: typing.Annotated[Identity[str], binding]) -> Response:
+            return Response(identity.principal)
+
+        app = Kupala("tests", routes=routes, bindings={int: constant(42)})
+        with TestClient(app) as client:
+            accepted = client.get("/", headers={"Authorization": "Basic YWxpY2U6c2VjcmV0"})
+            rejected_value = base64.b64encode(b"alice:credential-leak").decode()
+            rejected = client.get("/", headers={"Authorization": f"Basic {rejected_value}"})
+
+        assert accepted.status_code == 200
+        assert accepted.text == "42:alice"
+        assert rejected.status_code == 401
+        assert rejected.headers["WWW-Authenticate"] == 'Basic realm="test", charset="UTF-8"'
+        assert "credential-leak" not in rejected.text
+
+    def test_requires_the_reserved_credential_parameter_type(self) -> None:
+        def authenticate(_credentials: str) -> Identity[str]:
+            return Identity("unreachable")  # pragma: no cover
+
+        with pytest.raises(InvalidDependencyError, match="required BasicCredentials"):
+            compile_basic(
+                BasicAuth[str](realm="test", authenticate=authenticate),
+                type_=Identity[str],
+            )
+
+    def test_requires_a_parameterized_non_optional_identity_target(self) -> None:
+        def authenticate(_credentials: BasicCredentials) -> Identity[str]:
+            return Identity("unreachable")  # pragma: no cover
+
+        binding = BasicAuth[str](realm="test", authenticate=authenticate)
+
+        with pytest.raises(InvalidDependencyError, match=r"Identity\[T\]"):
+            compile_basic(binding)
+        with pytest.raises(InvalidDependencyError, match=r"Identity\[T\]"):
+            compile_basic(binding, type_=Identity[str], default=None)
+
+    def test_documents_transitive_dependencies_without_the_credentials(self) -> None:
+        secondary = Bearer(realm="secondary", name="secondary")
+
+        async def authenticate(
+            _credentials: typing.Annotated[BasicCredentials, QueryParam("credentials")],
+            tenant: typing.Annotated[str, QueryParam("tenant")],
+            _secondary: typing.Annotated[str, secondary],
+        ) -> Identity[str]:
+            return Identity(tenant)  # pragma: no cover
+
+        primary = BasicAuth[str](realm="primary", name="primary", authenticate=authenticate)
+        routes = Routes()
+
+        @routes.get("/private")
+        async def endpoint(_identity: typing.Annotated[Identity[str], primary]) -> Response:
+            return Response()  # pragma: no cover
+
+        rendered = openapi.to_dict(
+            build_document(routes, openapi.OpenAPI(info=openapi.Info(title="Test", version="1")))
+        )
+        OpenAPIV32SpecValidator(rendered).validate()
+
+        operation = rendered["paths"]["/private"]["get"]
+        assert [parameter["name"] for parameter in operation["parameters"]] == ["tenant"]
+        assert operation["security"] == [{"primary": [], "secondary": []}]
 
 
 class TestBearer:
@@ -132,6 +394,7 @@ class TestBearer:
             "Bearer token value",
             "Bearer to=ken",
             "Bearer\ttoken",
+            "Bearer\t token",
             "Bearer one, Bearer two",
         ],
     )

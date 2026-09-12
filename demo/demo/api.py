@@ -3,7 +3,7 @@ import typing
 from pydantic import BaseModel
 
 from demo.dependencies import ProductCatalog
-from demo.security import DemoAPIKey
+from demo.security import DemoAPIKey, DemoBasicIdentity
 from kupala.api import APIExtension, DocsOptions
 from kupala.errors import NotFoundError
 from kupala.params import Body, Form, Query
@@ -42,6 +42,11 @@ async def list_products(
         if q is None or q.lower() in f"{sku} {name}".lower()
     ]
     return JSONResponse([product.model_dump(mode="json") for product in matches])
+
+
+@routes.get("/basic", name="security.basic")
+async def basic_auth(identity: DemoBasicIdentity) -> JSONResponse[str]:
+    return JSONResponse(identity.principal)
 
 
 @routes.get("/products/{sku}", name="products.show")

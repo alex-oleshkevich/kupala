@@ -64,6 +64,34 @@ app = Kupala("example", routes=Routes(), bindings={Mailer: resolve_mailer})
 Extensions contribute the same resolver mapping through `AppBuilder.bindings`. Use `constant(value)` when an
 already-constructed value should be returned unchanged.
 
+## Basic credentials
+
+`BasicAuth` is a regular dependency binding. It returns `BasicCredentials` directly, or accepts an `authenticate=`
+callback and returns its `Identity[T]`. HTTP Basic sends a reusable password with every request, so use it only over
+HTTPS.
+
+```python
+from typing import Annotated
+
+from kupala import BasicAuth, BasicCredentials, Identity
+from kupala.errors import InvalidCredentialsError
+
+type Credentials = Annotated[BasicCredentials, BasicAuth(realm="api")]
+
+
+async def authenticate(credentials: BasicCredentials, users: UserRepository) -> Identity[User]:
+    user = await users.for_password(credentials.username, credentials.password)
+    if user is None:
+        raise InvalidCredentialsError()
+    return Identity(user)
+
+
+type CurrentIdentity = Annotated[
+    Identity[User],
+    BasicAuth(realm="api", authenticate=authenticate),
+]
+```
+
 ## Bearer credentials
 
 `Bearer` is a regular dependency binding that returns the raw credential and adds the matching security scheme to
