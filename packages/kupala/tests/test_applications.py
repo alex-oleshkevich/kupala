@@ -20,10 +20,11 @@ type _Uncached = typing.Annotated[str, Factory(lambda: "real", cache=False)]
 
 
 class TestDependencyLifetime:
-    def test_closes_generator_dependencies_after_the_response(self) -> None:
+    def test_closes_async_context_manager_dependencies_after_the_response(self) -> None:
         events: list[str] = []
 
-        def make_resource() -> typing.Iterator[str]:
+        @contextlib.asynccontextmanager
+        async def make_resource() -> typing.AsyncIterator[str]:
             yield "demovalue"
             events.append("closed")
 
@@ -42,6 +43,7 @@ class TestDependencyLifetime:
     def test_keeps_the_dependency_alive_while_the_body_streams(self) -> None:
         events: list[str] = []
 
+        @contextlib.contextmanager
         def make_resource() -> typing.Iterator[str]:
             yield "demovalue"
             events.append("closed")
@@ -66,6 +68,7 @@ class TestDependencyLifetime:
     def test_lets_an_unhandled_error_reach_the_dependency(self) -> None:
         events: list[str] = []
 
+        @contextlib.contextmanager
         def make_resource() -> typing.Iterator[str]:
             try:
                 yield "demovalue"
@@ -91,6 +94,7 @@ class TestDependencyLifetime:
     def test_hides_a_handled_error_from_the_dependency(self) -> None:
         events: list[str] = []
 
+        @contextlib.contextmanager
         def make_resource() -> typing.Iterator[str]:
             try:
                 yield "demovalue"
@@ -208,6 +212,7 @@ class TestOverrideDependencies:
         # overrides are bindings rather than plain values, so a double can bring its own cleanup
         events: list[str] = []
 
+        @contextlib.contextmanager
         def fake_greeting() -> typing.Iterator[str]:
             yield "fake"
             events.append("released")

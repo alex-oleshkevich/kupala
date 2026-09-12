@@ -541,7 +541,8 @@ class TestPositionalOnlyParameters:
         assert info.positional_names == ("user",)
         assert info.bind({"user": "alex", "page": 2}) == (("alex",), {"page": 2})
 
-    async def test_opens_an_async_generator_factory_by_position(self) -> None:
+    async def test_opens_an_async_context_manager_factory_by_position(self) -> None:
+        @contextlib.asynccontextmanager
         async def make(user: Injected[str], /) -> typing.AsyncIterator[str]:
             yield f"session for {user}"
 
@@ -553,7 +554,8 @@ class TestPositionalOnlyParameters:
         async with context:
             assert await invoke(compile_call_plan(fn), context) == "session for alex"
 
-    async def test_opens_a_sync_generator_factory_by_position(self) -> None:
+    async def test_opens_a_sync_context_manager_factory_by_position(self) -> None:
+        @contextlib.contextmanager
         def make(user: Injected[str], /) -> typing.Iterator[str]:
             yield f"session for {user}"
 
@@ -783,7 +785,8 @@ class TestFactory:
         async with context:
             assert await invoke(compile_call_plan(fn), context) == "demovalue"
 
-    async def test_yields_from_sync_generator(self) -> None:
+    async def test_enters_sync_context_manager(self) -> None:
+        @contextlib.contextmanager
         def make() -> typing.Iterator[str]:
             yield "demovalue"
 
@@ -795,9 +798,10 @@ class TestFactory:
         async with context:
             assert await invoke(compile_call_plan(fn), context) == "demovalue"
 
-    async def test_closes_sync_generator_when_the_context_exits(self) -> None:
+    async def test_closes_sync_context_manager_when_the_context_exits(self) -> None:
         events: list[str] = []
 
+        @contextlib.contextmanager
         def make() -> typing.Iterator[str]:
             yield "demovalue"
             events.append("closed")
@@ -813,9 +817,10 @@ class TestFactory:
 
         assert events == ["closed"]
 
-    async def test_runs_sync_generator_in_a_worker_thread(self) -> None:
+    async def test_runs_sync_context_manager_in_a_worker_thread(self) -> None:
         threads: list[int] = []
 
+        @contextlib.contextmanager
         def make() -> typing.Iterator[str]:
             threads.append(threading.get_ident())
             yield "demovalue"
@@ -832,7 +837,8 @@ class TestFactory:
         assert len(threads) == 2
         assert all(thread != threading.get_ident() for thread in threads)
 
-    async def test_yields_from_async_generator(self) -> None:
+    async def test_enters_async_context_manager(self) -> None:
+        @contextlib.asynccontextmanager
         async def make() -> typing.AsyncIterator[str]:
             yield "demovalue"
 
@@ -844,9 +850,10 @@ class TestFactory:
         async with context:
             assert await invoke(compile_call_plan(fn), context) == "demovalue"
 
-    async def test_closes_async_generator_when_the_context_exits(self) -> None:
+    async def test_closes_async_context_manager_when_the_context_exits(self) -> None:
         events: list[str] = []
 
+        @contextlib.asynccontextmanager
         async def make() -> typing.AsyncIterator[str]:
             yield "demovalue"
             events.append("closed")
@@ -862,13 +869,15 @@ class TestFactory:
 
         assert events == ["closed"]
 
-    async def test_closes_generators_in_reverse_order(self) -> None:
+    async def test_closes_context_managers_in_reverse_order(self) -> None:
         events: list[str] = []
 
+        @contextlib.contextmanager
         def make_first() -> typing.Iterator[str]:
             yield "first"
             events.append("first")
 
+        @contextlib.contextmanager
         def make_second() -> typing.Iterator[str]:
             yield "second"
             events.append("second")
@@ -886,9 +895,10 @@ class TestFactory:
 
         assert events == ["second", "first"]
 
-    async def test_throws_an_escaping_error_into_the_generator(self) -> None:
+    async def test_passes_an_escaping_error_to_the_context_manager(self) -> None:
         seen: list[str] = []
 
+        @contextlib.contextmanager
         def make() -> typing.Iterator[str]:
             try:
                 yield "demovalue"
@@ -908,7 +918,8 @@ class TestFactory:
 
         assert seen == ["boom"]
 
-    async def test_a_generator_cannot_swallow_an_escaping_error(self) -> None:
+    async def test_a_context_manager_cannot_swallow_an_escaping_error(self) -> None:
+        @contextlib.contextmanager
         def make() -> typing.Iterator[str]:
             try:
                 yield "demovalue"
@@ -965,9 +976,10 @@ class TestFactory:
 
         assert len(calls) == 2
 
-    async def test_registers_one_teardown_for_a_cached_generator(self) -> None:
+    async def test_registers_one_teardown_for_a_cached_context_manager(self) -> None:
         events: list[str] = []
 
+        @contextlib.contextmanager
         def make() -> typing.Iterator[str]:
             yield "demovalue"
             events.append("closed")
@@ -1014,6 +1026,7 @@ class TestFactory:
     async def test_registers_every_teardown_when_caching_is_off(self) -> None:
         events: list[str] = []
 
+        @contextlib.contextmanager
         def make() -> typing.Iterator[str]:
             yield "demovalue"
             events.append("closed")
@@ -1099,7 +1112,8 @@ class TestFactory:
 
         assert "test_names_the_factory_when_its_dependency_is_missing.<locals>.make()" in str(info.value)
 
-    async def test_requires_an_entered_context_for_generators(self) -> None:
+    async def test_requires_an_entered_context_for_context_managers(self) -> None:
+        @contextlib.contextmanager
         def make() -> typing.Iterator[str]:
             yield "demovalue"  # pragma: no cover
 
@@ -1265,12 +1279,13 @@ class TestOverrides:
 
         assert await invoke(compile_call_plan(fn), context) == "fake"
 
-    async def test_replaces_with_a_generator_factory(self) -> None:
+    async def test_replaces_with_a_context_manager_factory(self) -> None:
         events: list[str] = []
 
         def real() -> str:
             return "real"  # pragma: no cover
 
+        @contextlib.contextmanager
         def fake() -> typing.Iterator[str]:
             yield "fake"
             events.append("released")

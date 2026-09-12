@@ -34,20 +34,6 @@ def is_async_callable(fn: typing.Any) -> typing.TypeGuard[typing.Callable[..., t
     return is_marked(inspect.iscoroutinefunction, fn)
 
 
-def is_generator_callable(fn: typing.Any) -> typing.TypeGuard[typing.Callable[..., typing.Iterator[typing.Any]]]:
-    """Detect generator functions, including callable objects with a generator `__call__`."""
-
-    return is_marked(inspect.isgeneratorfunction, fn)
-
-
-def is_async_generator_callable(
-    fn: typing.Any,
-) -> typing.TypeGuard[typing.Callable[..., typing.AsyncIterator[typing.Any]]]:
-    """Detect async generator functions, including callable objects with one as `__call__`."""
-
-    return is_marked(inspect.isasyncgenfunction, fn)
-
-
 def unwrap_alias(annotation: typing.Any) -> typing.Any:
     """Resolve type aliases, including subscripted ones like `Injected[str]`."""
 

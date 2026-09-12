@@ -222,7 +222,7 @@ class FromState[T]:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Factory:
-    """Build a value on demand from a callable, a generator, or an async generator."""
+    """Build a value on demand, entering context manager results for the invocation."""
 
     factory: typing.Callable[..., typing.Any]
     cache: bool = True
@@ -240,18 +240,17 @@ class Factory:
 
         # compiling eagerly means a broken factory fails on import, not on the first request
         plan = compile_call_plan(self.factory, context.enter(self))
-        open_dependency = open_dependency_for(self.factory)
 
         async def resolve(ctx: InvocationContext) -> object:
             if self.cache and self in ctx.cache:
                 return ctx.cache[self]
 
             arguments = await resolve_arguments(plan, ctx)
-            if open_dependency is None:
-                value = await run_callable(plan.callable, arguments)
-            else:
-                positional, keywords = plan.callable.bind(arguments)
-                value = await enter_dependency(ctx, open_dependency(*positional, **keywords))
+            value = await run_callable(plan.callable, arguments)
+            if isinstance(value, contextlib.AbstractAsyncContextManager):
+                value = await enter_dependency(ctx, value)
+            elif isinstance(value, contextlib.AbstractContextManager):
+                value = await enter_dependency(ctx, run_context_in_threadpool(value))
 
             if self.cache:
                 ctx.cache[self] = value
@@ -259,25 +258,6 @@ class Factory:
             return value
 
         return resolve
-
-
-def open_dependency_for(
-    factory: typing.Callable[..., typing.Any],
-) -> typing.Callable[..., contextlib.AbstractAsyncContextManager[typing.Any]] | None:
-    """Wrap a generator factory so the value it yields is released when the invocation ends."""
-
-    if inspection.is_async_generator_callable(factory):
-        return contextlib.asynccontextmanager(factory)
-
-    if inspection.is_generator_callable(factory):
-        open_sync_dependency = contextlib.contextmanager(factory)
-
-        def open_in_threadpool(*args: object, **kwargs: object) -> contextlib.AbstractAsyncContextManager[typing.Any]:
-            return run_context_in_threadpool(open_sync_dependency(*args, **kwargs))
-
-        return open_in_threadpool
-
-    return None
 
 
 async def enter_dependency(

@@ -1,11 +1,8 @@
-import contextlib
 import typing
 
 from kupala.inspection import (
     callable_name,
     is_async_callable,
-    is_async_generator_callable,
-    is_generator_callable,
     is_optional,
     strip_none,
     type_name,
@@ -132,72 +129,3 @@ class TestIsAsyncCallable:
                 pass  # pragma: no cover
 
         assert is_async_callable(Endpoint()) is False
-
-
-class TestIsGeneratorCallable:
-    def test_detects_generator_function(self) -> None:
-        def fn() -> typing.Iterator[str]:
-            yield "demovalue"  # pragma: no cover
-
-        assert is_generator_callable(fn) is True
-
-    def test_ignores_plain_function(self) -> None:
-        def fn() -> str:
-            return "demovalue"  # pragma: no cover
-
-        assert is_generator_callable(fn) is False
-
-    def test_ignores_async_generator_function(self) -> None:
-        async def fn() -> typing.AsyncIterator[str]:
-            yield "demovalue"  # pragma: no cover
-
-        assert is_generator_callable(fn) is False
-
-    def test_detects_object_with_generator_call(self) -> None:
-        class Maker:
-            def __call__(self) -> typing.Iterator[str]:
-                yield "demovalue"  # pragma: no cover
-
-        assert is_generator_callable(Maker()) is True
-
-    def test_ignores_contextmanager_decorated_function(self) -> None:
-        # the decorator hides the generator, so callers must not try to enter what it returns
-        @contextlib.contextmanager
-        def fn() -> typing.Iterator[str]:
-            yield "demovalue"  # pragma: no cover
-
-        assert is_generator_callable(fn) is False
-
-
-class TestIsAsyncGeneratorCallable:
-    def test_detects_async_generator_function(self) -> None:
-        async def fn() -> typing.AsyncIterator[str]:
-            yield "demovalue"  # pragma: no cover
-
-        assert is_async_generator_callable(fn) is True
-
-    def test_ignores_coroutine_function(self) -> None:
-        async def fn() -> str:
-            return "demovalue"  # pragma: no cover
-
-        assert is_async_generator_callable(fn) is False
-
-    def test_ignores_generator_function(self) -> None:
-        def fn() -> typing.Iterator[str]:
-            yield "demovalue"  # pragma: no cover
-
-        assert is_async_generator_callable(fn) is False
-
-    def test_detects_object_with_async_generator_call(self) -> None:
-        class Maker:
-            async def __call__(self) -> typing.AsyncIterator[str]:
-                yield "demovalue"  # pragma: no cover
-
-        assert is_async_generator_callable(Maker()) is True
-
-    def test_ignores_asynccontextmanager_decorated_function(self) -> None:
-        @contextlib.asynccontextmanager
-        async def fn() -> typing.AsyncIterator[str]:
-            yield "demovalue"  # pragma: no cover
-
-        assert is_async_generator_callable(fn) is False
