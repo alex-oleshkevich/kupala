@@ -201,5 +201,6 @@ type CurrentUser = Annotated[
 ]
 ```
 
-Use authorization code with PKCE for interactive clients and client credentials for service accounts. Don't publish
-client secrets in flow URLs, and don't use the deprecated implicit or resource-owner password flows for new systems.
+Serve protected endpoints over HTTPS and keep access tokens out of URLs and logs. Use authorization code with PKCE
+for interactive clients and client credentials for service accounts. Don't publish client secrets in flow URLs, and
+don't use the deprecated implicit or resource-owner password flows for new systems.

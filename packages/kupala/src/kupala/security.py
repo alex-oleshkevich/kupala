@@ -356,15 +356,15 @@ class Bearer[T = typing.Never]:
         if not all(char.isascii() and char.isprintable() for char in self.realm):
             raise ValueError("Bearer realm must contain only printable ASCII characters.")
 
-    def _validate_parameter(self, param: ParamInfo) -> None:
+    def _validate_parameter(self, param: ParamInfo, scheme: str = "Bearer") -> None:
         if self.authenticate is None:
             if param.type is not str or param.optional:
-                raise InvalidDependencyError(f"Bearer parameter {param.name!r} must be a required str.")
+                raise InvalidDependencyError(f"{scheme} parameter {param.name!r} must be a required str.")
             return
 
         if typing.get_origin(param.type) is not Identity or len(typing.get_args(param.type)) != 1 or param.optional:
             raise InvalidDependencyError(
-                f"Authenticated Bearer parameter {param.name!r} must be a required Identity[T]."
+                f"Authenticated {scheme} parameter {param.name!r} must be a required Identity[T]."
             )
 
     def _challenge(self, error: str | None = None, scope: str | None = None) -> str:
@@ -384,7 +384,10 @@ class Bearer[T = typing.Never]:
         return dataclasses.replace(info, parameters=info.parameters[1:])
 
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
-        self._validate_parameter(param)
+        return self._compile(context, param, "Bearer")
+
+    def _compile(self, context: CompileContext, param: ParamInfo, scheme: str) -> Resolver:
+        self._validate_parameter(param, scheme)
         authenticate = None
         if self.authenticate is not None:
             authenticate = _compile_authenticate(
@@ -393,7 +396,7 @@ class Bearer[T = typing.Never]:
                 param,
                 self._challenge("invalid_token"),
                 credential_type=str,
-                scheme="Bearer",
+                scheme=scheme,
             )
 
         async def resolve(context: InvocationContext) -> object:
@@ -482,7 +485,7 @@ class OAuth2[T = typing.Never]:
         return self._bearer.dependency_info()
 
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
-        resolve_bearer = self._bearer.compile(context, param)
+        resolve_bearer = self._bearer._compile(context, param, "OAuth2")
 
         async def resolve(invocation: InvocationContext) -> object:
             resolved = await resolve_bearer(invocation)
@@ -504,7 +507,7 @@ class OAuth2[T = typing.Never]:
         return resolve
 
     def to_openapi(self, param: ParamInfo, _context: openapi.SchemaContext) -> openapi.Contribution:
-        self._bearer._validate_parameter(param)
+        self._bearer._validate_parameter(param, "OAuth2")
         return openapi.Contribution(
             security_schemes={
                 self.name: openapi.SecurityScheme(

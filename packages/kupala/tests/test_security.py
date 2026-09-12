@@ -46,7 +46,7 @@ def bearer_client(binding: Bearer[typing.Any]) -> TestClient:
 
 
 def compile_bearer(
-    binding: Bearer[typing.Any],
+    binding: Bearer[typing.Any] | OAuth2[typing.Any],
     *,
     type_: typing.Any = str,
     default: object = MISSING,
@@ -55,25 +55,6 @@ def compile_bearer(
         CompileContext(),
         ParamInfo(
             name="token",
-            type=type_,
-            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            annotation=type_,
-            default=default,
-            metadata=(binding,),
-        ),
-    )
-
-
-def compile_oauth2(
-    binding: OAuth2[typing.Any],
-    *,
-    type_: typing.Any = str,
-    default: object = MISSING,
-) -> Resolver:
-    return binding.compile(
-        CompileContext(),
-        ParamInfo(
-            name="identity",
             type=type_,
             kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
             annotation=type_,
@@ -436,6 +417,19 @@ class TestOAuth2:
         with pytest.raises(ValueError, match="authenticate"):
             OAuth2(realm="api", flows=flows, required_scopes=("products:read",))
 
+    def test_names_configuration_errors_as_oauth2(self) -> None:
+        flows = openapi.OAuthFlows()
+
+        with pytest.raises(InvalidDependencyError, match="OAuth2 parameter 'token'"):
+            compile_bearer(OAuth2(realm="api", flows=flows), type_=int)
+
+        def authenticate(token: int) -> Identity[str]:
+            return Identity(str(token))  # pragma: no cover
+
+        binding = OAuth2[str](realm="api", flows=flows, authenticate=authenticate)
+        with pytest.raises(InvalidDependencyError, match="OAuth2 authenticator"):
+            compile_bearer(binding, type_=Identity[str])
+
     @pytest.mark.parametrize("scope", ["", "two scopes", 'quote"', "back\\slash", "snowman☃"])
     def test_rejects_an_invalid_required_scope(self, scope: str) -> None:
         flows = openapi.OAuthFlows(
@@ -523,7 +517,7 @@ class TestAuthenticatedOAuth2:
         context = bearer_context(scope_f)
         context.scope.bind(int, constant(42))
 
-        resolved = await compile_oauth2(binding, type_=Identity[str])(context)
+        resolved = await compile_bearer(binding, type_=Identity[str])(context)
 
         assert resolved == Identity("42:credential", frozenset({"products:read", "products:write"}))
 
@@ -533,7 +527,7 @@ class TestAuthenticatedOAuth2:
 
         binding = OAuth2[str](realm="api", flows=openapi.OAuthFlows(), authenticate=authenticate)
 
-        assert await compile_oauth2(binding, type_=Identity[str])(bearer_context(scope_f)) == Identity("credential")
+        assert await compile_bearer(binding, type_=Identity[str])(bearer_context(scope_f)) == Identity("credential")
 
     async def test_rejects_an_identity_without_required_scopes(self, scope_f: ScopeFactory) -> None:
         def authenticate(_token: str) -> Identity[str]:
@@ -547,7 +541,7 @@ class TestAuthenticatedOAuth2:
         )
 
         with pytest.raises(NotAuthorizedError, match="required scopes") as caught:
-            await compile_oauth2(binding, type_=Identity[str])(bearer_context(scope_f))
+            await compile_bearer(binding, type_=Identity[str])(bearer_context(scope_f))
 
         assert caught.value.headers == {
             "WWW-Authenticate": 'Bearer realm="private", error="insufficient_scope", '
@@ -561,7 +555,7 @@ class TestAuthenticatedOAuth2:
         binding = OAuth2[str](realm="api", flows=openapi.OAuthFlows(), authenticate=authenticate)
 
         with pytest.raises(InvalidCredentialsError) as caught:
-            await compile_oauth2(binding, type_=Identity[str])(bearer_context(scope_f))
+            await compile_bearer(binding, type_=Identity[str])(bearer_context(scope_f))
 
         assert caught.value.headers == {"WWW-Authenticate": 'Bearer realm="api", error="invalid_token"'}
 
@@ -574,8 +568,8 @@ class TestAuthenticatedOAuth2:
             return Identity(token)
 
         binding = OAuth2[str](realm="api", flows=openapi.OAuthFlows(), authenticate=authenticate)
-        first = compile_oauth2(binding, type_=Identity[str])
-        second = compile_oauth2(binding, type_=Identity[str])
+        first = compile_bearer(binding, type_=Identity[str])
+        second = compile_bearer(binding, type_=Identity[str])
         context = bearer_context(scope_f)
 
         assert await first(context) == Identity("credential")
