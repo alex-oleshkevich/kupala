@@ -400,16 +400,25 @@ class TestDescribe:
     def test_one_definition_under_two_parents_resolves_twice(self) -> None:
         # a group may be included in several places, which is why a resolved path cannot live on the
         # definition: there is one of those and two right answers
+        async def first_middleware(request: Request, call_next: CallNext) -> Response:
+            return await call_next(request)  # pragma: no cover
+
+        async def second_middleware(request: Request, call_next: CallNext) -> Response:
+            return await call_next(request)  # pragma: no cover
+
+        async def route_middleware(request: Request, call_next: CallNext) -> Response:
+            return await call_next(request)  # pragma: no cover
+
         shared = Routes()
 
-        @shared.get("/health")
+        @shared.get("/health", middleware=[route_middleware])
         async def health(request: Request) -> Response:
             return Response("ok")  # pragma: no cover
 
         root = Routes(
             children=[
-                Routes(prefix="/a", namespace="a", children=[shared]),
-                Routes(prefix="/b", namespace="b", children=[shared]),
+                Routes(prefix="/a", namespace="a", middleware=[first_middleware], children=[shared]),
+                Routes(prefix="/b", namespace="b", middleware=[second_middleware], children=[shared]),
             ]
         )
 
@@ -417,6 +426,8 @@ class TestDescribe:
 
         assert [(info.path, info.name) for info in described] == [("/a/health", "a.health"), ("/b/health", "b.health")]
         assert described[0].definition is described[1].definition
+        assert described[0].middleware == (first_middleware, route_middleware)
+        assert described[1].middleware == (second_middleware, route_middleware)
 
     def test_agrees_with_the_paths_and_names_compile_serves(self) -> None:
         # both resolve through `resolve_route`, and a document that disagreed with the router would

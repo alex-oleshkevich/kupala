@@ -9,7 +9,8 @@ import pytest
 from starlette.convertors import Convertor
 from starlette.types import Receive, Scope, Send
 
-from kupala.dependencies import Factory, Inject, ParamInfo
+from kupala.dependencies import CircularDependencyError, Factory, Inject, ParamInfo
+from kupala.middleware import CallNext
 from kupala.params import Body, Form, Query, QueryParam
 from kupala.requests import Request
 from kupala.responses import JSONResponse, Response
@@ -415,6 +416,72 @@ class TestContributions:
         assert operation is not None
 
         assert operation.security == ({"bearer": ()},)
+
+    def test_walks_deep_factories_without_calling_them(self) -> None:
+        calls: list[str] = []
+
+        async def load_user(body: Body[User]) -> User:
+            calls.append("load")  # pragma: no cover
+            return body  # pragma: no cover
+
+        type LoadedUser = typing.Annotated[User, Factory(load_user)]
+
+        async def authorize(user: LoadedUser) -> User:
+            calls.append("authorize")  # pragma: no cover
+            return user  # pragma: no cover
+
+        type CurrentUser = typing.Annotated[User | None, Factory(authorize)]
+
+        async def create(request: Request, user: CurrentUser) -> Response:
+            return Response(user.name if user is not None else "")  # pragma: no cover
+
+        routes = Routes()
+        routes.post("/users")(create)
+        document = build_document(routes, DOCUMENT)
+        operation = (document.paths or {})["/users"].post
+        assert operation is not None
+        body = operation.request_body
+        assert isinstance(body, openapi.RequestBody)
+
+        assert body.required is True
+        assert calls == []
+
+    def test_rejects_a_circular_schema_dependency(self) -> None:
+        def load_user(user: typing.Annotated[User, Factory(load_user)]) -> User:
+            return user  # pragma: no cover
+
+        type CurrentUser = typing.Annotated[User, Factory(load_user)]
+
+        async def protected(request: Request, user: CurrentUser) -> Response:
+            return Response(user.name)  # pragma: no cover
+
+        routes = Routes()
+        routes.get("/protected")(protected)
+
+        with pytest.raises(CircularDependencyError, match=r"load_user -> .*load_user"):
+            build_document(routes, DOCUMENT)
+
+    def test_collects_dependencies_from_effective_middleware(self) -> None:
+        async def tenant_middleware(request: Request, call_next: CallNext, tenant: Query[int]) -> Response:
+            return await call_next(request)  # pragma: no cover
+
+        routes = Routes(middleware=[tenant_middleware])
+
+        @routes.get("/users")
+        async def users(request: Request) -> Response:
+            return Response("[]")  # pragma: no cover
+
+        operation = (build_document(routes, DOCUMENT).paths or {})["/users"].get
+        assert operation is not None
+
+        assert operation.parameters == (
+            openapi.Parameter(
+                name="tenant",
+                in_=openapi.ParameterLocation.QUERY,
+                required=True,
+                schema={"type": "integer"},
+            ),
+        )
 
     def test_deduplicates_a_parameter_shared_with_a_nested_factory(self) -> None:
         async def load_item(q: Query[int]) -> int:

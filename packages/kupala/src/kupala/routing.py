@@ -110,16 +110,12 @@ class HostDefinition:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RouteInfo:
-    """Where one route ended up in the tree, which is the part its definition cannot know.
-
-    A definition may sit under two parents at once, so a resolved `path` and `name` belong here rather
-    than on it. Everything a route carries regardless of position — its methods, its operation, its
-    endpoint's signature — stays on `definition`.
-    """
+    """Where one route ended up in the tree, which is the part its definition cannot know."""
 
     path: str
     name: str
     definition: RouteDefinition
+    middleware: tuple[Middleware, ...] = ()
 
 
 class RouteConflictError(ValueError):
@@ -359,19 +355,30 @@ class Routes:
         an HTTP one, so they are absent too.
         """
 
-        return self._describe("", "")
+        return self._describe("", "", ())
 
-    def _describe(self, parent_prefix: str, parent_namespace: str) -> typing.Iterator[RouteInfo]:
+    def _describe(
+        self,
+        parent_prefix: str,
+        parent_namespace: str,
+        parent_middleware: tuple[Middleware, ...],
+    ) -> typing.Iterator[RouteInfo]:
         prefix = join_path(parent_prefix, self.prefix)
         namespace = join_namespace(parent_namespace, self.namespace)
+        middleware = (*parent_middleware, *self.middleware)
 
         for definition in self.definitions:
             if isinstance(definition, RouteDefinition):
                 path, name = resolve_route(definition, prefix, namespace)
-                yield RouteInfo(path=path, name=name, definition=definition)
+                yield RouteInfo(
+                    path=path,
+                    name=name,
+                    definition=definition,
+                    middleware=(*middleware, *definition.middleware),
+                )
 
         for child in self._children:
-            yield from child._describe(prefix, namespace)
+            yield from child._describe(prefix, namespace, middleware)
 
     def compile(
         self,

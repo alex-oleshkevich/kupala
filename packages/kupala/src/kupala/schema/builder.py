@@ -11,8 +11,15 @@ from starlette.routing import compile_path
 
 from kupala import inspection
 from kupala.binders import DEFAULT_MODEL_BINDERS, ModelBinder
-from kupala.dependencies import Binding, DependencyProvider, ParamInfo, find_binding
-from kupala.routing import RouteDefinition, Routes
+from kupala.dependencies import (
+    Binding,
+    CircularDependencyError,
+    DependencyProvider,
+    ParamInfo,
+    find_binding,
+    inspect_callable,
+)
+from kupala.routing import MIDDLEWARE_ARGUMENTS, RouteDefinition, Routes
 from kupala.schema import openapi
 from kupala.schema.responses import response_schemas
 
@@ -190,25 +197,40 @@ def merge_operation_security(
 def walk_dependency_bindings(
     parameters: tuple[ParamInfo, ...],
     owner: str,
-    traversed: list[DependencyProvider],
+    active: list[tuple[DependencyProvider, str]],
+    completed: list[DependencyProvider],
 ) -> typing.Iterator[tuple[ParamInfo, Binding]]:
     """Yield bindings while traversing each nested dependency once."""
 
     for param in parameters:
         binding = find_binding(param, owner)
         yield param, binding
-        if not isinstance(binding, DependencyProvider) or binding in traversed:
+        if not isinstance(binding, DependencyProvider):
+            continue
+
+        cycle = next((index for index, (provider, _) in enumerate(active) if provider == binding), None)
+        if cycle is not None:
+            path = " -> ".join(name for _, name in (*active[cycle:], active[cycle]))
+            raise CircularDependencyError(f"Circular dependency detected: {path}.")
+
+        if binding in completed:
             continue
 
         dependency = binding.dependency_info()
         if dependency is None:
+            completed.append(binding)
             continue
-        traversed.append(binding)
+
+        dependency_owner = inspection.callable_name(dependency.callable)
+        active.append((binding, dependency_owner))
         yield from walk_dependency_bindings(
             dependency.parameters,
-            inspection.callable_name(dependency.callable),
-            traversed,
+            dependency_owner,
+            active,
+            completed,
         )
+        active.pop()
+        completed.append(binding)
 
 
 def documented_methods(definition: RouteDefinition) -> tuple[str, ...]:
@@ -407,19 +429,32 @@ class OpenAPIBuilder:
             request_body: openapi.RequestBody | openapi.Reference | None = operation.request_body
             generated_body: openapi.RequestBody | None = None
 
-            for param_info, binding in walk_dependency_bindings(call.parameters, owner, []):
-                if not isinstance(binding, OpenAPIContributor):
-                    continue
-                piece = binding.to_openapi(param_info, self)
-                contributed.extend(piece.parameters)
-                if piece.security_schemes:
-                    security_schemes = merge_security_schemes(security_schemes, piece.security_schemes, f"{owner}()")
-                required_security = merge_security_requirements(required_security, piece.security)
-                if piece.responses:
-                    contributed_responses = merge_responses(contributed_responses, piece.responses)
-                if piece.request_body is not None and operation.request_body is None:
-                    generated_body = merge_request_body(generated_body, piece.request_body, owner, self)
-                    request_body = generated_body
+            roots = []
+            for middleware in info.middleware:
+                root = inspect_callable(middleware)
+                roots.append(dataclasses.replace(root, parameters=root.parameters[MIDDLEWARE_ARGUMENTS:]))
+
+            roots.append(call)
+            completed: list[DependencyProvider] = []
+            for root in roots:
+                root_owner = inspection.callable_name(root.callable)
+                for param_info, binding in walk_dependency_bindings(root.parameters, root_owner, [], completed):
+                    if not isinstance(binding, OpenAPIContributor):
+                        continue
+                    piece = binding.to_openapi(param_info, self)
+                    contributed.extend(piece.parameters)
+                    if piece.security_schemes:
+                        security_schemes = merge_security_schemes(
+                            security_schemes,
+                            piece.security_schemes,
+                            f"{owner}()",
+                        )
+                    required_security = merge_security_requirements(required_security, piece.security)
+                    if piece.responses:
+                        contributed_responses = merge_responses(contributed_responses, piece.responses)
+                    if piece.request_body is not None and operation.request_body is None:
+                        generated_body = merge_request_body(generated_body, piece.request_body, owner, self)
+                        request_body = generated_body
 
             parameters = merge_parameters((*declared, *contributed), operation.parameters, owner)
             responses: openapi.Responses = (
