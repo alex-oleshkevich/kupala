@@ -40,8 +40,8 @@ def install(monkeypatch: pytest.MonkeyPatch, *points: StubEntryPoint) -> None:
     monkeypatch.setattr(importlib.metadata, "entry_points", entry_points)
 
 
-def generator_command(name: str, output: str = "generated") -> click.Command:
-    @click.command(name)
+def generator_command(name: str, output: str = "generated", *, summary: str | None = None) -> click.Command:
+    @click.command(name, short_help=summary)
     def command() -> None:
         click.echo(output)
 
@@ -49,9 +49,13 @@ def generator_command(name: str, output: str = "generated") -> click.Command:
 
 
 class TestGenerators:
-    def test_help_and_completion_do_not_load_generators(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        widget = StubEntryPoint("widget", generator_command("widget"), provider="widgets")
-        other = StubEntryPoint("other", generator_command("other"), provider=None)
+    def test_help_uses_command_summaries_without_loading_for_completion(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        widget = StubEntryPoint(
+            "widget",
+            generator_command("widget", summary="Generate a widget."),
+            provider="widgets",
+        )
+        other = StubEntryPoint("other", generator_command("other", summary="Generate another thing."), provider=None)
         install(monkeypatch, widget, other)
         gen = build_gen_command(Commands())
 
@@ -60,11 +64,10 @@ class TestGenerators:
         completions = add.shell_complete(click.Context(add), "wid")
 
         assert result.exit_code == 0
-        assert "widget" in result.output
-        assert "widgets" in result.output
-        assert "unknown distribution" in result.output
+        assert "widget  Generate a widget." in result.output
+        assert "other   Generate another thing." in result.output
         assert [item.value for item in completions] == ["widget"]
-        assert widget.loads == other.loads == 0
+        assert widget.loads == other.loads == 1
 
     def test_help_and_invocation_load_only_the_selected_generator(self, monkeypatch: pytest.MonkeyPatch) -> None:
         widget = StubEntryPoint("widget", generator_command("widget", "widget generated"))
@@ -83,21 +86,25 @@ class TestGenerators:
 
     def test_a_broken_generator_does_not_block_another(self, monkeypatch: pytest.MonkeyPatch) -> None:
         broken = StubEntryPoint("broken", RuntimeError("secret import detail"))
-        working = StubEntryPoint("working", generator_command("working", "works"))
+        working = StubEntryPoint("working", generator_command("working", "works", summary="Generate working."))
         install(monkeypatch, broken, working)
         runner = CliRunner()
         gen = build_gen_command(Commands())
 
+        help_result = runner.invoke(gen, ["add", "--help"])
         failure = runner.invoke(gen, ["add", "broken"])
         success = runner.invoke(gen, ["add", "working"])
 
+        assert help_result.exit_code == 0
+        assert "broken   unavailable:" in help_result.output
+        assert "working  Generate working." in help_result.output
         assert failure.exit_code == 1
         assert "Could not load generator 'broken'" in failure.output
         assert "secret import detail" not in failure.output
         assert success.exit_code == 0
         assert success.output == "works\n"
-        assert broken.loads == 1
-        assert working.loads == 1
+        assert broken.loads == 2
+        assert working.loads == 2
 
     def test_duplicate_names_block_only_that_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         first = StubEntryPoint("widget", generator_command("widget"), provider="first")

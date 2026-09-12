@@ -58,8 +58,16 @@ class GeneratorGroup(click.Group):
         for name in self.list_commands(ctx):
             entry_points = self._entry_points[name]
             providers = ", ".join(map(_provider, entry_points))
-            prefix = "unavailable: " if len(entry_points) > 1 else "from "
-            rows.append((name, prefix + providers))
+            if len(entry_points) > 1:
+                rows.append((name, f"unavailable: {providers}"))
+                continue
+
+            try:
+                command = typing.cast(click.Command, self.get_command(ctx, name))
+            except click.ClickException:
+                rows.append((name, f"unavailable: {providers}"))
+            else:
+                rows.append((name, command.get_short_help_str()))
 
         if rows:
             with formatter.section("Commands"):
