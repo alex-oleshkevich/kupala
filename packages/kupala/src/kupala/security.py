@@ -31,12 +31,13 @@ from kupala.errors import (
 )
 from kupala.schema import openapi
 
-__all__ = ["APIKey", "BasicAuth", "BasicCredentials", "Bearer", "Identity"]
+__all__ = ["APIKey", "BasicAuth", "BasicCredentials", "Bearer", "Identity", "OAuth2"]
 
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 _COMPONENT_NAME = re.compile(r"[A-Za-z0-9._-]+", re.ASCII)
 _HTTP_TOKEN = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+", re.ASCII)
 _BEARER_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-._~+/")
+_OAUTH_SCOPE = re.compile(r"[\x21\x23-\x5b\x5d-\x7e]+", re.ASCII)
 _API_KEY_LOCATIONS: typing.Final = {
     "header": openapi.ParameterLocation.HEADER,
     "query": openapi.ParameterLocation.QUERY,
@@ -355,21 +356,25 @@ class Bearer[T = typing.Never]:
         if not all(char.isascii() and char.isprintable() for char in self.realm):
             raise ValueError("Bearer realm must contain only printable ASCII characters.")
 
-    def _validate_parameter(self, param: ParamInfo) -> None:
+    def _validate_parameter(self, param: ParamInfo, scheme: str = "Bearer") -> None:
         if self.authenticate is None:
             if param.type is not str or param.optional:
-                raise InvalidDependencyError(f"Bearer parameter {param.name!r} must be a required str.")
+                raise InvalidDependencyError(f"{scheme} parameter {param.name!r} must be a required str.")
             return
 
         if typing.get_origin(param.type) is not Identity or len(typing.get_args(param.type)) != 1 or param.optional:
             raise InvalidDependencyError(
-                f"Authenticated Bearer parameter {param.name!r} must be a required Identity[T]."
+                f"Authenticated {scheme} parameter {param.name!r} must be a required Identity[T]."
             )
 
-    def _challenge(self, error: str | None = None) -> str:
+    def _challenge(self, error: str | None = None, scope: str | None = None) -> str:
         values = [f'realm="{quote(self.realm)}"']
         if error is not None:
             values.append(f'error="{error}"')
+
+        if scope is not None:
+            values.append(f'scope="{quote(scope)}"')
+
         return f"Bearer {', '.join(values)}"
 
     def dependency_info(self) -> CallableInfo[..., typing.Any] | None:
@@ -379,7 +384,10 @@ class Bearer[T = typing.Never]:
         return dataclasses.replace(info, parameters=info.parameters[1:])
 
     def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
-        self._validate_parameter(param)
+        return self._compile(context, param, "Bearer")
+
+    def _compile(self, context: CompileContext, param: ParamInfo, scheme: str) -> Resolver:
+        self._validate_parameter(param, scheme)
         authenticate = None
         if self.authenticate is not None:
             authenticate = _compile_authenticate(
@@ -388,7 +396,7 @@ class Bearer[T = typing.Never]:
                 param,
                 self._challenge("invalid_token"),
                 credential_type=str,
-                scheme="Bearer",
+                scheme=scheme,
             )
 
         async def resolve(context: InvocationContext) -> object:
@@ -444,4 +452,68 @@ class Bearer[T = typing.Never]:
                 )
             },
             security={self.name: ()},
+        )
+
+
+@dataclasses.dataclass(frozen=True, slots=True, eq=False)
+class OAuth2[T = typing.Never]:
+    """Authenticate an OAuth2 Bearer token and enforce its required scopes."""
+
+    realm: str
+    flows: openapi.OAuthFlows
+    name: str = "oauth2"
+    required_scopes: tuple[str, ...] = ()
+    authenticate: typing.Callable[..., Identity[T] | typing.Awaitable[Identity[T]]] | None = None
+    _bearer: Bearer[T] = dataclasses.field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        scopes = tuple(dict.fromkeys(self.required_scopes))
+        if any(_OAUTH_SCOPE.fullmatch(scope) is None for scope in scopes):
+            raise ValueError("OAuth2 required scopes must be non-empty printable ASCII strings without spaces.")
+
+        if scopes and self.authenticate is None:
+            raise ValueError("OAuth2 required_scopes requires authenticate.")
+
+        object.__setattr__(self, "required_scopes", scopes)
+        object.__setattr__(
+            self,
+            "_bearer",
+            Bearer(realm=self.realm, name=self.name, authenticate=self.authenticate),
+        )
+
+    def dependency_info(self) -> CallableInfo[..., typing.Any] | None:
+        return self._bearer.dependency_info()
+
+    def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
+        resolve_bearer = self._bearer._compile(context, param, "OAuth2")
+
+        async def resolve(invocation: InvocationContext) -> object:
+            resolved = await resolve_bearer(invocation)
+            if not self.required_scopes:
+                return resolved
+
+            identity = typing.cast(Identity[T], resolved)
+            if identity.scopes.issuperset(self.required_scopes):
+                return identity
+
+            scope = " ".join(self.required_scopes)
+            raise NotAuthorizedError(
+                "OAuth2 identity does not grant the required scopes.",
+                headers={
+                    "WWW-Authenticate": self._bearer._challenge("insufficient_scope", scope),
+                },
+            )
+
+        return resolve
+
+    def to_openapi(self, param: ParamInfo, _context: openapi.SchemaContext) -> openapi.Contribution:
+        self._bearer._validate_parameter(param, "OAuth2")
+        return openapi.Contribution(
+            security_schemes={
+                self.name: openapi.SecurityScheme(
+                    type=openapi.SecuritySchemeType.OAUTH2,
+                    flows=self.flows,
+                )
+            },
+            security={self.name: self.required_scopes},
         )

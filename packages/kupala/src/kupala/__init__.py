@@ -16,7 +16,7 @@ from kupala.responses import (
     response,
 )
 from kupala.routing import Routes
-from kupala.security import APIKey, BasicAuth, BasicCredentials, Bearer, Identity
+from kupala.security import APIKey, BasicAuth, BasicCredentials, Bearer, Identity, OAuth2
 
 __all__ = [
     "APIKey",
@@ -30,6 +30,7 @@ __all__ = [
     "Identity",
     "JSONResponse",
     "Kupala",
+    "OAuth2",
     "PlainTextResponse",
     "RedirectResponse",
     "Request",
