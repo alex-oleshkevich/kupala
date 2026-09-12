@@ -41,6 +41,13 @@ class TestPreparePlan:
 
         assert prepared.operations[0].status is OperationStatus.UNCHANGED
 
+    def test_recognizes_an_unchanged_directory_mode(self, tmp_path: pathlib.Path) -> None:
+        (tmp_path / "pkg").mkdir(mode=0o700)
+
+        prepared = prepare_plan(ChangePlan((CreateDirectory("pkg", mode=0o700),)), tmp_path)
+
+        assert prepared.operations[0].status is OperationStatus.UNCHANGED
+
     def test_modifies_an_expected_file(self, tmp_path: pathlib.Path) -> None:
         (tmp_path / "item.txt").write_text("before")
 
