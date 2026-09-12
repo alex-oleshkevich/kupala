@@ -92,6 +92,40 @@ type CurrentIdentity = Annotated[
 ]
 ```
 
+## API keys
+
+`APIKey` reads one named header, query parameter, or cookie. It returns the raw key unless `authenticate=` is
+provided, in which case it returns the callback's `Identity[T]`. Missing, empty, or rejected keys return 403 by
+default; pass `error=` only when the application deliberately provides another HTTP error policy.
+
+```python
+from typing import Annotated
+
+from kupala import APIKey, Identity
+from kupala.errors import InvalidCredentialsError
+
+
+async def authenticate(key: str, keys: KeyRepository) -> Identity[ServiceAccount]:
+    account = await keys.find(key)
+    if account is None:
+        raise InvalidCredentialsError()
+    return Identity(account)
+
+
+type CurrentIdentity = Annotated[
+    Identity[ServiceAccount],
+    APIKey(
+        name="accessKey",
+        key_name="X-API-Key",
+        location="header",
+        authenticate=authenticate,
+    ),
+]
+```
+
+Prefer headers. Query keys commonly leak through URLs and logs; cookie keys need the application's normal CSRF
+protection because browsers attach them automatically.
+
 ## Bearer credentials
 
 `Bearer` is a regular dependency binding that returns the raw credential and adds the matching security scheme to

@@ -5,7 +5,7 @@ import string
 import typing
 from email.utils import quote
 
-from starlette.requests import HTTPConnection
+from starlette.requests import HTTPConnection, cookie_parser
 
 from kupala import inspection
 from kupala.dependencies import (
@@ -22,14 +22,26 @@ from kupala.dependencies import (
     resolve_arguments,
     run_callable,
 )
-from kupala.errors import BadRequestError, InvalidCredentialsError, NotAuthenticatedError
+from kupala.errors import (
+    BadRequestError,
+    BaseHTTPError,
+    InvalidCredentialsError,
+    NotAuthenticatedError,
+    NotAuthorizedError,
+)
 from kupala.schema import openapi
 
-__all__ = ["BasicAuth", "BasicCredentials", "Bearer", "Identity"]
+__all__ = ["APIKey", "BasicAuth", "BasicCredentials", "Bearer", "Identity"]
 
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 _COMPONENT_NAME = re.compile(r"[A-Za-z0-9._-]+", re.ASCII)
+_HTTP_TOKEN = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+", re.ASCII)
 _BEARER_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-._~+/")
+_API_KEY_LOCATIONS: typing.Final = {
+    "header": openapi.ParameterLocation.HEADER,
+    "query": openapi.ParameterLocation.QUERY,
+    "cookie": openapi.ParameterLocation.COOKIE,
+}
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -52,7 +64,7 @@ def _compile_authenticate[Credential, T](
     callback: typing.Callable[..., Identity[T] | typing.Awaitable[Identity[T]]],
     context: CompileContext,
     param: ParamInfo,
-    challenge: str,
+    challenge: str | None,
     *,
     credential_type: type[Credential],
     scheme: str,
@@ -90,6 +102,9 @@ def _compile_authenticate[Credential, T](
         try:
             value = await run_callable(plan.callable, arguments)
         except InvalidCredentialsError as exc:
+            if challenge is None:
+                raise
+
             headers = {
                 name: header_value
                 for name, header_value in (exc.headers or {}).items()
@@ -125,6 +140,115 @@ def _decode_basic(value: str) -> BasicCredentials | None:
     if not separator or _CONTROL_CHARACTERS.search(user_pass) is not None:
         return None
     return BasicCredentials(username, password)
+
+
+@dataclasses.dataclass(frozen=True, slots=True, eq=False)
+class APIKey[T = typing.Never]:
+    """Read an API key from one explicit HTTP header, query parameter, or cookie."""
+
+    name: str
+    key_name: str
+    location: typing.Literal["header", "query", "cookie"]
+    authenticate: typing.Callable[..., Identity[T] | typing.Awaitable[Identity[T]]] | None = None
+    error: typing.Callable[[str], BaseHTTPError] = NotAuthorizedError
+
+    def __post_init__(self) -> None:
+        if _COMPONENT_NAME.fullmatch(self.name) is None:
+            raise ValueError("APIKey name must contain only letters, digits, dots, hyphens, and underscores.")
+        if self.location not in _API_KEY_LOCATIONS:
+            raise ValueError("APIKey location must be 'header', 'query', or 'cookie'.")
+        if (
+            not self.key_name
+            or not self.key_name.isprintable()
+            or (self.location != "query" and _HTTP_TOKEN.fullmatch(self.key_name) is None)
+        ):
+            raise ValueError("APIKey key_name is not valid for its location.")
+
+    def _validate_parameter(self, param: ParamInfo) -> None:
+        if self.authenticate is None:
+            if param.type is not str or param.optional:
+                raise InvalidDependencyError(f"APIKey parameter {param.name!r} must be a required str.")
+            return
+
+        if typing.get_origin(param.type) is not Identity or len(typing.get_args(param.type)) != 1 or param.optional:
+            raise InvalidDependencyError(
+                f"Authenticated APIKey parameter {param.name!r} must be a required Identity[T]."
+            )
+
+    def _values(self, connection: HTTPConnection) -> list[str]:
+        if self.location == "header":
+            return connection.headers.getlist(self.key_name)
+
+        if self.location == "query":
+            return connection.query_params.getlist(self.key_name)
+
+        values: list[str] = []
+        for header in connection.headers.getlist("cookie"):
+            for chunk in header.split(";"):
+                cookie = cookie_parser(chunk)
+                if self.key_name in cookie:
+                    values.append(cookie[self.key_name])
+
+        return values
+
+    def dependency_info(self) -> CallableInfo[..., typing.Any] | None:
+        if self.authenticate is None:
+            return None
+
+        info = inspect_callable(self.authenticate)
+        return dataclasses.replace(info, parameters=info.parameters[1:])
+
+    def compile(self, context: CompileContext, param: ParamInfo) -> Resolver:
+        self._validate_parameter(param)
+        authenticate = None
+        if self.authenticate is not None:
+            authenticate = _compile_authenticate(
+                self.authenticate,
+                context,
+                param,
+                None,
+                credential_type=str,
+                scheme="APIKey",
+            )
+
+        async def resolve(context: InvocationContext) -> object:
+            connection = await context.resolve(HTTPConnection)
+            if connection.scope["type"] != "http":
+                raise InvalidDependencyError("API keys can only be resolved for HTTP requests.")
+
+            if self in context.cache:
+                return context.cache[self]
+
+            values = self._values(connection)
+            if len(values) > 1:
+                raise BadRequestError("Multiple API keys were supplied.")
+
+            if not values or not values[0]:
+                raise self.error("API key is required.")
+
+            key = values[0]
+            try:
+                resolved = key if authenticate is None else await authenticate(key, context)
+            except InvalidCredentialsError:
+                raise self.error("Invalid API key.") from None
+
+            context.cache[self] = resolved
+            return resolved
+
+        return resolve
+
+    def to_openapi(self, param: ParamInfo, _context: openapi.SchemaContext) -> openapi.Contribution:
+        self._validate_parameter(param)
+        return openapi.Contribution(
+            security_schemes={
+                self.name: openapi.SecurityScheme(
+                    type=openapi.SecuritySchemeType.API_KEY,
+                    name=self.key_name,
+                    in_=_API_KEY_LOCATIONS[self.location],
+                )
+            },
+            security={self.name: ()},
+        )
 
 
 @dataclasses.dataclass(frozen=True, slots=True, eq=False)

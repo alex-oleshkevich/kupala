@@ -16,9 +16,10 @@ from kupala.responses import (
     response,
 )
 from kupala.routing import Routes
-from kupala.security import BasicAuth, BasicCredentials, Bearer, Identity
+from kupala.security import APIKey, BasicAuth, BasicCredentials, Bearer, Identity
 
 __all__ = [
+    "APIKey",
     "AppBuilder",
     "BasicAuth",
     "BasicCredentials",

@@ -31,7 +31,7 @@ from kupala.responses import Response
 from kupala.routing import Routes
 from kupala.schema import openapi
 from kupala.schema.builder import build_document
-from kupala.security import BasicAuth, BasicCredentials, Bearer, Identity
+from kupala.security import APIKey, BasicAuth, BasicCredentials, Bearer, Identity
 from kupala.testutils import ScopeFactory
 
 
@@ -89,6 +89,35 @@ def compile_basic(
         CompileContext(),
         ParamInfo(
             name="credentials",
+            type=type_,
+            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            annotation=type_,
+            default=default,
+            metadata=(binding,),
+        ),
+    )
+
+
+def api_key_client(binding: APIKey[typing.Any]) -> TestClient:
+    routes = Routes()
+
+    @routes.get("/")
+    async def endpoint(key: typing.Annotated[str, binding]) -> Response:
+        return Response(key)
+
+    return TestClient(Kupala("tests", routes=routes), raise_server_exceptions=False)
+
+
+def compile_api_key(
+    binding: APIKey[typing.Any],
+    *,
+    type_: typing.Any = str,
+    default: object = MISSING,
+) -> Resolver:
+    return binding.compile(
+        CompileContext(),
+        ParamInfo(
+            name="key",
             type=type_,
             kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
             annotation=type_,
@@ -340,6 +369,253 @@ class TestAuthenticatedBasicAuth:
             return Identity(tenant)  # pragma: no cover
 
         primary = BasicAuth[str](realm="primary", name="primary", authenticate=authenticate)
+        routes = Routes()
+
+        @routes.get("/private")
+        async def endpoint(_identity: typing.Annotated[Identity[str], primary]) -> Response:
+            return Response()  # pragma: no cover
+
+        rendered = openapi.to_dict(
+            build_document(routes, openapi.OpenAPI(info=openapi.Info(title="Test", version="1")))
+        )
+        OpenAPIV32SpecValidator(rendered).validate()
+
+        operation = rendered["paths"]["/private"]["get"]
+        assert [parameter["name"] for parameter in operation["parameters"]] == ["tenant"]
+        assert operation["security"] == [{"primary": [], "secondary": []}]
+
+
+class TestAPIKey:
+    def test_reads_a_header_key(self) -> None:
+        with api_key_client(APIKey(name="accessKey", key_name="X-API-Key", location="header")) as client:
+            response = client.get("/", headers={"X-API-Key": "secret"})
+
+        assert response.status_code == 200
+        assert response.text == "secret"
+
+    def test_reads_a_query_key(self) -> None:
+        with api_key_client(APIKey(name="accessKey", key_name="api_key", location="query")) as client:
+            response = client.get("/", params={"api_key": "secret"})
+
+        assert response.status_code == 200
+        assert response.text == "secret"
+
+    def test_reads_a_cookie_key(self) -> None:
+        with api_key_client(APIKey(name="accessKey", key_name="session", location="cookie")) as client:
+            response = client.get("/", headers={"Cookie": 'other=value; session="secret"'})
+
+        assert response.status_code == 200
+        assert response.text == "secret"
+
+    @pytest.mark.parametrize("location", ["header", "query", "cookie"])
+    def test_missing_or_empty_key_is_forbidden(self, location: typing.Literal["header", "query", "cookie"]) -> None:
+        binding = APIKey(name="accessKey", key_name="api_key", location=location)
+
+        with api_key_client(binding) as client:
+            missing = client.get("/")
+            if location == "header":
+                empty = client.get("/", headers={"api_key": ""})
+            elif location == "query":
+                empty = client.get("/", params={"api_key": ""})
+            else:
+                empty = client.get("/", headers={"Cookie": "api_key="})
+
+        assert missing.status_code == 403
+        assert empty.status_code == 403
+        assert missing.text == "403: API key is required."
+        assert empty.text == "403: API key is required."
+
+    def test_rejects_duplicate_header_values(self) -> None:
+        binding = APIKey(name="accessKey", key_name="X-API-Key", location="header")
+
+        with api_key_client(binding) as client:
+            response = client.get("/", headers=[("X-API-Key", "first"), ("X-API-Key", "second")])
+
+        assert response.status_code == 400
+        assert response.text == "400: Multiple API keys were supplied."
+
+    def test_rejects_duplicate_query_values(self) -> None:
+        binding = APIKey(name="accessKey", key_name="api_key", location="query")
+
+        with api_key_client(binding) as client:
+            response = client.get("/?api_key=first&api_key=second")
+
+        assert response.status_code == 400
+
+    def test_rejects_duplicate_cookie_values(self) -> None:
+        binding = APIKey(name="accessKey", key_name="session", location="cookie")
+
+        with api_key_client(binding) as client:
+            response = client.get("/", headers={"Cookie": "session=first; session=second"})
+
+        assert response.status_code == 400
+
+    @pytest.mark.parametrize("name", ["", "has space", "has/slash"])
+    def test_rejects_an_invalid_openapi_component_name(self, name: str) -> None:
+        with pytest.raises(ValueError, match="name"):
+            APIKey(name=name, key_name="key", location="header")
+
+    @pytest.mark.parametrize("location", ["body", "path"])
+    def test_rejects_an_unsupported_location(self, location: typing.Any) -> None:
+        with pytest.raises(ValueError, match="location"):
+            APIKey(name="accessKey", key_name="key", location=location)
+
+    @pytest.mark.parametrize(
+        ("key_name", "location"),
+        [("", "query"), ("line\nbreak", "query"), ("has space", "header"), ("has/slash", "cookie")],
+    )
+    def test_rejects_an_invalid_wire_name(self, key_name: str, location: typing.Any) -> None:
+        with pytest.raises(ValueError, match="key_name"):
+            APIKey(name="accessKey", key_name=key_name, location=location)
+
+    def test_requires_a_non_optional_string_annotation(self) -> None:
+        binding = APIKey(name="accessKey", key_name="key", location="header")
+
+        with pytest.raises(InvalidDependencyError, match="required str"):
+            compile_api_key(binding, type_=int)
+        with pytest.raises(InvalidDependencyError, match="required str"):
+            compile_api_key(binding, default=None)
+
+    async def test_caches_extraction_by_binding_identity(self, scope_f: ScopeFactory) -> None:
+        binding = APIKey(name="accessKey", key_name="key", location="header")
+        connection = HTTPConnection(scope_f(headers=[(b"key", b"first")]))
+        context = InvocationContext(InjectionScope({HTTPConnection: constant(connection)}))
+        resolver = compile_api_key(binding)
+
+        assert await resolver(context) == "first"
+        context.scope.bind(
+            HTTPConnection,
+            constant(HTTPConnection(scope_f(headers=[(b"key", b"second")]))),
+        )
+        assert await resolver(context) == "first"
+
+    async def test_rejects_websocket_use_explicitly(self, scope_f: ScopeFactory) -> None:
+        connection = HTTPConnection(scope_f(type="websocket"))
+        context = InvocationContext(InjectionScope({HTTPConnection: constant(connection)}))
+
+        with pytest.raises(InvalidDependencyError, match="HTTP requests"):
+            await compile_api_key(APIKey(name="accessKey", key_name="key", location="header"))(context)
+
+    def test_allows_an_explicit_error_policy(self) -> None:
+        def authentication_required(_detail: str) -> NotAuthenticatedError:
+            return NotAuthenticatedError(headers={"WWW-Authenticate": 'ApiKey realm="test"'})
+
+        binding = APIKey(
+            name="accessKey",
+            key_name="key",
+            location="header",
+            error=authentication_required,
+        )
+
+        with api_key_client(binding) as client:
+            response = client.get("/")
+
+        assert response.status_code == 401
+        assert response.headers["WWW-Authenticate"] == 'ApiKey realm="test"'
+
+    @pytest.mark.parametrize("location", ["header", "query", "cookie"])
+    def test_contributes_the_runtime_security_contract_to_openapi(
+        self,
+        location: typing.Literal["header", "query", "cookie"],
+    ) -> None:
+        binding = APIKey(name="accessKey", key_name="api_key", location=location)
+        routes = Routes()
+
+        @routes.get("/private")
+        async def endpoint(_key: typing.Annotated[str, binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        rendered = openapi.to_dict(
+            build_document(routes, openapi.OpenAPI(info=openapi.Info(title="Test", version="1")))
+        )
+        OpenAPIV32SpecValidator(rendered).validate()
+
+        assert rendered["components"]["securitySchemes"]["accessKey"] == {
+            "type": "apiKey",
+            "name": "api_key",
+            "in": location,
+        }
+        assert rendered["paths"]["/private"]["get"]["security"] == [{"accessKey": []}]
+
+    def test_is_exported_from_the_public_package(self) -> None:
+        assert kupala.APIKey is APIKey
+
+
+class TestAuthenticatedAPIKey:
+    def test_authenticates_with_an_injected_dependency_and_hides_rejection(self) -> None:
+        async def authenticate(key: str, tenant: Injected[int]) -> Identity[str]:
+            if key != "secret":
+                raise InvalidCredentialsError("Rejected credential-leak.")
+            return Identity(f"{tenant}:{key}")
+
+        binding = APIKey[str](
+            name="accessKey",
+            key_name="X-API-Key",
+            location="header",
+            authenticate=authenticate,
+        )
+        routes = Routes()
+
+        @routes.get("/")
+        async def endpoint(identity: typing.Annotated[Identity[str], binding]) -> Response:
+            return Response(identity.principal)
+
+        app = Kupala("tests", routes=routes, bindings={int: constant(42)})
+        with TestClient(app) as client:
+            accepted = client.get("/", headers={"X-API-Key": "secret"})
+            rejected = client.get("/", headers={"X-API-Key": "credential-leak"})
+
+        assert accepted.status_code == 200
+        assert accepted.text == "42:secret"
+        assert rejected.status_code == 403
+        assert "credential-leak" not in rejected.text
+
+    def test_requires_the_reserved_credential_parameter_type(self) -> None:
+        def authenticate(_key: int) -> Identity[str]:
+            return Identity("unreachable")  # pragma: no cover
+
+        binding = APIKey[str](
+            name="accessKey",
+            key_name="key",
+            location="header",
+            authenticate=authenticate,
+        )
+
+        with pytest.raises(InvalidDependencyError, match="required str"):
+            compile_api_key(binding, type_=Identity[str])
+
+    def test_requires_a_parameterized_non_optional_identity_target(self) -> None:
+        def authenticate(_key: str) -> Identity[str]:
+            return Identity("unreachable")  # pragma: no cover
+
+        binding = APIKey[str](
+            name="accessKey",
+            key_name="key",
+            location="header",
+            authenticate=authenticate,
+        )
+
+        with pytest.raises(InvalidDependencyError, match=r"Identity\[T\]"):
+            compile_api_key(binding)
+        with pytest.raises(InvalidDependencyError, match=r"Identity\[T\]"):
+            compile_api_key(binding, type_=Identity[str], default=None)
+
+    def test_documents_transitive_dependencies_without_the_key(self) -> None:
+        secondary = Bearer(realm="secondary", name="secondary")
+
+        async def authenticate(
+            _key: typing.Annotated[str, QueryParam("key")],
+            tenant: typing.Annotated[str, QueryParam("tenant")],
+            _secondary: typing.Annotated[str, secondary],
+        ) -> Identity[str]:
+            return Identity(tenant)  # pragma: no cover
+
+        primary = APIKey[str](
+            name="primary",
+            key_name="X-API-Key",
+            location="header",
+            authenticate=authenticate,
+        )
         routes = Routes()
 
         @routes.get("/private")
