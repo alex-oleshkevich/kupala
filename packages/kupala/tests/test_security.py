@@ -25,13 +25,13 @@ from kupala.dependencies import (
     Resolver,
     constant,
 )
-from kupala.errors import BadRequestError, InvalidCredentialsError, NotAuthenticatedError
+from kupala.errors import BadRequestError, InvalidCredentialsError, NotAuthenticatedError, NotAuthorizedError
 from kupala.params import QueryParam
 from kupala.responses import Response
 from kupala.routing import Routes
 from kupala.schema import openapi
 from kupala.schema.builder import build_document
-from kupala.security import APIKey, BasicAuth, BasicCredentials, Bearer, Identity
+from kupala.security import APIKey, BasicAuth, BasicCredentials, Bearer, Identity, OAuth2
 from kupala.testutils import ScopeFactory
 
 
@@ -55,6 +55,25 @@ def compile_bearer(
         CompileContext(),
         ParamInfo(
             name="token",
+            type=type_,
+            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            annotation=type_,
+            default=default,
+            metadata=(binding,),
+        ),
+    )
+
+
+def compile_oauth2(
+    binding: OAuth2[typing.Any],
+    *,
+    type_: typing.Any = str,
+    default: object = MISSING,
+) -> Resolver:
+    return binding.compile(
+        CompileContext(),
+        ParamInfo(
+            name="identity",
             type=type_,
             kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
             annotation=type_,
@@ -383,6 +402,210 @@ class TestAuthenticatedBasicAuth:
         operation = rendered["paths"]["/private"]["get"]
         assert [parameter["name"] for parameter in operation["parameters"]] == ["tenant"]
         assert operation["security"] == [{"primary": [], "secondary": []}]
+
+
+class TestOAuth2:
+    def test_returns_a_raw_bearer_token(self) -> None:
+        flows = openapi.OAuthFlows(
+            client_credentials=openapi.OAuthFlow(token_url="https://auth.example/token", scopes={})
+        )
+        binding = OAuth2(realm="api", flows=flows)
+        routes = Routes()
+
+        @routes.get("/")
+        async def endpoint(token: typing.Annotated[str, binding]) -> Response:
+            return Response(token)
+
+        with TestClient(Kupala("tests", routes=routes), raise_server_exceptions=False) as client:
+            accepted = client.get("/", headers={"Authorization": "Bearer access-token"})
+            missing = client.get("/")
+
+        assert accepted.status_code == 200
+        assert accepted.text == "access-token"
+        assert missing.status_code == 401
+        assert missing.headers["WWW-Authenticate"] == 'Bearer realm="api"'
+
+    def test_requires_authentication_to_enforce_scopes(self) -> None:
+        flows = openapi.OAuthFlows(
+            client_credentials=openapi.OAuthFlow(
+                token_url="https://auth.example/token",
+                scopes={"products:read": "Read products"},
+            )
+        )
+
+        with pytest.raises(ValueError, match="authenticate"):
+            OAuth2(realm="api", flows=flows, required_scopes=("products:read",))
+
+    @pytest.mark.parametrize("scope", ["", "two scopes", 'quote"', "back\\slash", "snowman☃"])
+    def test_rejects_an_invalid_required_scope(self, scope: str) -> None:
+        flows = openapi.OAuthFlows(
+            client_credentials=openapi.OAuthFlow(token_url="https://auth.example/token", scopes={})
+        )
+
+        with pytest.raises(ValueError, match="scope"):
+            OAuth2[str](
+                realm="api",
+                flows=flows,
+                required_scopes=(scope,),
+                authenticate=lambda _token: Identity("user"),
+            )
+
+    def test_contributes_flows_and_required_scopes_to_openapi(self) -> None:
+        flows = openapi.OAuthFlows(
+            authorization_code=openapi.OAuthFlow(
+                authorization_url="https://auth.example/authorize",
+                token_url="https://auth.example/token",
+                scopes={"products:read": "Read products", "products:write": "Modify products"},
+            ),
+            client_credentials=openapi.OAuthFlow(
+                token_url="https://auth.example/token",
+                scopes={"products:read": "Read products"},
+            ),
+        )
+
+        def authenticate(_token: str) -> Identity[str]:
+            return Identity("user")  # pragma: no cover
+
+        binding = OAuth2[str](
+            realm="api",
+            name="productAccess",
+            flows=flows,
+            required_scopes=("products:write", "products:read", "products:write"),
+            authenticate=authenticate,
+        )
+        routes = Routes()
+
+        @routes.get("/products")
+        async def endpoint(_identity: typing.Annotated[Identity[str], binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        rendered = openapi.to_dict(
+            build_document(routes, openapi.OpenAPI(info=openapi.Info(title="Test", version="1")))
+        )
+        OpenAPIV32SpecValidator(rendered).validate()
+
+        assert rendered["components"]["securitySchemes"]["productAccess"] == {
+            "type": "oauth2",
+            "flows": {
+                "authorizationCode": {
+                    "authorizationUrl": "https://auth.example/authorize",
+                    "tokenUrl": "https://auth.example/token",
+                    "scopes": {
+                        "products:read": "Read products",
+                        "products:write": "Modify products",
+                    },
+                },
+                "clientCredentials": {
+                    "tokenUrl": "https://auth.example/token",
+                    "scopes": {"products:read": "Read products"},
+                },
+            },
+        }
+        assert rendered["paths"]["/products"]["get"]["security"] == [
+            {"productAccess": ["products:write", "products:read"]}
+        ]
+
+    def test_is_exported_from_the_public_package(self) -> None:
+        assert kupala.OAuth2 is OAuth2
+
+
+class TestAuthenticatedOAuth2:
+    async def test_returns_an_identity_with_every_required_scope(self, scope_f: ScopeFactory) -> None:
+        async def authenticate(token: str, tenant: Injected[int]) -> Identity[str]:
+            return Identity(f"{tenant}:{token}", frozenset({"products:read", "products:write"}))
+
+        binding = OAuth2[str](
+            realm="api",
+            flows=openapi.OAuthFlows(),
+            required_scopes=("products:read", "products:write"),
+            authenticate=authenticate,
+        )
+        context = bearer_context(scope_f)
+        context.scope.bind(int, constant(42))
+
+        resolved = await compile_oauth2(binding, type_=Identity[str])(context)
+
+        assert resolved == Identity("42:credential", frozenset({"products:read", "products:write"}))
+
+    async def test_accepts_an_identity_with_no_scopes_when_none_are_required(self, scope_f: ScopeFactory) -> None:
+        def authenticate(token: str) -> Identity[str]:
+            return Identity(token)
+
+        binding = OAuth2[str](realm="api", flows=openapi.OAuthFlows(), authenticate=authenticate)
+
+        assert await compile_oauth2(binding, type_=Identity[str])(bearer_context(scope_f)) == Identity("credential")
+
+    async def test_rejects_an_identity_without_required_scopes(self, scope_f: ScopeFactory) -> None:
+        def authenticate(_token: str) -> Identity[str]:
+            return Identity("user")
+
+        binding = OAuth2[str](
+            realm="private",
+            flows=openapi.OAuthFlows(),
+            required_scopes=("products:write", "products:read", "products:write"),
+            authenticate=authenticate,
+        )
+
+        with pytest.raises(NotAuthorizedError, match="required scopes") as caught:
+            await compile_oauth2(binding, type_=Identity[str])(bearer_context(scope_f))
+
+        assert caught.value.headers == {
+            "WWW-Authenticate": 'Bearer realm="private", error="insufficient_scope", '
+            'scope="products:write products:read"'
+        }
+
+    async def test_preserves_invalid_token_challenges(self, scope_f: ScopeFactory) -> None:
+        def authenticate(_token: str) -> Identity[str]:
+            raise InvalidCredentialsError("Do not expose this detail.")
+
+        binding = OAuth2[str](realm="api", flows=openapi.OAuthFlows(), authenticate=authenticate)
+
+        with pytest.raises(InvalidCredentialsError) as caught:
+            await compile_oauth2(binding, type_=Identity[str])(bearer_context(scope_f))
+
+        assert caught.value.headers == {"WWW-Authenticate": 'Bearer realm="api", error="invalid_token"'}
+
+    async def test_reuses_the_bearer_result_for_repeated_resolution(self, scope_f: ScopeFactory) -> None:
+        calls = 0
+
+        def authenticate(token: str) -> Identity[str]:
+            nonlocal calls
+            calls += 1
+            return Identity(token)
+
+        binding = OAuth2[str](realm="api", flows=openapi.OAuthFlows(), authenticate=authenticate)
+        first = compile_oauth2(binding, type_=Identity[str])
+        second = compile_oauth2(binding, type_=Identity[str])
+        context = bearer_context(scope_f)
+
+        assert await first(context) == Identity("credential")
+        assert await second(context) == Identity("credential")
+        assert calls == 1
+
+    def test_documents_transitive_authenticator_dependencies(self) -> None:
+        async def authenticate(
+            _token: typing.Annotated[str, QueryParam("credential")],
+            tenant: typing.Annotated[str, QueryParam("tenant")],
+        ) -> Identity[str]:
+            return Identity(tenant)  # pragma: no cover
+
+        binding = OAuth2[str](
+            realm="api",
+            flows=openapi.OAuthFlows(),
+            name="oauth",
+            authenticate=authenticate,
+        )
+        routes = Routes()
+
+        @routes.get("/private")
+        async def endpoint(_identity: typing.Annotated[Identity[str], binding]) -> Response:
+            return Response()  # pragma: no cover
+
+        rendered = openapi.to_dict(
+            build_document(routes, openapi.OpenAPI(info=openapi.Info(title="Test", version="1")))
+        )
+
+        assert [parameter["name"] for parameter in rendered["paths"]["/private"]["get"]["parameters"]] == ["tenant"]
 
 
 class TestAPIKey:

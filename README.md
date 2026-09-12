@@ -161,3 +161,45 @@ type CurrentIdentity = Annotated[
     Bearer(realm="api", name="accessToken", bearer_format="JWT", authenticate=authenticate),
 ]
 ```
+
+## OAuth2 access tokens
+
+`OAuth2` validates a Bearer access token, enforces the route's required scopes, and publishes the authorization
+server's flows in OpenAPI. The callback validates tokens already issued by that server; authorization-code login and
+token exchange remain the application's or identity provider's responsibility.
+
+```python
+from typing import Annotated
+
+from kupala import Identity, OAuth2
+from kupala.errors import InvalidCredentialsError
+from kupala.schema import openapi
+
+
+async def authenticate(token: str, users: UserRepository) -> Identity[User]:
+    user, scopes = await users.for_access_token(token)
+    if user is None:
+        raise InvalidCredentialsError()
+    return Identity(user, frozenset(scopes))
+
+
+type CurrentUser = Annotated[
+    Identity[User],
+    OAuth2(
+        realm="api",
+        name="oauth",
+        flows=openapi.OAuthFlows(
+            authorization_code=openapi.OAuthFlow(
+                authorization_url="https://auth.example/authorize",
+                token_url="https://auth.example/token",
+                scopes={"products:read": "Read products"},
+            ),
+        ),
+        required_scopes=("products:read",),
+        authenticate=authenticate,
+    ),
+]
+```
+
+Use authorization code with PKCE for interactive clients and client credentials for service accounts. Don't publish
+client secrets in flow URLs, and don't use the deprecated implicit or resource-owner password flows for new systems.
