@@ -5,7 +5,7 @@ routes = kupala.Routes()
 
 @routes.get("/")
 async def index_view(request: kupala.Request) -> kupala.Response:
-return kupala.response(request).text("Hello from Kupala!")
+    return kupala.response(request).text("Hello from Kupala!")
 
 
 app = kupala.Kupala(__name__, routes=routes)

@@ -162,9 +162,22 @@ type CurrentIdentity = Annotated[
 ]
 ```
 
-To require the identity application-wide, resolve this alias from middleware registered with `Kupala` or its root
-`Routes`. An endpoint may resolve it again to use the principal; both uses share one request cache, and API extensions
-include the middleware requirement in their generated OpenAPI documents.
+To require the identity on every matched Kupala HTTP route, resolve this alias from middleware registered with
+`Kupala` or its root `Routes`. This includes implicit `HEAD` requests and API documentation routes. An endpoint may
+resolve it again to use the principal; both uses share one request cache, and API extensions include the middleware
+requirement in their generated OpenAPI documents.
+
+HTTP middleware runs after routing. Router-generated 404 and 405 responses and trailing-slash redirects don't execute
+it. An explicitly registered `OPTIONS` route does, while a CORS preflight handled by outer `CORSMiddleware` doesn't.
+Use ASGI middleware when a policy must run before routing.
+
+Mounted and host-dispatched ASGI applications don't inherit parent HTTP middleware, so protect them in the child or
+with mount or host ASGI middleware. WebSockets use `websocket_middleware` and their own authentication policy; the
+HTTP credential bindings reject WebSocket use.
+
+Middleware runs from the application through outer groups, inner groups, and the route, in registration order within
+each list. A middleware that returns without calling `call_next` skips everything after it, including authentication
+dependencies, so register authentication before middleware that can return a protected response.
 
 ## OAuth2 access tokens
 

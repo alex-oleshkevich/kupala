@@ -236,6 +236,25 @@ class TestDocument:
         assert operation is not None
         assert operation.security == ({"root": ()},)
 
+    def test_application_middleware_protects_documentation_routes(self) -> None:
+        type AccessToken = typing.Annotated[str, Bearer(realm="test")]
+
+        async def require_token(
+            request: Request,
+            call_next: CallNext,
+            /,
+            _token: AccessToken,
+        ) -> Response:
+            return await call_next(request)
+
+        api = APIExtension("/api", docs=ALL_DOCS)
+        app = Kupala("tests", routes=Routes(), middleware=[require_token], extensions=[api])
+
+        with TestClient(app) as client:
+            for path in ("/api/openapi.json", *UI_PATHS):
+                assert client.get(path).status_code == 401
+                assert client.get(path, headers={"Authorization": "Bearer valid"}).status_code == 200
+
     def test_names_itself_when_no_info_is_given(self) -> None:
         api = APIExtension("/api", docs=DocsOptions(openapi_path="/openapi.json"))
         app = Kupala("tests", routes=Routes(), extensions=[api])
