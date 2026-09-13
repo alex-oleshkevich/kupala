@@ -4,6 +4,7 @@ import typing
 import pytest
 from starlette.applications import Starlette
 from starlette.middleware import Middleware as ASGIMiddlewareWrapper
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import PlainTextResponse
 from starlette.routing import Host, Mount, Route, WebSocketRoute
 from starlette.testclient import TestClient
@@ -27,6 +28,7 @@ from kupala.routing import (
     split_docstring,
 )
 from kupala.schema import openapi
+from kupala.security import Bearer
 from kupala.websockets import WebSocket
 
 
@@ -55,6 +57,18 @@ class TaggedRequest(Request):
 
 async def stub_websocket_endpoint(websocket: WebSocket) -> None:
     raise AssertionError("route-shape tests never invoke the endpoint")  # pragma: no cover
+
+
+type AccessToken = typing.Annotated[str, Bearer(realm="test")]
+
+
+async def require_access_token(
+    request: Request,
+    call_next: CallNext,
+    /,
+    _token: AccessToken,
+) -> Response:
+    return await call_next(request)
 
 
 @pytest.fixture
@@ -294,6 +308,83 @@ class TestHTTPRoutes:
             "route-after",
             "app-after",
         ]
+
+
+class TestHTTPMiddlewareSecurityBoundaries:
+    def test_router_responses_do_not_run_http_middleware(self) -> None:
+        routes = Routes()
+
+        @routes.get("/private/")
+        async def private() -> Response:
+            return Response("private")
+
+        app = Kupala("tests", routes=routes, middleware=[require_access_token])
+
+        with TestClient(app) as client:
+            assert client.get("/private/").status_code == 401
+            assert client.head("/private/").status_code == 401
+            assert client.post("/private/").status_code == 405
+            assert client.options("/private/").status_code == 405
+            assert client.get("/missing").status_code == 404
+
+            redirect = client.get("/private", follow_redirects=False)
+            assert redirect.status_code == 307
+            assert client.get(redirect.headers["location"]).status_code == 401
+
+            authenticated = client.get("/private/", headers={"Authorization": "Bearer valid"})
+            assert authenticated.text == "private"
+
+    def test_cors_preflight_bypasses_http_middleware(self) -> None:
+        routes = Routes()
+
+        async def private() -> Response:
+            return Response("private")
+
+        routes.add("/private", private, methods=("GET", "HEAD", "OPTIONS"))
+        app = Kupala(
+            "tests",
+            routes=routes,
+            middleware=[require_access_token],
+            asgi_middleware=[
+                ASGIMiddlewareWrapper(
+                    CORSMiddleware,
+                    allow_origins=["https://client.example"],
+                    allow_methods=["GET"],
+                )
+            ],
+        )
+
+        with TestClient(app) as client:
+            preflight = client.options(
+                "/private",
+                headers={
+                    "Origin": "https://client.example",
+                    "Access-Control-Request-Method": "GET",
+                },
+            )
+            assert preflight.status_code == 200
+
+            assert client.options("/private").status_code == 401
+            unauthorized = client.get("/private", headers={"Origin": "https://client.example"})
+            assert unauthorized.status_code == 401
+            assert unauthorized.headers["access-control-allow-origin"] == "https://client.example"
+
+            authorized = client.get(
+                "/private",
+                headers={"Origin": "https://client.example", "Authorization": "Bearer valid"},
+            )
+            assert authorized.text == "private"
+            assert authorized.headers["access-control-allow-origin"] == "https://client.example"
+
+    def test_mounts_and_hosts_do_not_inherit_parent_http_middleware(self, composed_routes: Routes) -> None:
+        app = Kupala("tests", routes=composed_routes, middleware=[require_access_token])
+
+        with TestClient(app) as client:
+            mounted_response = client.get("/mounted/")
+            hosted_response = client.get("http://api.example.com/")
+
+        assert mounted_response.status_code == 200
+        assert hosted_response.status_code == 200
 
 
 class TestRouteDefinitions:
