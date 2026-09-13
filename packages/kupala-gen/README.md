@@ -13,14 +13,16 @@ uvx --from 'kupala[gen]' kupala gen --help
 | `kupala new [PATH]` | scaffold a project without loading an application |
 | `kupala gen new [PATH]` | scaffold a project |
 | `kupala gen add <generator>` | run a generator |
+| `kupala gen add module NAME` | add a module and compose its routes |
 
 `kupala new` and `kupala gen new` are equivalent. `PATH` is created and defaults to the current directory;
 use `--force` when it already exists.
-`--template` defaults to `standard`; the bundled choices are `minimal`, `standard`, `api`, and `web`.
-`minimal` creates one runnable `app.py`, `standard` creates a packaged hello application and tests,
-and `api` and `web` add small API or Jinja examples. Use `--dry-run` to preview, `--diff` to show
-file diffs, `--yes` to apply without confirmation, and `--force` only for files a template explicitly
-marks as replaceable. Project creation confirmation defaults to yes.
+`--template` defaults to `standard`; the bundled choices are `minimal`, `standard`, and `api`.
+All three create a packaged application with tests and deployment files. `minimal` keeps the application
+in one module, `standard` adds templates and static files, and `api` adds an OpenAPI extension. Use
+`--workspace` to create a uv workspace with the selected template under `PATH/src`. Use `--dry-run`
+to preview, `--diff` to show file diffs, `--yes` to apply without confirmation, and `--force` only
+for files a template explicitly marks as replaceable. Project creation confirmation defaults to yes.
 
 Custom templates use an HTTPS Git URL or absolute `file://` URI as `--template`. They require an
 interactive trust confirmation or `--trust-template`; `--yes` does not grant trust. Git sources accept

@@ -1,0 +1,20 @@
+@dev:
+    uv run uvicorn {{ package }}.app:app --reload
+
+@test *args:
+    uv run pytest {% raw %}{{ args }}{% endraw %}
+
+@lint:
+    uv run ruff check .
+
+@format:
+    uv run ruff format .
+
+@check: format
+    uv run ruff check --fix .
+
+@testc *args:
+    uv run pytest --cov={{ package }} --cov-report=term-missing {% raw %}{{ args }}{% endraw %}
+
+@build:
+    docker build --tag {{ package }} .

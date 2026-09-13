@@ -9,7 +9,7 @@ from packaging.utils import InvalidName, canonicalize_name
 
 from kupala.commands import BootstrapCommand, Commands
 from kupala_gen.loading import GeneratorGroup
-from kupala_gen.plans import ChangePlan, CreateDirectory
+from kupala_gen.plans import ChangeOperation, ChangePlan, CreateDirectory
 from kupala_gen.runtime import ClickReporter, GenerationContext, run_generation
 from kupala_gen.sources import (
     BundledTemplate,
@@ -22,7 +22,7 @@ from kupala_gen.sources import (
 )
 from kupala_gen.templates import inspect_template, render_template
 
-_BUNDLED_TEMPLATES = frozenset({"minimal", "standard", "api", "web"})
+_BUNDLED_TEMPLATES = frozenset({"minimal", "standard", "api"})
 
 
 def _parse_answers(values: tuple[str, ...], option: str) -> dict[str, str]:
@@ -86,6 +86,7 @@ def _build_new_command(command_class: type[click.Command] = click.Command) -> cl
     @click.option("--answer", multiple=True, metavar="KEY=VALUE", help="Answer a custom template question.")
     @click.option("--name", help="Project name.")
     @click.option("--package", "package_name", help="Python package name.")
+    @click.option("--workspace", is_flag=True, help="Create a uv workspace with the project in src.")
     @click.option(
         "--force",
         is_flag=True,
@@ -102,6 +103,7 @@ def _build_new_command(command_class: type[click.Command] = click.Command) -> cl
         answer: tuple[str, ...],
         name: str | None,
         package_name: str | None,
+        workspace: bool,
         force: bool,
         show_diff: bool,
         dry_run: bool,
@@ -156,14 +158,33 @@ def _build_new_command(command_class: type[click.Command] = click.Command) -> cl
 
                     supplied[key] = value
 
+            workspace_operations: tuple[ChangeOperation, ...] = ()
+            if workspace:
+                workspace_source = BundledTemplate("kupala_gen", "project_templates/workspace")
+                with _resolve_source(workspace_source, trust=False, confirm=None) as workspace_snapshot:
+                    workspace_operations = render_template(
+                        inspect_template(workspace_snapshot),
+                        {"name": f"{project_name}-workspace"},
+                    ).operations
+
             def plan(context: GenerationContext) -> ChangePlan:
                 rendered = render_template(definition, context.answers)
                 directory = pathlib.PurePath(target.name)
-                operations = tuple(
-                    dataclasses.replace(typing.cast(typing.Any, operation), path=directory / operation.path)
+                project_directory = directory
+                operations: list[ChangeOperation] = [CreateDirectory(directory)]
+                if workspace:
+                    project_directory /= "src"
+                    operations.extend(
+                        dataclasses.replace(typing.cast(typing.Any, operation), path=directory / operation.path)
+                        for operation in workspace_operations
+                    )
+                    operations.append(CreateDirectory(project_directory))
+
+                operations.extend(
+                    dataclasses.replace(typing.cast(typing.Any, operation), path=project_directory / operation.path)
                     for operation in rendered.operations
                 )
-                return ChangePlan((CreateDirectory(directory), *operations))
+                return ChangePlan(tuple(operations))
 
             run_generation(
                 plan,
@@ -174,6 +195,7 @@ def _build_new_command(command_class: type[click.Command] = click.Command) -> cl
                 dry_run=dry_run,
                 force=force,
                 reporter=ClickReporter(show_diff=show_diff, confirm_default=True),
+                workspace_root=target if workspace else None,
             )
 
     return new

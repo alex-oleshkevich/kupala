@@ -459,6 +459,51 @@ class TestGenerator:
         assert result.exit_code == 0
         assert (tmp_path / "item.txt").read_text() == "click-default"
         assert seen[0][1] == seen[0][0].answers["name"]
+        assert seen[0][0].workspace_root is None
+
+    def test_uses_the_workspace_member_as_the_project_root(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = tmp_path / "workspace"
+        project = workspace / "src"
+        nested = project / "package"
+        nested.mkdir(parents=True)
+        (workspace / "pyproject.toml").write_text('[tool.uv.workspace]\nmembers = ["src"]\n')
+        (project / "pyproject.toml").write_text('[project]\nname = "project"\nversion = "0.1.0"\n')
+        seen: list[GenerationContext] = []
+
+        @generator()
+        @click.command()
+        def widget(context: GenerationContext) -> ChangePlan:
+            seen.append(context)
+            return ChangePlan((CreateFile("item.txt", "content"),))
+
+        runner = CliRunner()
+        root_result = runner.invoke(widget, ["--project", str(workspace), "--yes"])
+        monkeypatch.chdir(nested)
+        nested_result = runner.invoke(widget, ["--yes"])
+
+        assert root_result.exit_code == 0
+        assert nested_result.exit_code == 0
+        assert (project / "item.txt").read_text() == "content"
+        assert [context.target_root for context in seen] == [project, project]
+        assert [context.workspace_root for context in seen] == [workspace, workspace]
+
+    def test_ignores_an_unrelated_uv_workspace(self, tmp_path: pathlib.Path) -> None:
+        (tmp_path / "pyproject.toml").write_text('[tool.uv.workspace]\nmembers = ["packages/*"]\n')
+        seen: list[GenerationContext] = []
+
+        @generator()
+        @click.command()
+        def widget(context: GenerationContext) -> ChangePlan:
+            seen.append(context)
+            return ChangePlan(())
+
+        result = CliRunner().invoke(widget, ["--project", str(tmp_path), "--yes"])
+
+        assert result.exit_code == 0
+        assert seen[0].target_root == tmp_path
+        assert seen[0].workspace_root is None
 
     def test_ignores_a_click_default_for_an_interviewed_parameter(self, tmp_path: pathlib.Path) -> None:
         @generator(questions=(Question("name", "Name", default="question-default"),))

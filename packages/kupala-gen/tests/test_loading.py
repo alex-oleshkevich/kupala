@@ -7,8 +7,6 @@ from click.testing import CliRunner
 
 from kupala.commands import Commands
 from kupala_gen.commands import build_gen_command
-from kupala_gen.generators.model import generator as model_generator
-from kupala_gen.generators.route import generator as route_generator
 from kupala_gen.loading import GENERATOR_GROUP, GeneratorGroup
 
 
@@ -143,13 +141,3 @@ class TestGenerators:
         assert help_result.exit_code == 0
         assert result.exit_code == 2
         assert "No such command 'missing'" in result.output
-
-    @pytest.mark.parametrize(
-        ("command", "output"),
-        [(model_generator, "model\n"), (route_generator, "route\n")],
-    )
-    def test_bundled_generator_entry_points_execute(self, command: click.Command, output: str) -> None:
-        result = CliRunner().invoke(command)
-
-        assert result.exit_code == 0
-        assert result.output == output

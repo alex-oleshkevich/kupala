@@ -151,7 +151,7 @@ class TestBundledTemplate:
     def test_resolves_an_installed_package_directory_without_trust(self) -> None:
         with resolve_template(BundledTemplate("kupala_gen", "generators")) as snapshot:
             assert snapshot.identity.source == "bundled:kupala_gen/generators"
-            assert (snapshot.root / "model.py").is_file()
+            assert (snapshot.root / "module.py").is_file()
 
     def test_rejects_a_missing_or_escaping_resource(self) -> None:
         with (

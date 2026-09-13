@@ -19,8 +19,7 @@ dependencies = [
 gen = "kupala_gen.plugin:register"
 
 [project.entry-points."kupala.generators"]
-model = "kupala_gen.generators.model:generator"
-route = "kupala_gen.generators.route:generator"
+module = "kupala_gen.generators.module:generator"
 
 [build-system]
 requires = ["uv_build>=0.12.12,<0.13.0"]

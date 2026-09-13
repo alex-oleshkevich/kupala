@@ -16,7 +16,7 @@ build-backend = "uv_build"
 app = "{{ package }}.app:app"
 
 [dependency-groups]
-dev = ["pytest>=9.0.0"]
+dev = ["pytest>=9.0.0", "pytest-cov>=7.1.0", "ruff>=0.16.6"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

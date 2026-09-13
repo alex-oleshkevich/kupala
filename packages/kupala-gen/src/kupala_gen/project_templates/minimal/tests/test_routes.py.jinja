@@ -6,5 +6,4 @@ class TestRoutes:
         response = client.get("/")
 
         assert response.status_code == 200
-        assert response.headers["content-type"].startswith("text/html")
-        assert {{ ("Hello from " ~ name ~ "!") | tojson }} in response.text
+        assert response.text == {{ ("Hello from " ~ name ~ "!") | tojson }}

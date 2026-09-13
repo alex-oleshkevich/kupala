@@ -1,7 +1,7 @@
 from kupala import TestClient
 
 
-class TestAPI:
+class TestRoutes:
     def test_index_view(self, client: TestClient) -> None:
         response = client.get("/api/")
 

@@ -40,12 +40,30 @@ class TestRegister:
         assert "new" in result.output
         assert "add" in result.output
 
+    def test_discovers_and_executes_the_module_generator(self, tmp_path: pathlib.Path) -> None:
+        destination = tmp_path / "project"
+        runner = CliRunner()
+        created = runner.invoke(
+            build_gen_command(Commands()),
+            ["new", str(destination), "--template", "minimal", "--yes"],
+        )
+
+        result = runner.invoke(
+            build_gen_command(Commands()),
+            ["add", "module", "billing", "--project", str(destination), "--yes"],
+        )
+
+        assert created.exit_code == 0
+        assert result.exit_code == 0
+        assert (destination / "project/billing/routes.py").is_file()
+
     def test_new_exposes_one_answer_option(self) -> None:
         result = CliRunner().invoke(build_gen_command(Commands()), ["new", "--help"])
 
         assert result.exit_code == 0
         assert "--answer KEY=VALUE" in result.output
         assert result.output.count("--answer") == 1
+        assert "--workspace" in result.output
 
     def test_new_generates_the_minimal_template_from_both_paths(
         self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
@@ -57,19 +75,19 @@ class TestRegister:
 
         root_result = runner.invoke(
             cli.build_cli(None),
-            ["new", str(first), "--template", "minimal", "--yes"],
+            ["new", str(first), "--template", "minimal", "--name", "demo", "--package", "demo", "--yes"],
         )
         nested_result = runner.invoke(
             cli.build_cli(None),
-            ["gen", "new", str(second), "--template", "minimal", "--yes"],
+            ["gen", "new", str(second), "--template", "minimal", "--name", "demo", "--package", "demo", "--yes"],
         )
 
         assert root_result.exit_code == 0
         assert nested_result.exit_code == 0
-        app = (first / "app.py").read_text()
-        assert app == (second / "app.py").read_text()
+        app = (first / "demo/app.py").read_text()
+        assert app == (second / "demo/app.py").read_text()
         compile(app, "app.py", "exec")
-        assert "routes = kupala.Routes()" in app
+        assert "routes = Routes()" in app
         assert "async def index_view" in app
 
     def test_new_generates_a_standard_project_by_default(self, tmp_path: pathlib.Path) -> None:
@@ -82,11 +100,16 @@ class TestRegister:
             ".env",
             ".env.example",
             ".gitignore",
+            "Dockerfile",
             "README.md",
+            "compose.yaml",
             "hello_world/__init__.py",
             "hello_world/app.py",
             "hello_world/config.py",
             "hello_world/routes.py",
+            "hello_world/static/app.css",
+            "hello_world/templates/index.html",
+            "justfile",
             "pyproject.toml",
             "tests/conftest.py",
             "tests/test_routes.py",
@@ -97,6 +120,7 @@ class TestRegister:
         assert "class Settings(BaseSettings):" in config
         assert 'extra="ignore"' in config
         assert "async def index_view" in (destination / "hello_world/routes.py").read_text()
+        assert "StaticFiles" in (destination / "hello_world/routes.py").read_text()
         assert "from kupala import TestClient" in (destination / "tests/conftest.py").read_text()
 
     def test_new_accepts_named_bundled_answers(self, tmp_path: pathlib.Path) -> None:
@@ -146,29 +170,67 @@ class TestRegister:
         )
 
         assert result.exit_code == 0
-        assert (destination / "service/api.py").is_file()
+        assert (destination / "service/routes.py").is_file()
         assert "extensions=[api]" in (destination / "service/app.py").read_text()
-        assert not (destination / "service/routes.py").exists()
-        assert "async def index_view" in (destination / "service/api.py").read_text()
+        assert not (destination / "service/api.py").exists()
+        assert "async def index_view" in (destination / "service/routes.py").read_text()
         assert "class Settings(BaseSettings):" in (destination / "service/config.py").read_text()
-        assert 'client.get("/api/")' in (destination / "tests/test_api.py").read_text()
-        assert not (destination / "tests/test_routes.py").exists()
+        assert 'client.get("/api/")' in (destination / "tests/test_routes.py").read_text()
+        assert not (destination / "tests/test_api.py").exists()
 
-    def test_new_generates_the_web_template(self, tmp_path: pathlib.Path) -> None:
-        destination = tmp_path / "website"
+    @pytest.mark.parametrize("template", ["minimal", "standard", "api"])
+    def test_new_generates_a_workspace(self, template: str, tmp_path: pathlib.Path) -> None:
+        destination = tmp_path / f"{template}-project"
 
         result = CliRunner().invoke(
             build_gen_command(Commands()),
-            ["new", str(destination), "--template", "web", "--yes"],
+            ["new", str(destination), "--template", template, "--workspace", "--yes"],
         )
 
         assert result.exit_code == 0
-        assert (destination / "website/templates/base.html").is_file()
-        assert (destination / "website/templates/index.html").is_file()
-        assert not (destination / "website/templates/error.html").exists()
-        assert not (destination / "website/errors.py").exists()
-        assert "class Settings(BaseSettings):" in (destination / "website/config.py").read_text()
-        assert "async def index_view" in (destination / "website/routes.py").read_text()
+        assert (destination / "src/pyproject.toml").is_file()
+        justfile = (destination / "src/justfile").read_text()
+        assert justfile == (
+            f"@dev:\n    uv run uvicorn {template}_project.app:app --reload\n\n"
+            "@test *args:\n    uv run pytest {{ args }}\n\n"
+            "@lint:\n    uv run ruff check .\n\n"
+            "@format:\n    uv run ruff format .\n\n"
+            "@check: format\n    uv run ruff check --fix .\n\n"
+            f"@testc *args:\n    uv run pytest --cov={template}_project --cov-report=term-missing {{{{ args }}}}\n\n"
+            f"@build:\n    docker build --tag {template}_project .\n"
+        )
+        for name in (".env", ".env.example", ".gitignore", "Dockerfile", "README.md", "compose.yaml"):
+            assert (destination / "src" / name).is_file()
+
+        assert "KUPALA_DEBUG=1" in (destination / "src/.env.example").read_text()
+        pyproject = (destination / "src/pyproject.toml").read_text()
+        assert 'dev = ["pytest>=9.0.0", "pytest-cov>=7.1.0", "ruff>=0.16.6"]' in pyproject
+        workspace = (destination / "pyproject.toml").read_text()
+        assert '[tool.uv.workspace]\nmembers = ["src"]' in workspace
+
+    def test_new_generates_a_custom_template_in_a_workspace(self, tmp_path: pathlib.Path) -> None:
+        source = tmp_path / "template"
+        source.mkdir()
+        (source / "pyproject.toml").write_text('[project]\nname = "custom"\nversion = "0.1.0"\n')
+        (source / "file.txt").write_text("content")
+        destination = tmp_path / "custom"
+
+        result = CliRunner().invoke(
+            build_gen_command(Commands()),
+            [
+                "new",
+                str(destination),
+                "--template",
+                source.as_uri(),
+                "--trust-template",
+                "--workspace",
+                "--yes",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert (destination / "src/file.txt").read_text() == "content"
+        assert (destination / "src/pyproject.toml").read_text() == ('[project]\nname = "custom"\nversion = "0.1.0"\n')
 
     def test_new_generates_from_a_trusted_file_template(self, tmp_path: pathlib.Path) -> None:
         source = tmp_path / "template"
@@ -364,7 +426,7 @@ class TestRegister:
         )
 
         assert result.exit_code == 0
-        assert pathlib.Path("app.py").is_file()
+        assert pathlib.Path(f"{tmp_path.name}/app.py").is_file()
 
     def test_new_requires_force_for_an_existing_destination(self, tmp_path: pathlib.Path) -> None:
         destination = tmp_path / "project"
@@ -374,7 +436,7 @@ class TestRegister:
         assert runner.invoke(build_gen_command(Commands()), arguments).exit_code == 0
         existing = runner.invoke(build_gen_command(Commands()), arguments)
         unchanged = runner.invoke(build_gen_command(Commands()), [*arguments, "--force"])
-        (destination / "app.py").write_text("changed\n")
+        (destination / "project/app.py").write_text("changed\n")
         conflict = runner.invoke(build_gen_command(Commands()), [*arguments, "--force"])
 
         assert existing.exit_code == 2
@@ -382,7 +444,7 @@ class TestRegister:
         assert unchanged.exit_code == 0
         assert "Applied 0 changes." in unchanged.output
         assert conflict.exit_code == 2
-        assert (destination / "app.py").read_text() == "changed\n"
+        assert (destination / "project/app.py").read_text() == "changed\n"
 
     def test_a_nested_group_needs_a_command(self) -> None:
         gen = build_gen_command(Commands())
@@ -429,4 +491,4 @@ class TestRegister:
         )
 
         assert result.exit_code == 0
-        assert (destination / "app.py").is_file()
+        assert (destination / "project/app.py").is_file()

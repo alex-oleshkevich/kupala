@@ -1,0 +1,23 @@
+from kupala.applications import Kupala
+from kupala.requests import Request
+from kupala.responses import Response, response
+from kupala.routing import Routes
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="KUPALA_", extra="ignore")
+
+    debug: bool = False
+
+
+settings = Settings()
+routes = Routes()
+
+
+@routes.get("/")
+async def index_view(request: Request) -> Response:
+    return response(request).text({{ ("Hello from " ~ name ~ "!") | tojson }})
+
+
+app = Kupala(__name__, debug=settings.debug, routes=routes)

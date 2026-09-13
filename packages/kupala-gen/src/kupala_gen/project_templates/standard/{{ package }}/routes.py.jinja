@@ -1,10 +1,18 @@
+import pathlib
+
 from kupala.requests import Request
 from kupala.responses import Response, response
 from kupala.routing import Routes
+from starlette.staticfiles import StaticFiles
 
 routes = Routes()
+routes.mount(
+    "/static",
+    StaticFiles(directory=pathlib.Path(__file__).with_name("static")),
+    name="static",
+)
 
 
 @routes.get("/")
 async def index_view(request: Request) -> Response:
-    return response(request).text({{ ("Hello from " ~ name ~ "!") | tojson }})
+    return response(request).template("index.html", {"project_name": {{ name | tojson }}})

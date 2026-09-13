@@ -21,6 +21,7 @@ from kupala_gen.plans import (
     apply_plan,
     prepare_plan,
 )
+from kupala_gen.projects import load_pyproject
 from kupala_gen.questions import UNSET, Ask, InteractionMode, Question, resolve_answers
 
 
@@ -134,6 +135,7 @@ class ClickReporter:
 class GenerationContext:
     target_root: pathlib.Path
     answers: typing.Mapping[str, object]
+    workspace_root: pathlib.Path | None = None
 
 
 type Planner = typing.Callable[[GenerationContext], ChangePlan]
@@ -167,6 +169,7 @@ def run_generation(
     reporter: Reporter | None = None,
     interaction: InteractionMode | None = None,
     ask: Ask | None = None,
+    workspace_root: pathlib.Path | None = None,
 ) -> GenerationReport:
     mode = (
         InteractionMode.ASSUME_YES
@@ -192,6 +195,7 @@ def run_generation(
     context = GenerationContext(
         target_root=target_root.resolve(),
         answers=resolved,
+        workspace_root=workspace_root.resolve() if workspace_root is not None else None,
     )
     try:
         plan = planner(context)
@@ -251,6 +255,39 @@ def run_generation(
 
 
 _COMMON_OPTIONS = frozenset({"project", "yes", "dry_run", "force", "show_diff"})
+
+
+def _workspace_project(root: pathlib.Path) -> pathlib.Path | None:
+    if not (root / "pyproject.toml").is_file():
+        return None
+
+    values = load_pyproject(root)
+    tool = values.get("tool")
+    if not isinstance(tool, dict):
+        return None
+
+    uv = tool.get("uv")
+    workspace = uv.get("workspace") if isinstance(uv, dict) else None
+    if not isinstance(workspace, dict) or workspace.get("members") != ["src"]:
+        return None
+
+    project = root / "src"
+    return project if (project / "pyproject.toml").is_file() else None
+
+
+def _project_roots(path: pathlib.Path, *, search: bool) -> tuple[pathlib.Path, pathlib.Path | None]:
+    root = path.resolve()
+    candidates = (root, *root.parents) if search else (root,)
+    for candidate in candidates:
+        workspace_project = _workspace_project(candidate)
+        if workspace_project is not None:
+            return workspace_project, candidate
+
+        if (candidate / "pyproject.toml").is_file():
+            workspace_root = candidate.parent if _workspace_project(candidate.parent) == candidate else None
+            return candidate, workspace_root
+
+    return root, None
 
 
 def _bound_questions(
@@ -354,6 +391,10 @@ def generator(
         @click.pass_context
         def invoke(ctx: click.Context, /, **kwargs: object) -> None:
             project = typing.cast(pathlib.Path, kwargs.pop("project"))
+            project, workspace_root = _project_roots(
+                project,
+                search=ctx.get_parameter_source("project") is ParameterSource.DEFAULT,
+            )
             yes = typing.cast(bool, kwargs.pop("yes"))
             dry_run = typing.cast(bool, kwargs.pop("dry_run"))
             force = typing.cast(bool, kwargs.pop("force"))
@@ -400,6 +441,7 @@ def generator(
                 dry_run=dry_run,
                 force=force,
                 show_diff=show_diff,
+                workspace_root=workspace_root,
             )
 
         command.callback = invoke
