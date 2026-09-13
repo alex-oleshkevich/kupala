@@ -21,7 +21,7 @@ from kupala_gen.plans import (
     apply_plan,
     prepare_plan,
 )
-from kupala_gen.projects import load_pyproject
+from kupala_gen.projects import Project, discover_project, load_pyproject
 from kupala_gen.questions import UNSET, Ask, InteractionMode, Question, resolve_answers
 
 
@@ -136,6 +136,10 @@ class GenerationContext:
     target_root: pathlib.Path
     answers: typing.Mapping[str, object]
     workspace_root: pathlib.Path | None = None
+
+    @property
+    def project(self) -> Project:
+        return discover_project(self.target_root)
 
 
 type Planner = typing.Callable[[GenerationContext], ChangePlan]
