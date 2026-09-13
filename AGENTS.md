@@ -44,6 +44,14 @@ Important: this git history contains previous version. The current version is co
 - `tests` directory is included into coverage, we don't want dead tests. Use `# pragma: no cover` to exclude dead paths
 - when you complete your work, make sure changes are 100% branch covered.
 
+## Documentation workflow
+
+1. Use `writing-documentation-with-diataxis` to identify the page as a tutorial, how-to guide, reference, or explanation, and keep each page focused on one primary reader need.
+2. Use `documentation-writer` to define the audience, goal, scope, and outline before drafting. Use `documentation` when architecture or API documentation needs deeper source-backed research.
+3. Verify behavior against the current source, tests, public exports, and `VISION.md`. Tutorials must follow one supported path, state prerequisites, produce visible checkpoints, and contain examples that have been run successfully.
+4. After the structure, facts, and examples are final, use `humanizer:humanizer` on prose only. Preserve frontmatter, code, commands, links, technical terms, facts, and citations exactly.
+5. Use `writing-guidelines` for the final editorial review, resolve relevant findings without changing technical meaning, then run `just docs-build`.
+
 # Components
 
 ## Application
@@ -150,6 +158,9 @@ Files `tests`. Test file names must mirror `kupala/` file structure. For example
 - `just test-pkg $package $optional_test_pattern` — run one package's tests.
 - `just testc $optional_test_pattern` — run tests with 100% coverage enforcement.
 - `just check` — run the full `prek` check suite.
+- `just docs $optional_arguments` — run the VitePress documentation site with reload.
+- `just docs-build` — build the VitePress documentation site.
+- `just docs-preview $optional_arguments` — preview the built VitePress documentation site.
 - `just verify` — run the full local CI-equivalent suite: checks, typing, 100% coverage, package builds, and diff validation.
 
 <!-- CODEGRAPH_START -->

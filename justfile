@@ -23,3 +23,12 @@ verify: check
 [working-directory("demo")]
 cli *args:
     uv run -- kupala {{ args }}
+
+docs *args:
+    pnpm docs:dev {{ args }}
+
+docs-build:
+    pnpm docs:build
+
+docs-preview *args:
+    pnpm docs:preview {{ args }}

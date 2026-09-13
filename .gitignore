@@ -4,12 +4,14 @@ __pycache__
 .vscode
 .coverage*
 .idea
+/node_modules/
 dist/
 /demo/.env
 demo_app
 _private
 coverage.xml
-docs/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
 var/
 .zed/
 .claude/
