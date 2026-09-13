@@ -23,7 +23,7 @@ from kupala.requests import Request
 from kupala.responses import Response
 from kupala.routing import Routes
 from kupala.schema.builder import DuplicateOperationError
-from kupala.schema.openapi import Info, OpenAPI
+from kupala.schema.openapi import Info, OpenAPI, Operation
 from kupala.security import Bearer, Identity
 from kupala.templates import Templates
 
@@ -109,8 +109,8 @@ class TestDocument:
             return Response("")  # pragma: no cover - the document never gets built
 
         routes = Routes()
-        routes.get("/a", name="a", operation_id="same")(view)
-        routes.get("/b", name="b", operation_id="same")(view)
+        routes.get("/a", name="a", openapi=Operation(operation_id="same"))(view)
+        routes.get("/b", name="b", openapi=Operation(operation_id="same"))(view)
         api = APIExtension("/api", routes=routes, docs=DocsOptions(openapi_path="/openapi.json"))
         app = Kupala("tests", routes=Routes(), extensions=[api])
 

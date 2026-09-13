@@ -48,7 +48,7 @@ type EndpointWrapper = typing.Callable[[AnyEndpoint], AnyEndpoint]
 type WebSocketEndpoint = typing.Callable[..., typing.Awaitable[None]]
 type WebSocketEndpointWrapper = typing.Callable[[WebSocketEndpoint], WebSocketEndpoint]
 
-OperationOptions = openapi.Operation
+_DEFAULT_OPERATION = openapi.Operation()
 
 
 def split_docstring(docstring: str | None) -> tuple[str | None, str | None]:
@@ -164,7 +164,7 @@ class Routes:
         self.include(child)
         return child
 
-    def operation(self, fn: AnyEndpoint, options: OperationOptions) -> openapi.Operation:
+    def operation(self, fn: AnyEndpoint, options: openapi.Operation) -> openapi.Operation:
         """Describe one endpoint, deriving what the group and the docstring know and keeping the rest."""
 
         summary, description = split_docstring(fn.__doc__)
@@ -183,11 +183,9 @@ class Routes:
         methods: typing.Sequence[str],
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
-        **options: typing.Any,
+        openapi: openapi.Operation = _DEFAULT_OPERATION,
+        include_in_schema: bool = True,
     ) -> EndpointWrapper:
-        include_in_schema = options.pop("include_in_schema", True)
-        settings = OperationOptions(**options)
-
         def decorator(fn: AnyEndpoint) -> AnyEndpoint:
             self.add(
                 path=path,
@@ -195,7 +193,7 @@ class Routes:
                 name=name,
                 middleware=tuple(middleware),
                 fn=fn,
-                openapi=self.operation(fn, settings) if include_in_schema else None,
+                openapi=self.operation(fn, openapi) if include_in_schema else None,
             )
             return fn
 
@@ -228,9 +226,17 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
-        **options: typing.Any,
+        openapi: openapi.Operation = _DEFAULT_OPERATION,
+        include_in_schema: bool = True,
     ) -> EndpointWrapper:
-        return self._wrap(path, name=name, methods=["GET", "HEAD"], middleware=middleware, **options)
+        return self._wrap(
+            path,
+            name=name,
+            methods=["GET", "HEAD"],
+            middleware=middleware,
+            openapi=openapi,
+            include_in_schema=include_in_schema,
+        )
 
     def post(
         self,
@@ -238,9 +244,17 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
-        **options: typing.Any,
+        openapi: openapi.Operation = _DEFAULT_OPERATION,
+        include_in_schema: bool = True,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["POST"], middleware=middleware, **options)
+        return self._wrap(
+            path=path,
+            name=name,
+            methods=["POST"],
+            middleware=middleware,
+            openapi=openapi,
+            include_in_schema=include_in_schema,
+        )
 
     def get_or_post(
         self,
@@ -248,9 +262,17 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
-        **options: typing.Any,
+        openapi: openapi.Operation = _DEFAULT_OPERATION,
+        include_in_schema: bool = True,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["GET", "HEAD", "POST"], middleware=middleware, **options)
+        return self._wrap(
+            path=path,
+            name=name,
+            methods=["GET", "HEAD", "POST"],
+            middleware=middleware,
+            openapi=openapi,
+            include_in_schema=include_in_schema,
+        )
 
     def put(
         self,
@@ -258,9 +280,17 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
-        **options: typing.Any,
+        openapi: openapi.Operation = _DEFAULT_OPERATION,
+        include_in_schema: bool = True,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["PUT"], middleware=middleware, **options)
+        return self._wrap(
+            path=path,
+            name=name,
+            methods=["PUT"],
+            middleware=middleware,
+            openapi=openapi,
+            include_in_schema=include_in_schema,
+        )
 
     def patch(
         self,
@@ -268,9 +298,17 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
-        **options: typing.Any,
+        openapi: openapi.Operation = _DEFAULT_OPERATION,
+        include_in_schema: bool = True,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["PATCH"], middleware=middleware, **options)
+        return self._wrap(
+            path=path,
+            name=name,
+            methods=["PATCH"],
+            middleware=middleware,
+            openapi=openapi,
+            include_in_schema=include_in_schema,
+        )
 
     def delete(
         self,
@@ -278,9 +316,17 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
-        **options: typing.Any,
+        openapi: openapi.Operation = _DEFAULT_OPERATION,
+        include_in_schema: bool = True,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["DELETE"], middleware=middleware, **options)
+        return self._wrap(
+            path=path,
+            name=name,
+            methods=["DELETE"],
+            middleware=middleware,
+            openapi=openapi,
+            include_in_schema=include_in_schema,
+        )
 
     def head(
         self,
@@ -288,9 +334,17 @@ class Routes:
         *,
         name: str | None = None,
         middleware: typing.Sequence[Middleware] = (),
-        **options: typing.Any,
+        openapi: openapi.Operation = _DEFAULT_OPERATION,
+        include_in_schema: bool = True,
     ) -> EndpointWrapper:
-        return self._wrap(path=path, name=name, methods=["HEAD"], middleware=middleware, **options)
+        return self._wrap(
+            path=path,
+            name=name,
+            methods=["HEAD"],
+            middleware=middleware,
+            openapi=openapi,
+            include_in_schema=include_in_schema,
+        )
 
     def mount(
         self,

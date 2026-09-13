@@ -175,7 +175,7 @@ class TestBuildDocument:
 
     def test_an_author_given_id_is_kept(self) -> None:
         routes = Routes()
-        routes.get("/users", name="users.index", operation_id="listUsers")(view)
+        routes.get("/users", name="users.index", openapi=openapi.Operation(operation_id="listUsers"))(view)
 
         paths = build_document(routes, DOCUMENT).paths or {}
 
@@ -186,7 +186,7 @@ class TestBuildDocument:
         # without the suffix the author's own id collides with itself, and the error would tell them to
         # pass the `operation_id=` they already passed
         routes = Routes()
-        routes.get_or_post("/search", operation_id="search")(view)
+        routes.get_or_post("/search", openapi=openapi.Operation(operation_id="search"))(view)
 
         paths = build_document(routes, DOCUMENT).paths or {}
         item = paths["/search"]
@@ -222,8 +222,8 @@ class TestBuildDocument:
 
     def test_two_operations_cannot_share_an_id(self) -> None:
         routes = Routes()
-        routes.get("/users", operation_id="same")(view)
-        routes.get("/posts", operation_id="same")(view)
+        routes.get("/users", openapi=openapi.Operation(operation_id="same"))(view)
+        routes.get("/posts", openapi=openapi.Operation(operation_id="same"))(view)
 
         with pytest.raises(DuplicateOperationError, match="'same' describes both"):
             build_document(routes, DOCUMENT)
@@ -231,7 +231,7 @@ class TestBuildDocument:
     def test_an_authored_parameter_joins_the_ones_the_path_declares(self) -> None:
         trace = openapi.Parameter(name="x-trace", in_=openapi.ParameterLocation.HEADER)
         routes = Routes()
-        routes.get("/users/{id:int}", parameters=[trace])(view)
+        routes.get("/users/{id:int}", openapi=openapi.Operation(parameters=[trace]))(view)
 
         paths = build_document(routes, DOCUMENT).paths or {}
         described = paths["/users/{id}"].get
@@ -243,7 +243,7 @@ class TestBuildDocument:
     def test_an_authored_parameter_survives_a_path_without_variables(self) -> None:
         trace = openapi.Parameter(name="x-trace", in_=openapi.ParameterLocation.HEADER)
         routes = Routes()
-        routes.get("/users", parameters=[trace])(view)
+        routes.get("/users", openapi=openapi.Operation(parameters=[trace]))(view)
 
         paths = build_document(routes, DOCUMENT).paths or {}
         described = paths["/users"].get
@@ -261,7 +261,7 @@ class TestBuildDocument:
             schema={"type": "integer", "minimum": 1},
         )
         routes = Routes()
-        routes.get("/users/{id:int}", parameters=[described_id])(view)
+        routes.get("/users/{id:int}", openapi=openapi.Operation(parameters=[described_id]))(view)
 
         paths = build_document(routes, DOCUMENT).paths or {}
         described = paths["/users/{id}"].get
@@ -271,7 +271,10 @@ class TestBuildDocument:
 
     def test_an_authored_response_replaces_the_default(self) -> None:
         routes = Routes()
-        routes.get("/users", responses={"204": openapi.Response(description="Nothing.")})(view)
+        routes.get(
+            "/users",
+            openapi=openapi.Operation(responses={"204": openapi.Response(description="Nothing.")}),
+        )(view)
 
         paths = build_document(routes, DOCUMENT).paths or {}
 
@@ -559,7 +562,7 @@ class TestContributions:
             return Response(f"{one}:{two}")  # pragma: no cover
 
         routes = Routes()
-        routes.get("/traced", parameters=(authored,))(traced)
+        routes.get("/traced", openapi=openapi.Operation(parameters=(authored,)))(traced)
         operation = (build_document(routes, DOCUMENT).paths or {})["/traced"].get
         assert operation is not None
 
@@ -676,7 +679,10 @@ class TestContributions:
             return Response()  # pragma: no cover
 
         routes = Routes()
-        routes.get("/protected", security=({"basic": ()}, {"session": ()}))(protected)
+        routes.get(
+            "/protected",
+            openapi=openapi.Operation(security=({"basic": ()}, {"session": ()})),
+        )(protected)
         built = build_document(routes, document)
         operation = (built.paths or {})["/protected"].get
         assert operation is not None
@@ -710,7 +716,7 @@ class TestContributions:
             return Response()  # pragma: no cover
 
         routes = Routes()
-        routes.get("/protected", security=())(protected)
+        routes.get("/protected", openapi=openapi.Operation(security=()))(protected)
         operation = (build_document(routes, document).paths or {})["/protected"].get
         assert operation is not None
 
@@ -751,10 +757,12 @@ class TestContributions:
         routes = Routes()
         routes.get(
             "/protected",
-            responses={
-                "204": openapi.Response(description="Success."),
-                "401": openapi.Response(description="Use a valid token."),
-            },
+            openapi=openapi.Operation(
+                responses={
+                    "204": openapi.Response(description="Success."),
+                    "401": openapi.Response(description="Use a valid token."),
+                }
+            ),
         )(protected)
         operation = (build_document(routes, DOCUMENT).paths or {})["/protected"].get
         assert operation is not None
@@ -787,7 +795,7 @@ class TestContributions:
             return Response()  # pragma: no cover
 
         routes = Routes()
-        routes.get("/public", security=())(public)
+        routes.get("/public", openapi=openapi.Operation(security=()))(public)
         document = build_document(routes, DOCUMENT)
         operation = (document.paths or {})["/public"].get
         assert operation is not None
@@ -949,7 +957,10 @@ class TestContributions:
             return JSONResponse({})  # pragma: no cover
 
         routes = Routes()
-        routes.get("/users", responses={"200": openapi.Response(description="Users.")})(show)
+        routes.get(
+            "/users",
+            openapi=openapi.Operation(responses={"200": openapi.Response(description="Users.")}),
+        )(show)
         operation = (build_document(routes, DOCUMENT).paths or {})["/users"].get
         assert operation is not None
         response = typing.cast(openapi.Response, (operation.responses or {})["200"])

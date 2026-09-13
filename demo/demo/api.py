@@ -10,7 +10,7 @@ from kupala.params import Body, Form, Query
 from kupala.requests import Request
 from kupala.responses import JSONResponse, Response, response
 from kupala.routing import Routes
-from kupala.schema.openapi import Info, OpenAPI
+from kupala.schema.openapi import Info, OpenAPI, Operation
 
 routes = Routes(tags=["products"])
 
@@ -66,7 +66,11 @@ async def show_product(
     return JSONResponse(product.model_dump(mode="json"), headers={"XRequestId": sku})
 
 
-@routes.delete("/products/{sku}", name="products.destroy", summary="Withdraw a product", deprecated=True)
+@routes.delete(
+    "/products/{sku}",
+    name="products.destroy",
+    openapi=Operation(summary="Withdraw a product", deprecated=True),
+)
 async def delete_product(request: Request, catalog: ProductCatalog, _api_key: DemoAPIKey) -> Response:
     catalog.products.pop(request.path_params["sku"], None)
     return response(request).empty()
@@ -85,7 +89,7 @@ class CreateProductInput(BaseModel):
     sku: str
 
 
-@routes.post("/products", name="products.create", summary="Create a product")
+@routes.post("/products", name="products.create", openapi=Operation(summary="Create a product"))
 async def create_product(
     request: Request,
     body: Body[CreateProductInput],
@@ -102,7 +106,7 @@ class UpdateProductInput(BaseModel):
     sku: str
 
 
-@routes.put("/products", name="products.update", summary="Update a product")
+@routes.put("/products", name="products.update", openapi=Operation(summary="Update a product"))
 async def update_product(
     request: Request,
     kek: Form[str],

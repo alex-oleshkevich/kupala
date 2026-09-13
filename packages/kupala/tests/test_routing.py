@@ -599,15 +599,17 @@ class TestOperationMetadata:
         assert definition.openapi.summary == "List every user."
         assert definition.openapi.description == "Ordered by signup date."
 
-    def test_options_win_over_the_docstring(self) -> None:
+    def test_openapi_wins_over_the_docstring(self) -> None:
         routes = Routes()
         endpoint = routes.post(
             "/users",
-            summary="Create a user",
-            description="Long form.",
-            operation_id="createUser",
-            deprecated=True,
-            tags=["users"],
+            openapi=openapi.Operation(
+                summary="Create a user",
+                description="Long form.",
+                operation_id="createUser",
+                deprecated=True,
+                tags=["users"],
+            ),
         )
 
         endpoint(stub_endpoint)
@@ -641,18 +643,18 @@ class TestOperationMetadata:
         assert definition.openapi is None
 
     def test_keeps_every_field_the_author_declared(self) -> None:
-        # an option is any field of an operation, so one spelled correctly but not derived here was
-        # accepted at the decorator and then dropped, which is the failure naming them all prevents
         routes = Routes()
         endpoint = routes.post(
             "/users",
-            responses={"404": openapi.Response(description="No such user.")},
-            request_body=openapi.RequestBody(content={"application/json": openapi.MediaType()}),
-            parameters=[openapi.Parameter(name="trace", in_=openapi.ParameterLocation.HEADER)],
-            security=[{"bearer": ("write",)}],
-            external_docs=openapi.ExternalDocumentation(url="https://example.com/docs"),
-            servers=[openapi.Server(url="https://api.example.com")],
-            extensions={"x-internal": True},
+            openapi=openapi.Operation(
+                responses={"404": openapi.Response(description="No such user.")},
+                request_body=openapi.RequestBody(content={"application/json": openapi.MediaType()}),
+                parameters=[openapi.Parameter(name="trace", in_=openapi.ParameterLocation.HEADER)],
+                security=[{"bearer": ("write",)}],
+                external_docs=openapi.ExternalDocumentation(url="https://example.com/docs"),
+                servers=[openapi.Server(url="https://api.example.com")],
+                extensions={"x-internal": True},
+            ),
         )
 
         endpoint(stub_endpoint)
@@ -671,7 +673,10 @@ class TestOperationMetadata:
     def test_derives_over_an_authored_field_without_disturbing_the_rest(self) -> None:
         routes = Routes(tags=["v1"])
 
-        @routes.get("/users", responses={"200": openapi.Response(description="Users.")})
+        @routes.get(
+            "/users",
+            openapi=openapi.Operation(responses={"200": openapi.Response(description="Users.")}),
+        )
         async def list_users(request: Request) -> Response:
             """List users."""
             return Response()  # pragma: no cover - the metadata is what this test reads
@@ -683,18 +688,10 @@ class TestOperationMetadata:
         assert definition.openapi.tags == ("v1",)
         assert definition.openapi.responses == {"200": openapi.Response(description="Users.")}
 
-    def test_reports_a_misspelled_option_instead_of_dropping_it(self) -> None:
-        routes = Routes()
-
-        # the options dataclass is built by the decorator, so an option that does not exist is
-        # rejected at the line that wrote it rather than silently losing its value
-        with pytest.raises(TypeError, match="unexpected keyword argument 'tgs'"):
-            routes.get("/users", tgs=["users"])
-
     def test_group_tags_accumulate_down_the_tree(self) -> None:
         routes = Routes(tags=["v1"])
         users = routes.group("/users", tags=["users"])
-        users.get("/{id}", tags=["detail"])(stub_endpoint)
+        users.get("/{id}", openapi=openapi.Operation(tags=["detail"]))(stub_endpoint)
 
         definition = users.definitions[0]
         assert isinstance(definition, RouteDefinition)
