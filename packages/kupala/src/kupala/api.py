@@ -117,7 +117,7 @@ class APIExtension:
         """
 
         self._binders = tuple(app.model_binders)
-        self._application_middleware = tuple(app.middleware)
+        self._application_middleware = (*app.middleware, *app.routes.middleware)
         self._document = None
         self._serialized = None
         self.serialize()

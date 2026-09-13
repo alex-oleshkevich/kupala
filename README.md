@@ -162,9 +162,9 @@ type CurrentIdentity = Annotated[
 ]
 ```
 
-To require the identity application-wide, resolve this alias from middleware registered with `Kupala`. An endpoint
-may resolve it again to use the principal; both uses share one request cache, and API extensions include the
-middleware requirement in their generated OpenAPI documents.
+To require the identity application-wide, resolve this alias from middleware registered with `Kupala` or its root
+`Routes`. An endpoint may resolve it again to use the principal; both uses share one request cache, and API extensions
+include the middleware requirement in their generated OpenAPI documents.
 
 ## OAuth2 access tokens
 
