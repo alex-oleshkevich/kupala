@@ -217,6 +217,7 @@ class TestRunGeneration:
             answers={"token": "top-secret\nsecond"},
             yes=True,
             dry_run=True,
+            show_diff=True,
         )
 
         output = capsys.readouterr().out
@@ -357,10 +358,29 @@ class TestRunGeneration:
 
 
 class TestClickReporter:
-    def test_reports_text_binary_and_sensitive_files(
-        self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        reporter = ClickReporter()
+    def test_hides_diffs_by_default(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]) -> None:
+        prepared = prepare_plan(ChangePlan((CreateFile("text.txt", "hello"),)), tmp_path)
+
+        ClickReporter().preview(prepared)
+        output = capsys.readouterr().out
+
+        assert "created" in output
+        assert "text.txt" in output
+        assert "+hello" not in output
+
+    def test_colors_actions(self, tmp_path: pathlib.Path) -> None:
+        prepared = prepare_plan(ChangePlan((CreateFile("text.txt", "hello"),)), tmp_path)
+
+        @click.command()
+        def command() -> None:
+            ClickReporter().preview(prepared)
+
+        result = CliRunner().invoke(command, color=True)
+
+        assert result.output == f"{click.style('created  ', fg='green')} text.txt\n"
+
+    def test_reports_diffs_when_requested(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]) -> None:
+        reporter = ClickReporter(show_diff=True)
         prepared = prepare_plan(
             ChangePlan(
                 (
@@ -382,7 +402,7 @@ class TestClickReporter:
         assert "do-not-print" not in output
         assert "pkg" in output
 
-    def test_confirms_with_a_default_of_no(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_uses_the_configured_confirmation_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         seen: list[tuple[str, bool]] = []
 
         def confirm(prompt: str, *, default: bool) -> bool:
@@ -392,7 +412,8 @@ class TestClickReporter:
         monkeypatch.setattr(click, "confirm", confirm)
 
         assert ClickReporter().confirm()
-        assert seen == [("Apply these changes?", False)]
+        assert ClickReporter(confirm_default=True).confirm()
+        assert seen == [("Apply these changes?", False), ("Apply these changes?", True)]
 
     def test_reports_singular_and_plural_completion(self, capsys: pytest.CaptureFixture[str]) -> None:
         reporter = ClickReporter()
@@ -761,5 +782,5 @@ class TestGenerator:
         result = CliRunner().invoke(widget, ["--help"])
 
         assert result.exit_code == 0
-        for option in ("--project", "--yes", "--dry-run", "--force"):
+        for option in ("--project", "--yes", "--dry-run", "--diff", "--force"):
             assert option in result.output

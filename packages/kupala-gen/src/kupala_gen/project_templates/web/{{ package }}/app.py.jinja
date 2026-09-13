@@ -1,0 +1,15 @@
+import pathlib
+
+from kupala.applications import Kupala
+from kupala.templates import Templates
+
+from {{ package }}.config import settings
+from {{ package }}.routes import routes
+
+templates = Templates(directories=[str(pathlib.Path(__file__).with_name("templates"))])
+app = Kupala(
+    __name__,
+    debug=settings.debug,
+    routes=routes,
+    templates=templates,
+)

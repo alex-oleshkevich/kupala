@@ -1,0 +1,9 @@
+from kupala import TestClient
+
+
+class TestRoutes:
+    def test_index_view(self, client: TestClient) -> None:
+        response = client.get("/")
+
+        assert response.status_code == 200
+        assert response.text == {{ ("Hello from " ~ name ~ "!") | tojson }}

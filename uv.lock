@@ -475,6 +475,7 @@ dependencies = [
     { name = "anyio" },
     { name = "asgiref" },
     { name = "click" },
+    { name = "httpx2" },
     { name = "jinja2" },
     { name = "python-multipart" },
     { name = "starlette" },
@@ -494,6 +495,7 @@ requires-dist = [
     { name = "anyio", specifier = ">=4" },
     { name = "asgiref", specifier = ">=3.12.1" },
     { name = "click", specifier = ">=8.4" },
+    { name = "httpx2", specifier = ">=2.10.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "msgspec", marker = "extra == 'msgspec'", specifier = ">=0.19" },
     { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.12" },
@@ -513,6 +515,7 @@ dependencies = [
     { name = "dulwich" },
     { name = "kupala" },
     { name = "libcst" },
+    { name = "packaging" },
     { name = "questionary" },
 ]
 
@@ -523,6 +526,7 @@ requires-dist = [
     { name = "dulwich", specifier = ">=0.25" },
     { name = "kupala", editable = "packages/kupala" },
     { name = "libcst", specifier = ">=1.8" },
+    { name = "packaging", specifier = ">=26.0" },
     { name = "questionary", specifier = ">=2.1.1" },
 ]
 

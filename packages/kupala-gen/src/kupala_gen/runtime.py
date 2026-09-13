@@ -68,10 +68,26 @@ class Reporter(typing.Protocol):
 
 
 class ClickReporter:
+    def __init__(self, *, show_diff: bool = False, confirm_default: bool = False) -> None:
+        self.show_diff = show_diff
+        self.confirm_default = confirm_default
+
+    def _status(self, status: OperationStatus, path: pathlib.PurePath, *, err: bool = False) -> None:
+        color = {
+            OperationStatus.CREATED: "green",
+            OperationStatus.MODIFIED: "yellow",
+            OperationStatus.UNCHANGED: "blue",
+            OperationStatus.CONFLICTED: "red",
+            OperationStatus.FAILED: "red",
+            OperationStatus.ROLLED_BACK: "yellow",
+        }[status]
+        action = click.style(f"{status.value:9}", fg=color)
+        click.echo(f"{action} {path}", err=err)
+
     def preview(self, plan: PreparedPlan) -> None:
         for operation in plan.operations:
-            click.echo(f"{operation.status.value:9} {operation.relative_path}")
-            if operation.status is not OperationStatus.UNCHANGED and not operation.directory:
+            self._status(operation.status, operation.relative_path)
+            if self.show_diff and operation.status is not OperationStatus.UNCHANGED and not operation.directory:
                 self._diff(operation)
 
     def _diff(self, operation: PreparedOperation) -> None:
@@ -96,7 +112,7 @@ class ClickReporter:
             click.echo(line)
 
     def confirm(self) -> bool:
-        return click.confirm("Apply these changes?", default=False)
+        return click.confirm("Apply these changes?", default=self.confirm_default)
 
     def finish(self, report: GenerationReport) -> None:
         failures = tuple(
@@ -106,7 +122,7 @@ class ClickReporter:
         )
         if failures:
             for result in failures:
-                click.echo(f"{result.status.value:9} {result.path}", err=True)
+                self._status(result.status, result.path, err=True)
 
             return
 
@@ -147,6 +163,7 @@ def run_generation(
     yes: bool = False,
     dry_run: bool = False,
     force: bool = False,
+    show_diff: bool = False,
     reporter: Reporter | None = None,
     interaction: InteractionMode | None = None,
     ask: Ask | None = None,
@@ -171,7 +188,7 @@ def run_generation(
             reverse=True,
         )
     )
-    output = reporter if reporter is not None else ClickReporter()
+    output = reporter if reporter is not None else ClickReporter(show_diff=show_diff)
     context = GenerationContext(
         target_root=target_root.resolve(),
         answers=resolved,
@@ -233,7 +250,7 @@ def run_generation(
     return safe_report
 
 
-_COMMON_OPTIONS = frozenset({"project", "yes", "dry_run", "force"})
+_COMMON_OPTIONS = frozenset({"project", "yes", "dry_run", "force", "show_diff"})
 
 
 def _bound_questions(
@@ -324,7 +341,7 @@ def generator(
         collision = (names & _COMMON_OPTIONS) | {
             option.removeprefix("--").replace("-", "_")
             for option in option_flags
-            if option in {"--project", "--yes", "--dry-run", "--force"}
+            if option in {"--project", "--yes", "--dry-run", "--force", "--diff"}
         }
         if collision:
             raise TypeError(f"Generator command uses reserved option: {min(collision)}")
@@ -340,6 +357,7 @@ def generator(
             yes = typing.cast(bool, kwargs.pop("yes"))
             dry_run = typing.cast(bool, kwargs.pop("dry_run"))
             force = typing.cast(bool, kwargs.pop("force"))
+            show_diff = typing.cast(bool, kwargs.pop("show_diff"))
             explicit: dict[str, object] = {}
             defaults: dict[str, object] = {}
             for question, parameter_name in bound:
@@ -381,10 +399,12 @@ def generator(
                 yes=yes,
                 dry_run=dry_run,
                 force=force,
+                show_diff=show_diff,
             )
 
         command.callback = invoke
         click.option("--force", is_flag=True, help="Overwrite operations that explicitly allow it.")(command)
+        click.option("--diff", "show_diff", is_flag=True, help="Show file diffs.")(command)
         click.option("--dry-run", is_flag=True, help="Preview changes without writing.")(command)
         click.option("--yes", is_flag=True, help="Apply without prompting.")(command)
         click.option(

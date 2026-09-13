@@ -8,7 +8,7 @@ import typing
 import click
 
 from kupala.applications import Kupala
-from kupala.commands import Commands, UsageError
+from kupala.commands import BootstrapCommand, Commands, UsageError
 
 APP_ENV_VAR = "KUPALA_APP"
 APP_GROUP = "kupala.app"
@@ -154,8 +154,9 @@ class _LazyGroup(click.Group):
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
         command = super().get_command(ctx, cmd_name)
-        if isinstance(command, click.Group):
+        if isinstance(command, (click.Group, BootstrapCommand)):
             return command
+
         self._load_application_commands()
         return super().get_command(ctx, cmd_name)
 
@@ -178,8 +179,9 @@ class _LazyGroup(click.Group):
             if self._context.application is not None:
                 for command in self._context.application.commands:
                     name = typing.cast(str, command.name)
-                    if not isinstance(self.commands.get(name), click.Group):
+                    if not isinstance(self.commands.get(name), (click.Group, BootstrapCommand)):
                         self.add_command(command)
+
         except Exception as error:
             self._application_error = error
             raise

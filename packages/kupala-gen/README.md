@@ -10,8 +10,22 @@ uvx --from 'kupala[gen]' kupala gen --help
 
 | Command | What it does |
 | --- | --- |
-| `kupala gen new` | scaffold a project |
+| `kupala new [PATH]` | scaffold a project without loading an application |
+| `kupala gen new [PATH]` | scaffold a project |
 | `kupala gen add <generator>` | run a generator |
+
+`kupala new` and `kupala gen new` are equivalent. `PATH` is created and defaults to the current directory;
+use `--force` when it already exists.
+`--template` defaults to `standard`; the bundled choices are `minimal`, `standard`, `api`, and `web`.
+`minimal` creates one runnable `app.py`, `standard` creates a packaged hello application and tests,
+and `api` and `web` add small API or Jinja examples. Use `--dry-run` to preview, `--diff` to show
+file diffs, `--yes` to apply without confirmation, and `--force` only for files a template explicitly
+marks as replaceable. Project creation confirmation defaults to yes.
+
+Custom templates use an HTTPS Git URL or absolute `file://` URI as `--template`. They require an
+interactive trust confirmation or `--trust-template`; `--yes` does not grant trust. Git sources accept
+`--ref`. Pass values with repeated `--answer KEY=VALUE` options. Generated files belong to the project
+and are never overwritten when their contents diverge unless the operation explicitly permits it.
 
 ## Writing a generator
 
@@ -40,9 +54,9 @@ widget = "my_package.generators:widget"
 Generator names are discovered without importing their commands. The selected generator loads when
 it is invoked, and a broken generator reports an error without blocking the others.
 
-Every run resolves explicit Click values before interview answers and defaults, prepares and previews
-the complete change plan before writing, and applies it with conflict checks and rollback. `--yes`
-never prompts, while `--dry-run` never writes.
+Every run resolves explicit Click values before interview answers and defaults, previews the complete
+change plan without file diffs unless `--diff` is set, and applies it with conflict checks and rollback.
+`--yes` never prompts, while `--dry-run` never writes.
 
 Bound questions must use scalar, value-exposing Click parameters without prompts or callbacks.
 Command-line values are explicit;
@@ -68,5 +82,6 @@ target project. ZIP sources are not supported.
 A `kupala.commands` entry point targets a callback that accepts `kupala.commands.Commands`. Kupala
 calls the callback with a fresh registry for every CLI build, then compiles its definitions through
 Kupala's dependency-injection path. Groups such as `gen` run without resolving `KUPALA_APP`.
+Application-independent leaf commands use `BootstrapCommand` and `Commands.bootstrap()`.
 Application commands load lazily when no installed command matches. Plugin failures are logged
 without exception details.

@@ -1,0 +1,10 @@
+from kupala.requests import Request
+from kupala.responses import Response, response
+from kupala.routing import Routes
+
+routes = Routes()
+
+
+@routes.get("/")
+async def index_view(request: Request) -> Response:
+    return response(request).text({{ ("Hello from " ~ name ~ "!") | tojson }})

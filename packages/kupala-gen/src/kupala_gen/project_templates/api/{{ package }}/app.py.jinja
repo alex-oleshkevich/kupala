@@ -1,0 +1,6 @@
+from kupala.applications import Kupala
+
+from {{ package }}.api import api
+from {{ package }}.config import settings
+
+app = Kupala(__name__, debug=settings.debug, extensions=[api])

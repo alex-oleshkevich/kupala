@@ -1,5 +1,7 @@
 import importlib.metadata
 
+from starlette.testclient import TestClient
+
 from kupala.applications import Kupala
 from kupala.commands import Commands
 from kupala.extensions import AppBuilder
@@ -38,6 +40,7 @@ __all__ = [
     "Routes",
     "SSEResponse",
     "StreamingResponse",
+    "TestClient",
     "response",
 ]
 

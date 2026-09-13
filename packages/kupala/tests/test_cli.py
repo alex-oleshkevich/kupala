@@ -329,6 +329,30 @@ class TestBuildCli:
 
         assert sorted(cli.build_cli(None).commands) == ["plugged"]
 
+    def test_a_bootstrap_command_skips_application_loading(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        def register(commands: commands_module.Commands) -> None:
+            commands.bootstrap(commands_module.BootstrapCommand("new", callback=lambda: click.echo("ready")))
+
+        installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: register)])
+        monkeypatch.setenv(cli.APP_ENV_VAR, "never.imported:app")
+
+        assert cli.main(["new"]) == 0
+        assert capsys.readouterr().out == "ready\n"
+
+    def test_an_application_command_cannot_replace_a_bootstrap_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        installed_command = commands_module.BootstrapCommand("new", callback=lambda: None)
+        owned = click.Command("new", callback=lambda: None)
+
+        def register(commands: commands_module.Commands) -> None:
+            commands.bootstrap(installed_command)
+
+        installed(monkeypatch, plugins=[PluginEntryPoint("p", lambda: register)])
+        group = cli.build_cli(make_app(commands=[owned]))
+
+        assert group.get_command(click.Context(group), "new") is installed_command
+
     def test_a_plugin_group_keeps_its_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         owned = click.Command(name="shared", callback=lambda: None)
 

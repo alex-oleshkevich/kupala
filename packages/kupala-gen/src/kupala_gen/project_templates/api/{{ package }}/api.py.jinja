@@ -1,0 +1,22 @@
+from kupala.api import APIExtension, standard_docs
+from kupala.responses import JSONResponse
+from kupala.routing import Routes
+from kupala.schema.openapi import Info, OpenAPI
+
+routes = Routes(tags=["example"])
+
+
+@routes.get("/")
+async def index_view() -> JSONResponse[dict[str, str]]:
+    """Return an API greeting."""
+
+    return JSONResponse({"message": {{ ("Hello from " ~ name ~ "!") | tojson }}})
+
+
+api = APIExtension(
+    "/api",
+    namespace="api",
+    routes=routes,
+    openapi=OpenAPI(info=Info(title={{ (name ~ " API") | tojson }}, version="1.0.0")),
+    docs=standard_docs(ui="swagger"),
+)

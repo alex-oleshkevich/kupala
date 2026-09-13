@@ -35,6 +35,10 @@ class CommandDefinition:
     attrs: dict[str, typing.Any]
 
 
+class BootstrapCommand(click.Command):
+    """A command that runs without loading an application."""
+
+
 group = click.group
 option = click.option
 argument = click.argument
@@ -47,7 +51,7 @@ class Commands:
 
     def __init__(self) -> None:
         self.definitions: list[CommandDefinition] = []
-        self.groups: list[click.Group] = []
+        self.groups: list[click.Command] = []
 
     def group(self, name: str | None = None, **attrs: typing.Any) -> typing.Callable[[CommandFunction], click.Group]:
         """Build a group of commands, collecting it so `compile` hands it to the command line.
@@ -79,6 +83,11 @@ class Commands:
             return fn
 
         return decorator
+
+    def bootstrap(self, command: BootstrapCommand) -> None:
+        """Register a command that does not need an application."""
+
+        self.groups.append(command)
 
     def add(self, definition: CommandDefinition) -> None:
         self.definitions.append(definition)

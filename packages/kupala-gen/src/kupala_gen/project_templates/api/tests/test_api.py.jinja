@@ -1,0 +1,9 @@
+from kupala import TestClient
+
+
+class TestAPI:
+    def test_index_view(self, client: TestClient) -> None:
+        response = client.get("/api/")
+
+        assert response.status_code == 200
+        assert response.json() == {"message": {{ ("Hello from " ~ name ~ "!") | tojson }}}

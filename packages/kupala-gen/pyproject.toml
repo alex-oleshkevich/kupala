@@ -11,6 +11,7 @@ dependencies = [
   "dulwich>=0.25",
   "kupala",
   "libcst>=1.8",
+  "packaging>=26.0",
   "questionary>=2.1.1",
 ]
 
