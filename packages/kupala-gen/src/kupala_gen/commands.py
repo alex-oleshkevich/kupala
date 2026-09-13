@@ -215,4 +215,5 @@ def build_gen_command(commands: Commands) -> click.Group:
     def add() -> None:
         """Add a feature to the current project."""
 
+    commands.bootstrap(typing.cast(BootstrapCommand, add))
     return gen
