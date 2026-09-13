@@ -1,4 +1,5 @@
 from demo.dependencies import Currency, ProductCatalog
+from demo.security import DemoBasicIdentity
 from kupala.middleware import CallNext
 from kupala.requests import Request
 from kupala.responses import Response, response
@@ -16,6 +17,15 @@ async def example_middleware(request: Request, call_next: CallNext) -> Response:
     response = await call_next(request)
     print("AFTER APP_REG")
     return response
+
+
+async def require_basic_auth(
+    request: Request,
+    call_next: CallNext,
+    /,
+    _identity: DemoBasicIdentity,
+) -> Response:
+    return await call_next(request)
 
 
 # middleware is invoked through the injector, exactly like an endpoint: everything after `/` is
