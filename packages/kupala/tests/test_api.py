@@ -16,6 +16,7 @@ from kupala.api import (
     standard_docs,
 )
 from kupala.applications import Kupala
+from kupala.errors import InvalidCredentialsError
 from kupala.extensions import AppBuilder
 from kupala.middleware import CallNext
 from kupala.params import Body
@@ -24,6 +25,7 @@ from kupala.responses import Response
 from kupala.routing import Routes
 from kupala.schema.builder import DuplicateOperationError
 from kupala.schema.openapi import Info, OpenAPI
+from kupala.security import Bearer, Identity
 from kupala.templates import Templates
 
 ALL_DOCS = DocsOptions(
@@ -161,6 +163,65 @@ class TestDocument:
             document = client.get("/api/openapi.json").json()
 
         assert document["components"]["schemas"]["Payload"] == {"type": "string"}
+
+    def test_application_middleware_security_is_documented_and_cached(self) -> None:
+        calls = 0
+
+        def authenticate(token: str) -> Identity[str]:
+            nonlocal calls
+            calls += 1
+            if token != "valid":
+                raise InvalidCredentialsError()
+
+            return Identity(token)
+
+        type CurrentUser = typing.Annotated[
+            Identity[str],
+            Bearer[str](realm="test", name="application", authenticate=authenticate),
+        ]
+
+        async def require_user(
+            request: Request,
+            call_next: CallNext,
+            /,
+            user: CurrentUser,
+        ) -> Response:
+            return await call_next(request)
+
+        routes = Routes()
+
+        @routes.get("/private")
+        async def private(user: CurrentUser) -> Response:
+            return Response(user.principal)
+
+        @routes.get("/guarded")
+        async def guarded() -> Response:
+            return Response()
+
+        api = APIExtension("/api", routes=routes)
+        app = Kupala("tests", routes=Routes(), middleware=[require_user], extensions=[api])
+
+        with TestClient(app) as client:
+            unauthenticated = client.get("/api/private")
+            invalid = client.get("/api/private", headers={"Authorization": "Bearer invalid"})
+            authenticated = client.get("/api/private", headers={"Authorization": "Bearer valid"})
+            guarded_response = client.get("/api/guarded", headers={"Authorization": "Bearer valid"})
+            document = api.document()
+
+        assert unauthenticated.status_code == 401
+        assert unauthenticated.headers["www-authenticate"] == 'Bearer realm="test"'
+        assert invalid.status_code == 401
+        assert invalid.headers["www-authenticate"] == 'Bearer realm="test", error="invalid_token"'
+        assert authenticated.status_code == 200
+        assert authenticated.text == "valid"
+        assert guarded_response.status_code == 200
+        assert calls == 3
+        components = document.components
+        assert components is not None
+        assert list(components.security_schemes or {}) == ["application"]
+        operation = (document.paths or {})["/api/guarded"].get
+        assert operation is not None
+        assert operation.security == ({"application": ()},)
 
     def test_names_itself_when_no_info_is_given(self) -> None:
         api = APIExtension("/api", docs=DocsOptions(openapi_path="/openapi.json"))

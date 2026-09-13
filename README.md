@@ -162,6 +162,31 @@ type CurrentIdentity = Annotated[
 ]
 ```
 
+Require the identity for every route in an application by resolving it in middleware. The endpoint may declare the
+same alias when it needs the principal; both uses share one request cache, and API extensions include the application
+middleware requirement in their generated OpenAPI documents.
+
+```python
+from kupala.api import APIExtension
+from kupala.applications import Kupala
+from kupala.middleware import CallNext
+from kupala.requests import Request
+from kupala.responses import Response
+
+
+async def require_identity(
+    request: Request,
+    call_next: CallNext,
+    /,
+    identity: CurrentIdentity,
+) -> Response:
+    return await call_next(request)
+
+
+api = APIExtension("/api", routes=routes)
+app = Kupala("example", middleware=[require_identity], extensions=[api])
+```
+
 ## OAuth2 access tokens
 
 `OAuth2` validates a Bearer access token, enforces the route's required scopes, and publishes the authorization

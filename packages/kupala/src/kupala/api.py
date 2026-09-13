@@ -87,6 +87,7 @@ class APIExtension:
         self._document: OpenAPI | None = None
         self._serialized: bytes | None = None
         self._binders: tuple[ModelBinder, ...] | None = None
+        self._application_middleware: tuple[Middleware, ...] = ()
 
         ui_paths = (self.docs.swagger_path, self.docs.redoc_path, self.docs.scalar_path)
         if self.docs.openapi_path is None and any(path is not None for path in ui_paths):
@@ -116,6 +117,7 @@ class APIExtension:
         """
 
         self._binders = tuple(app.model_binders)
+        self._application_middleware = tuple(app.middleware)
         self._document = None
         self._serialized = None
         self.serialize()
@@ -126,7 +128,8 @@ class APIExtension:
 
         if self._document is None:
             binders = self._binders if self._binders is not None else DEFAULT_MODEL_BINDERS
-            self._document = OpenAPIBuilder(binders, namer=self.schema_namer).build(self.routes, self.openapi)
+            routes = Routes(middleware=self._application_middleware, children=(self.routes,))
+            self._document = OpenAPIBuilder(binders, namer=self.schema_namer).build(routes, self.openapi)
         return self._document
 
     def serialize(self) -> bytes:

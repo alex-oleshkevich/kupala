@@ -39,10 +39,14 @@ def unwrap_alias(annotation: typing.Any) -> typing.Any:
 
     while True:
         if isinstance(annotation, typing.TypeAliasType):
-            annotation = annotationlib.call_evaluate_function(
-                annotation.evaluate_value,
-                format=annotationlib.Format.FORWARDREF,
-            )
+            try:
+                annotation = annotation.__value__
+            except NameError:
+                annotation = annotationlib.call_evaluate_function(
+                    annotation.evaluate_value,
+                    format=annotationlib.Format.FORWARDREF,
+                )
+
             continue
 
         origin = typing.get_origin(annotation)

@@ -1,3 +1,4 @@
+import annotationlib
 import typing
 
 from kupala.inspection import (
@@ -59,6 +60,11 @@ class TestUnwrapAlias:
 
     def test_resolves_union_alias(self) -> None:
         assert unwrap_alias(_MaybeStr) == str | None
+
+    def test_preserves_an_unresolved_forward_reference(self) -> None:
+        type MissingAlias = Missing  # type: ignore[name-defined]  # noqa: F821
+
+        assert isinstance(unwrap_alias(MissingAlias), annotationlib.ForwardRef)
 
 
 class TestUnwrapAnnotation:
